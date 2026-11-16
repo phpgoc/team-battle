@@ -3,11 +3,11 @@ package main
 import (
 	"crypto/rand"
 	"database/sql"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -25,8 +25,13 @@ func defaultDatabasePath() string {
 func runInit(args []string) error {
 	flags := flag.NewFlagSet("init", flag.ContinueOnError)
 	dbPath := flags.String("db", "", "SQLite database path")
+	username := flags.String("user", "admin", "superadmin username")
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	accountName := strings.TrimSpace(*username)
+	if accountName == "" {
+		return fmt.Errorf("--user 不能为空")
 	}
 	path := *dbPath
 	if path == "" {
@@ -46,15 +51,6 @@ func runInit(args []string) error {
 		return err
 	}
 
-	var existingID int64
-	err = db.QueryRow(`SELECT id FROM users WHERE role=? ORDER BY id LIMIT 1`, roleSuperAdmin).Scan(&existingID)
-	if err == nil {
-		return fmt.Errorf("超级管理员已存在，ID=%d；为避免意外覆盖，未重置密码", existingID)
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return err
-	}
-
 	password, err := randomAdminPassword(24)
 	if err != nil {
 		return err
@@ -63,15 +59,15 @@ func runInit(args []string) error {
 	if err != nil {
 		return err
 	}
-	result, err := db.Exec(`INSERT INTO users(username, display_name, password_hash, role) VALUES(?,?,?,?)`, "admin", "超级管理员", string(hash), roleSuperAdmin)
+	result, err := db.Exec(`INSERT INTO users(username, display_name, password_hash, role) VALUES(?,?,?,?)`, accountName, "超级管理员", string(hash), roleSuperAdmin)
 	if err != nil {
-		return err
+		return fmt.Errorf("账号 %q 已存在或无法创建: %w", accountName, err)
 	}
 	id, err := result.LastInsertId()
 	if err != nil {
 		return err
 	}
-	fmt.Printf("超级管理员初始化成功\n账号：admin\nID：%d\n随机密码：%s\n", id, password)
+	fmt.Printf("超级管理员初始化成功\n账号：%s\nID：%d\n随机密码：%s\n", accountName, id, password)
 	return nil
 }
 

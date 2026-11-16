@@ -55,10 +55,10 @@ go build -o team-battle .
 ./team-battle init
 ```
 
-也可以为指定数据库初始化：
+默认账号名是 `admin`。可以使用 `--user` 指定账号名，也可以指定数据库：
 
 ```text
-./team-battle init --db ./data/battle.sqlite
+./team-battle init --user admin-root --db ./data/battle.sqlite
 ```
 
-如果数据库已经存在超级管理员，初始化命令不会覆盖原密码。
+每次使用不同账号名都可以创建新的超级管理员；如果账号名已经存在，命令会拒绝创建，也不会覆盖原密码。
