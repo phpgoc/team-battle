@@ -101,6 +101,10 @@ func (a *App) updateProfile(c *gin.Context) {
 			fail(c, http.StatusBadRequest, "新密码至少需要6位")
 			return
 		}
+		if req.NewPassword != req.NewPasswordConfirm {
+			fail(c, http.StatusBadRequest, "两次输入的新密码不一致")
+			return
+		}
 		newHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 		if err != nil {
 			fail(c, http.StatusInternalServerError, "密码处理失败")
@@ -253,8 +257,8 @@ func (a *App) createUser(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "请填写完整的账号信息")
 		return
 	}
-	if req.Role == roleSuperAdmin {
-		fail(c, http.StatusBadRequest, "不能通过此接口创建超级管理员")
+	if req.Role != roleSuperAdmin && req.Role != rolePlayer && req.Role != roleUser {
+		fail(c, http.StatusBadRequest, "账号角色只能是超级管理员或选手")
 		return
 	}
 	if strings.TrimSpace(req.DisplayName) == "" {
@@ -265,7 +269,11 @@ func (a *App) createUser(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "密码处理失败")
 		return
 	}
-	result, err := a.db.Exec(`INSERT INTO users(username, display_name, password_hash, role) VALUES(?,?,?,?)`, strings.TrimSpace(req.Username), strings.TrimSpace(req.DisplayName), string(hash), roleUser)
+	accountRole := roleUser
+	if req.Role == roleSuperAdmin {
+		accountRole = roleSuperAdmin
+	}
+	result, err := a.db.Exec(`INSERT INTO users(username, display_name, password_hash, role) VALUES(?,?,?,?)`, strings.TrimSpace(req.Username), strings.TrimSpace(req.DisplayName), string(hash), accountRole)
 	if err != nil {
 		fail(c, http.StatusBadRequest, "账号名已存在或信息无效")
 		return

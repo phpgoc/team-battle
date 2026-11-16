@@ -33,6 +33,7 @@ func (a *App) router() *gin.Engine {
 	api.PATCH("/auth/profile", a.updateProfile)
 	api.POST("/auth/avatar", a.uploadAvatar)
 	api.GET("/settings/catalog", a.settingsCatalog)
+	api.GET("/categories/:id/icon", a.categoryIcon)
 	api.GET("/users/:id/avatar", a.avatar)
 	api.GET("/public/events", a.publicEvents)
 	api.GET("/public/history", a.publicHistory)

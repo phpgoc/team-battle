@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -112,20 +113,39 @@ func (a *App) loadTeams(eventID int64) ([]map[string]any, error) {
 }
 
 func (a *App) loadPlayers(eventID, teamID int64) ([]map[string]any, error) {
-	rows, err := a.db.Query(`SELECT ep.user_id,u.username,u.display_name,ep.is_captain,ep.active FROM event_players ep JOIN users u ON u.id=ep.user_id WHERE ep.event_id=? AND ep.team_id=? ORDER BY ep.is_captain DESC,u.display_name`, eventID, teamID)
+	rows, err := a.db.Query(`SELECT ep.user_id,u.username,u.display_name,ep.is_captain,ep.active,COALESCE(u.category_id,0),CASE WHEN u.avatar_data IS NULL OR length(u.avatar_data)=0 THEN 0 ELSE 1 END FROM event_players ep JOIN users u ON u.id=ep.user_id WHERE ep.event_id=? AND ep.team_id=? ORDER BY ep.is_captain DESC,u.display_name`, eventID, teamID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	players := []map[string]any{}
+	type playerRow struct {
+		id, categoryID          int64
+		username, displayName   string
+		captain, active, avatar int
+	}
+	playerRows := []playerRow{}
 	for rows.Next() {
-		var id int64
-		var username, displayName string
-		var captain, active int
-		if err := rows.Scan(&id, &username, &displayName, &captain, &active); err != nil {
+		var row playerRow
+		if err := rows.Scan(&row.id, &row.username, &row.displayName, &row.captain, &row.active, &row.categoryID, &row.avatar); err != nil {
 			return nil, err
 		}
-		players = append(players, gin.H{"id": id, "username": username, "display_name": displayName, "is_captain": captain == 1, "active": active == 1})
+		playerRows = append(playerRows, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	players := make([]map[string]any, 0, len(playerRows))
+	for _, row := range playerRows {
+		item := gin.H{"id": row.id, "username": row.username, "display_name": row.displayName, "is_captain": row.captain == 1, "active": row.active == 1, "category_id": row.categoryID}
+		if row.avatar == 1 {
+			item["avatar_url"] = "/api/users/" + strconv.FormatInt(row.id, 10) + "/avatar"
+		}
+		if category, ok := a.categoryInfo(row.categoryID); ok {
+			item["category_name"] = category.Name
+			item["category_icon"] = category.IconURL
+		}
+		players = append(players, item)
 	}
 	return players, nil
 }

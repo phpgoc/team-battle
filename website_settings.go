@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -95,12 +97,12 @@ func (a *App) createCategory(c *gin.Context) {
 	if !a.requireSuperAdmin(c) {
 		return
 	}
-	var req categoryRequest
-	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Name) == "" {
+	name, data, mimeType, err := readCategoryForm(c, true)
+	if err != nil || strings.TrimSpace(name) == "" {
 		fail(c, http.StatusBadRequest, "分类名不能为空")
 		return
 	}
-	if _, err := a.db.Exec(`INSERT INTO categories(name,icon,sort_order) VALUES(?,?,COALESCE((SELECT MAX(sort_order)+1 FROM categories),0))`, strings.TrimSpace(req.Name), strings.TrimSpace(req.Icon)); err != nil {
+	if _, err := a.db.Exec(`INSERT INTO categories(name,icon,icon_data,icon_mime,sort_order) VALUES(?,?,?, ?,COALESCE((SELECT MAX(sort_order)+1 FROM categories),0))`, strings.TrimSpace(name), "", data, mimeType); err != nil {
 		fail(c, http.StatusBadRequest, "分类已存在或无法创建")
 		return
 	}
@@ -117,12 +119,18 @@ func (a *App) updateCategory(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "分类编号无效")
 		return
 	}
-	var req categoryRequest
-	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Name) == "" {
+	name, data, mimeType, err := readCategoryForm(c, false)
+	if err != nil || strings.TrimSpace(name) == "" {
 		fail(c, http.StatusBadRequest, "分类名不能为空")
 		return
 	}
-	if _, err := a.db.Exec(`UPDATE categories SET name=?,icon=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, strings.TrimSpace(req.Name), strings.TrimSpace(req.Icon), id); err != nil {
+	var updateErr error
+	if len(data) > 0 {
+		_, updateErr = a.db.Exec(`UPDATE categories SET name=?,icon='',icon_data=?,icon_mime=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, strings.TrimSpace(name), data, mimeType, id)
+	} else {
+		_, updateErr = a.db.Exec(`UPDATE categories SET name=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, strings.TrimSpace(name), id)
+	}
+	if updateErr != nil {
 		fail(c, http.StatusBadRequest, "分类已存在或无法修改")
 		return
 	}
@@ -149,6 +157,48 @@ func (a *App) deleteCategory(c *gin.Context) {
 	}
 	a.invalidateCategoryDirectory()
 	ok(c, gin.H{"ok": true})
+}
+
+func (a *App) categoryIcon(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		fail(c, http.StatusBadRequest, "分类编号无效")
+		return
+	}
+	var data []byte
+	var mimeType string
+	if err := a.db.QueryRow(`SELECT icon_data,icon_mime FROM categories WHERE id=?`, id).Scan(&data, &mimeType); err != nil || len(data) == 0 {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	c.Header("Cache-Control", "public, max-age=300")
+	c.Data(http.StatusOK, mimeType, data)
+}
+
+func readCategoryForm(c *gin.Context, requiredIcon bool) (string, []byte, string, error) {
+	name := strings.TrimSpace(c.PostForm("name"))
+	file, header, err := c.Request.FormFile("icon")
+	if err != nil {
+		if requiredIcon {
+			return name, nil, "", err
+		}
+		return name, nil, "", nil
+	}
+	defer file.Close()
+	if header.Size > 2*1024*1024 {
+		return name, nil, "", fmt.Errorf("分类图标不能超过2MB")
+	}
+	data, err := io.ReadAll(io.LimitReader(file, 2*1024*1024+1))
+	if err != nil || len(data) == 0 || len(data) > 2*1024*1024 {
+		return name, nil, "", fmt.Errorf("分类图标无效")
+	}
+	mimeType := http.DetectContentType(data)
+	switch mimeType {
+	case "image/jpeg", "image/png", "image/gif", "image/webp":
+	default:
+		return name, nil, "", fmt.Errorf("分类图标只支持 JPG、PNG、GIF 或 WebP")
+	}
+	return name, data, mimeType, nil
 }
 
 func (a *App) requireSuperAdmin(c *gin.Context) bool {

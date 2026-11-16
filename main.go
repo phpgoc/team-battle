@@ -81,10 +81,11 @@ type loginRequest struct {
 }
 
 type profileRequest struct {
-	DisplayName     string `json:"display_name"`
-	CurrentPassword string `json:"current_password"`
-	NewPassword     string `json:"new_password"`
-	CategoryID      *int64 `json:"category_id"`
+	DisplayName        string `json:"display_name"`
+	CurrentPassword    string `json:"current_password"`
+	NewPassword        string `json:"new_password"`
+	NewPasswordConfirm string `json:"new_password_confirm"`
+	CategoryID         *int64 `json:"category_id"`
 }
 
 type catalogNameRequest struct {
@@ -118,7 +119,7 @@ type createUserRequest struct {
 	Username    string `json:"username" binding:"required"`
 	Password    string `json:"password" binding:"required"`
 	DisplayName string `json:"display_name"`
-	Role        string `json:"role"`
+	Role        string `json:"role" binding:"required"`
 }
 
 type createEventRequest struct {

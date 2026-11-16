@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"log"
@@ -68,6 +69,8 @@ func runTestServer(args []string) error {
 	return app.router().Run(addr)
 }
 
+const testAvatarPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+
 func seedTestData(db *sql.DB) error {
 	var existing int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM users WHERE username='test-admin'`).Scan(&existing); err != nil {
@@ -82,8 +85,12 @@ func seedTestData(db *sql.DB) error {
 	}
 	defer tx.Rollback()
 	categoryIDs := map[string]int64{}
+	iconData, err := base64.StdEncoding.DecodeString(testAvatarPNG)
+	if err != nil {
+		return err
+	}
 	for _, category := range testCategories {
-		if _, err := tx.Exec(`INSERT INTO categories(name,icon,sort_order) VALUES(?,?,?)`, category.name, category.icon, len(categoryIDs)); err != nil {
+		if _, err := tx.Exec(`INSERT INTO categories(name,icon,icon_data,icon_mime,sort_order) VALUES(?,?,?, ?,?)`, category.name, "", iconData, "image/png", len(categoryIDs)); err != nil {
 			return err
 		}
 		var categoryID int64
@@ -105,9 +112,13 @@ func seedTestData(db *sql.DB) error {
 	if err != nil {
 		return err
 	}
+	avatarData, err := base64.StdEncoding.DecodeString(testAvatarPNG)
+	if err != nil {
+		return err
+	}
 	ids := map[string]int64{}
 	for _, account := range accounts {
-		if _, err := tx.Exec(`INSERT INTO users(username,display_name,password_hash,role,category_id) VALUES(?,?,?,?,?)`, account.username, account.display, string(hash), account.role, categoryIDs[account.category]); err != nil {
+		if _, err := tx.Exec(`INSERT INTO users(username,display_name,password_hash,role,category_id,avatar_data,avatar_mime) VALUES(?,?,?,?,?,?,?)`, account.username, account.display, string(hash), account.role, categoryIDs[account.category], avatarData, "image/png"); err != nil {
 			return err
 		}
 		var userID int64
@@ -116,18 +127,18 @@ func seedTestData(db *sql.DB) error {
 		}
 		ids[account.username] = userID
 	}
-	players := []int64{}
+	players := []int64{ids["test-manager-1"], ids["test-manager-2"]}
 	for i := 1; i <= 7; i++ {
 		players = append(players, ids[fmt.Sprintf("test-player-%02d", i)])
 	}
 	managerID := ids["test-manager-1"]
 	adminID := ids["test-admin"]
 	for i, scores := range []struct{ a, b int }{{4, 2}, {3, 4}, {5, 3}} {
-		if err := seedCompletedTestEvent(tx, managerID, adminID, players[:6], fmt.Sprintf("测试历史赛事 %d", i+1), time.Now().AddDate(0, 0, -i-1).Format("2006-01-02T15:04"), scores.a, scores.b); err != nil {
+		if err := seedCompletedTestEvent(tx, managerID, adminID, players, fmt.Sprintf("测试历史赛事 %d", i+1), time.Now().AddDate(0, 0, -i-1).Format("2006-01-02T15:04"), scores.a, scores.b); err != nil {
 			return err
 		}
 	}
-	if err := seedLiveTestEvent(tx, managerID, adminID, players[:6]); err != nil {
+	if err := seedLiveTestEvent(tx, managerID, adminID, players); err != nil {
 		return err
 	}
 	return tx.Commit()

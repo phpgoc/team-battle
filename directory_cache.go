@@ -3,9 +3,9 @@ package main
 import "sync"
 
 type categoryInfo struct {
-	ID   int64
-	Name string
-	Icon string
+	ID      int64
+	Name    string
+	IconURL string
 }
 
 type categoryDirectoryCache struct {
@@ -37,7 +37,7 @@ func (a *App) categoryInfo(id int64) (categoryInfo, bool) {
 }
 
 func (a *App) reloadCategoryDirectory() error {
-	rows, err := a.db.Query(`SELECT id,name,icon FROM categories ORDER BY sort_order,id`)
+	rows, err := a.db.Query(`SELECT id,name,CASE WHEN icon_data IS NULL OR length(icon_data)=0 THEN '' ELSE '/api/categories/' || id || '/icon' END FROM categories ORDER BY sort_order,id`)
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func (a *App) reloadCategoryDirectory() error {
 	ordered := []int64{}
 	for rows.Next() {
 		var item categoryInfo
-		if err := rows.Scan(&item.ID, &item.Name, &item.Icon); err != nil {
+		if err := rows.Scan(&item.ID, &item.Name, &item.IconURL); err != nil {
 			return err
 		}
 		byID[item.ID] = item
@@ -107,7 +107,7 @@ func (a *App) cachedCategories() ([]map[string]any, error) {
 	items := make([]map[string]any, 0, len(ids))
 	for _, id := range ids {
 		item := byID[id]
-		items = append(items, map[string]any{"id": item.ID, "name": item.Name, "icon": item.Icon})
+		items = append(items, map[string]any{"id": item.ID, "name": item.Name, "icon": item.IconURL, "icon_url": item.IconURL})
 	}
 	return items, nil
 }
@@ -126,6 +126,6 @@ func (a *App) populateCategory(user *User) {
 	a.directory.mu.RUnlock()
 	if item, ok := a.categoryInfo(user.CategoryID); ok {
 		user.CategoryName = item.Name
-		user.CategoryIcon = item.Icon
+		user.CategoryIcon = item.IconURL
 	}
 }

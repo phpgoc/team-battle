@@ -185,6 +185,8 @@ func migrate(db *sql.DB) error {
 	for _, column := range []struct{ table, name, definition string }{
 		{"users", "avatar_version", "INTEGER NOT NULL DEFAULT 0"},
 		{"users", "category_id", "INTEGER"},
+		{"categories", "icon_data", "BLOB"},
+		{"categories", "icon_mime", "TEXT NOT NULL DEFAULT ''"},
 		{"events", "round1_no_repeat", "INTEGER NOT NULL DEFAULT 1"},
 		{"events", "round1_all_first", "INTEGER NOT NULL DEFAULT 1"},
 		{"events", "kof_initial_a", "INTEGER"},

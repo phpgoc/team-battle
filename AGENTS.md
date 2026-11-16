@@ -41,7 +41,7 @@
 
 核心表包括：`users`、`events`、`teams`、`event_players`、`captain_votes`、`lineup_entries`、`rounds`、`matches`、`event_actions`、`sessions`、`categories` 和 `site_event_names`。
 
-账号只有 `superadmin` 和非超级管理员两层；赛事管理员由 `events.manager_id` 关联，参赛选手由 `event_players` 关联。分类目录在进程内缓存，分类变更后失效并重新加载。
+账号只有 `superadmin` 和非超级管理员两层；赛事管理员由 `events.manager_id` 关联，参赛选手由 `event_players` 关联。分类目录在进程内缓存，分类变更后失效并重新加载。分类图标以图片二进制和 MIME 保存，不使用 emoji 字符代替图片。
 
 比赛阶段建议使用：`draft`、`captain_vote`、`lineup_confirm`、`round1`、`round2`、`ace`、`completed`、`cancelled`。
 
