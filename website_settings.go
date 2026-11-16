@@ -104,6 +104,7 @@ func (a *App) createCategory(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "分类已存在或无法创建")
 		return
 	}
+	a.invalidateCategoryDirectory()
 	ok(c, gin.H{"ok": true})
 }
 
@@ -125,6 +126,7 @@ func (a *App) updateCategory(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "分类已存在或无法修改")
 		return
 	}
+	a.invalidateCategoryDirectory()
 	ok(c, gin.H{"ok": true})
 }
 
@@ -145,6 +147,7 @@ func (a *App) deleteCategory(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "删除分类失败")
 		return
 	}
+	a.invalidateCategoryDirectory()
 	ok(c, gin.H{"ok": true})
 }
 
@@ -180,19 +183,5 @@ func (a *App) loadEventNames() ([]map[string]any, error) {
 }
 
 func (a *App) loadCategories() ([]map[string]any, error) {
-	rows, err := a.db.Query(`SELECT id,name,icon FROM categories ORDER BY sort_order,id`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []map[string]any{}
-	for rows.Next() {
-		var id int64
-		var name, icon string
-		if err := rows.Scan(&id, &name, &icon); err != nil {
-			return nil, err
-		}
-		items = append(items, gin.H{"id": id, "name": name, "icon": icon})
-	}
-	return items, rows.Err()
+	return a.cachedCategories()
 }

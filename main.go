@@ -20,6 +20,7 @@ var webFS embed.FS
 
 const (
 	roleSuperAdmin = "superadmin"
+	roleUser       = "user"
 	roleManager    = "manager"
 	rolePlayer     = "player"
 
@@ -41,13 +42,18 @@ const (
 	stageAce    = "ace"
 )
 
+func isNonSuperAdmin(role string) bool {
+	return role != "" && role != roleSuperAdmin
+}
+
 type App struct {
-	db       *sql.DB
-	sessions map[string]int64
-	mu       sync.RWMutex
-	writeMu  sync.Mutex
-	rng      *mathrand.Rand
-	history  historyCache
+	db        *sql.DB
+	sessions  map[string]int64
+	mu        sync.RWMutex
+	writeMu   sync.Mutex
+	rng       *mathrand.Rand
+	history   historyCache
+	directory categoryDirectoryCache
 }
 
 type historyCache struct {
@@ -57,14 +63,16 @@ type historyCache struct {
 }
 
 type User struct {
-	ID          int64  `json:"id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"display_name"`
-	Role        string `json:"role"`
-	Status      string `json:"status"`
-	AvatarURL   string `json:"avatar_url,omitempty"`
-	CreatedAt   string `json:"created_at"`
-	CategoryID  int64  `json:"category_id,omitempty"`
+	ID           int64  `json:"id"`
+	Username     string `json:"username"`
+	DisplayName  string `json:"display_name"`
+	Role         string `json:"role"`
+	Status       string `json:"status"`
+	AvatarURL    string `json:"avatar_url,omitempty"`
+	CreatedAt    string `json:"created_at"`
+	CategoryID   int64  `json:"category_id,omitempty"`
+	CategoryName string `json:"category_name,omitempty"`
+	CategoryIcon string `json:"category_icon,omitempty"`
 }
 
 type loginRequest struct {
@@ -110,7 +118,7 @@ type createUserRequest struct {
 	Username    string `json:"username" binding:"required"`
 	Password    string `json:"password" binding:"required"`
 	DisplayName string `json:"display_name"`
-	Role        string `json:"role" binding:"required"`
+	Role        string `json:"role"`
 }
 
 type createEventRequest struct {
@@ -146,6 +154,11 @@ type lineupRequest struct {
 	PlayerIDs []int64 `json:"player_ids"`
 }
 
+type addEventPlayersRequest struct {
+	PlayerIDs []int64 `json:"player_ids"`
+	TeamID    int64   `json:"team_id"`
+}
+
 type aceRequest struct {
 	PlayerAID int64 `json:"player_a_id" binding:"required"`
 	PlayerBID int64 `json:"player_b_id" binding:"required"`
@@ -154,6 +167,12 @@ type aceRequest struct {
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "init" {
 		if err := runInit(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "test" {
+		if err := runTestServer(os.Args[2:]); err != nil {
 			log.Fatal(err)
 		}
 		return

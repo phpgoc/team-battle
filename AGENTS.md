@@ -19,9 +19,8 @@
 
 ## 角色和权限
 
-- `superadmin`：可以管理所有账号、赛事和比赛状态，可以覆盖任何赛事管理员操作。
-- `manager`：只能管理被分配的赛事，可以配置排阵、推进比赛、录入结果和处理异常。
-- `player`：只能查看授权赛事、参加本队队长投票、查看排阵和比赛进度。
+- `superadmin`：可以管理所有账号、赛事和比赛状态。
+- `user`：非超级管理员账号；账号是否为某场赛事管理员由 `events.manager_id` 决定，是否为参赛选手由 `event_players` 决定。
 - 未登录用户只能访问公开赛事实时页和历史页，不能写入任何数据。
 
 ## 赛事业务规则
@@ -36,11 +35,13 @@
 - KOF 采用胜者留场、败者换人；败方没有可用选手时，从该队已出场选手中随机复活一人。
 - 两轮分别产生阶段胜者；如果阶段胜者不同，进入单场大将战。
 - 每次比赛状态变化都要写入审计日志，包含操作者、时间、动作和相关数据。
-- 比赛进入进行中后，普通赛事管理员不能修改队伍成员和赛事目标；超级管理员可以覆盖并记录原因。
+- 比赛进入进行中后，赛事管理员不能修改队伍成员和赛事目标；超级管理员可以覆盖并记录原因。
 
 ## 推荐数据边界
 
-核心表包括：`users`、`events`、`teams`、`event_players`、`captain_votes`、`lineup_entries`、`rounds`、`matches`、`event_actions` 和 `sessions`。
+核心表包括：`users`、`events`、`teams`、`event_players`、`captain_votes`、`lineup_entries`、`rounds`、`matches`、`event_actions`、`sessions`、`categories` 和 `site_event_names`。
+
+账号只有 `superadmin` 和非超级管理员两层；赛事管理员由 `events.manager_id` 关联，参赛选手由 `event_players` 关联。分类目录在进程内缓存，分类变更后失效并重新加载。
 
 比赛阶段建议使用：`draft`、`captain_vote`、`lineup_confirm`、`round1`、`round2`、`ace`、`completed`、`cancelled`。
 

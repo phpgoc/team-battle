@@ -27,12 +27,9 @@ func (a *App) listEvents(c *gin.Context) {
 		(SELECT COALESCE(SUM(r.score_b),0) FROM rounds r WHERE r.event_id=e.id) AS score_b
 		FROM events e LEFT JOIN users u ON u.id=e.manager_id`
 	args := []any{}
-	if user.Role == roleManager {
-		query += ` WHERE e.manager_id = ?`
-		args = append(args, user.ID)
-	} else if user.Role == rolePlayer {
-		query += ` WHERE EXISTS (SELECT 1 FROM event_players ep2 WHERE ep2.event_id=e.id AND ep2.user_id=?)`
-		args = append(args, user.ID)
+	if user.Role != roleSuperAdmin {
+		query += ` WHERE e.manager_id = ? OR EXISTS (SELECT 1 FROM event_players ep2 WHERE ep2.event_id=e.id AND ep2.user_id=?)`
+		args = append(args, user.ID, user.ID)
 	}
 	query += ` ORDER BY CASE e.status WHEN 'round1' THEN 0 WHEN 'round2' THEN 0 WHEN 'ace' THEN 0 WHEN 'draft' THEN 1 ELSE 2 END, e.updated_at DESC`
 	rows, err := a.db.Query(query, args...)
@@ -180,7 +177,7 @@ func (a *App) createEvent(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "赛事信息不完整")
 		return
 	}
-	if len(req.PlayerIDs) < 6 || len(req.PlayerIDs) > 12 {
+	if len(req.PlayerIDs) != 0 && (len(req.PlayerIDs) < 6 || len(req.PlayerIDs) > 12) {
 		fail(c, http.StatusBadRequest, "赛事总人数必须在6到12人之间")
 		return
 	}
@@ -199,10 +196,14 @@ func (a *App) createEvent(c *gin.Context) {
 		fail(c, http.StatusBadRequest, fmt.Sprintf("抢分目标不能小于%d", minTarget))
 		return
 	}
-	var managerRole string
-	if err := a.db.QueryRow(`SELECT role FROM users WHERE id=? AND status='active'`, req.ManagerID).Scan(&managerRole); err != nil || managerRole != roleManager {
-		fail(c, http.StatusBadRequest, "赛事管理员账号无效")
-		return
+	if req.ManagerID == 0 {
+		req.ManagerID = actor.ID
+	} else {
+		var managerRole string
+		if err := a.db.QueryRow(`SELECT role FROM users WHERE id=? AND status='active'`, req.ManagerID).Scan(&managerRole); err != nil || !isNonSuperAdmin(managerRole) {
+			fail(c, http.StatusBadRequest, "赛事管理员账号无效")
+			return
+		}
 	}
 	if strings.TrimSpace(req.TeamAName) == "" {
 		req.TeamAName = "赤队"
@@ -235,9 +236,11 @@ func (a *App) createEvent(c *gin.Context) {
 		return
 	}
 	teamB, _ := teamBResult.LastInsertId()
-	if err := assignPlayers(transaction, eventID, teamA, teamB, req.PlayerIDs, req.FixedAssignments, a.rng); err != nil {
-		fail(c, http.StatusBadRequest, err.Error())
-		return
+	if len(req.PlayerIDs) > 0 {
+		if err := assignPlayers(transaction, eventID, teamA, teamB, req.PlayerIDs, req.FixedAssignments, a.rng); err != nil {
+			fail(c, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 	for _, round := range []struct {
 		stage  string
@@ -342,7 +345,7 @@ func assignPlayers(tx *sql.Tx, eventID, teamA, teamB int64, ids []int64, fixed m
 		args = append(args, id)
 	}
 	var count int
-	if err := tx.QueryRow(`SELECT COUNT(*) FROM users WHERE id IN (`+strings.Join(placeholders, ",")+`) AND role='player' AND status='active'`, args...).Scan(&count); err != nil || count != len(ids) {
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM users WHERE id IN (`+strings.Join(placeholders, ",")+`) AND role<>'superadmin' AND status='active'`, args...).Scan(&count); err != nil || count != len(ids) {
 		return errors.New("参赛选手列表中存在无效账号")
 	}
 	remaining := append([]int64(nil), ids...)

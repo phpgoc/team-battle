@@ -16,7 +16,7 @@ func migrate(db *sql.DB) error {
 			username TEXT NOT NULL UNIQUE,
 			display_name TEXT NOT NULL,
 			password_hash TEXT NOT NULL,
-			role TEXT NOT NULL CHECK(role IN ('superadmin','manager','player')),
+			role TEXT NOT NULL CHECK(role IN ('superadmin','user','manager','player')),
 			status TEXT NOT NULL DEFAULT 'active',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -199,6 +199,9 @@ func migrate(db *sql.DB) error {
 		}
 	}
 	if _, err := db.Exec(`UPDATE matches SET round_no=CASE (SELECT stage FROM rounds WHERE id=matches.round_id) WHEN 'round1' THEN 1 WHEN 'round2' THEN 2 WHEN 'ace' THEN 3 ELSE 0 END,a_id=player_a_id,b_id=player_b_id,who_win=CASE WHEN winner_team_id IS NULL THEN '0' WHEN winner_team_id=team_a_id THEN 'a' ELSE 'b' END WHERE round_no IS NULL OR a_id IS NULL OR b_id IS NULL`); err != nil {
+		return err
+	}
+	if _, err := db.Exec(`UPDATE users SET role='user' WHERE role IN ('manager','player')`); err != nil {
 		return err
 	}
 	return nil

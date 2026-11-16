@@ -9,7 +9,7 @@ import (
 
 func (a *App) castCaptainVote(c *gin.Context) {
 	user, err := a.currentUser(c)
-	if err != nil || user.Role != rolePlayer {
+	if err != nil || !isNonSuperAdmin(user.Role) {
 		fail(c, http.StatusForbidden, "只有参赛选手可以投票")
 		return
 	}
@@ -115,7 +115,7 @@ func (a *App) submitLineup(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "当前阶段不能修改排阵")
 		return
 	}
-	managerAccess := (actor.Role == roleSuperAdmin || actor.Role == roleManager) && a.canManageEvent(actor.ID, actor.Role, eventID)
+	managerAccess := actor.Role == roleSuperAdmin || a.canManageEvent(actor.ID, actor.Role, eventID)
 	var body lineupRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		fail(c, http.StatusBadRequest, "排阵格式不正确")
@@ -132,10 +132,6 @@ func (a *App) submitLineup(c *gin.Context) {
 		return
 	}
 	if !managerAccess {
-		if actor.Role != rolePlayer {
-			fail(c, http.StatusForbidden, "无权提交排阵")
-			return
-		}
 		var captain int
 		if err := a.db.QueryRow(`SELECT is_captain FROM event_players WHERE event_id=? AND team_id=? AND user_id=? AND active=1`, eventID, body.TeamID, actor.ID).Scan(&captain); err != nil || captain != 1 {
 			fail(c, http.StatusForbidden, "只有本队队长可以提交排阵")

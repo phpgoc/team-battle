@@ -26,6 +26,7 @@ func (a *App) login(c *gin.Context) {
 	if categoryID.Valid {
 		user.CategoryID = categoryID.Int64
 	}
+	a.populateCategory(&user)
 	if err != nil || user.Status != "active" || bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)) != nil {
 		fail(c, http.StatusUnauthorized, "账号或密码错误")
 		return
@@ -93,6 +94,7 @@ func (a *App) updateProfile(c *gin.Context) {
 			fail(c, http.StatusInternalServerError, "保存分类失败")
 			return
 		}
+		a.invalidateCategoryDirectory()
 	}
 	if req.NewPassword != "" {
 		if len(req.NewPassword) < 6 {
@@ -196,6 +198,7 @@ func (a *App) listUsers(c *gin.Context) {
 		if categoryID.Valid {
 			item.CategoryID = categoryID.Int64
 		}
+		a.populateCategory(&item)
 		a.populateAvatarURL(&item)
 		users = append(users, item)
 	}
@@ -250,8 +253,8 @@ func (a *App) createUser(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "请填写完整的账号信息")
 		return
 	}
-	if req.Role != roleManager && req.Role != rolePlayer {
-		fail(c, http.StatusBadRequest, "角色只能是赛事管理员或普通选手")
+	if req.Role == roleSuperAdmin {
+		fail(c, http.StatusBadRequest, "不能通过此接口创建超级管理员")
 		return
 	}
 	if strings.TrimSpace(req.DisplayName) == "" {
@@ -262,7 +265,7 @@ func (a *App) createUser(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "密码处理失败")
 		return
 	}
-	result, err := a.db.Exec(`INSERT INTO users(username, display_name, password_hash, role) VALUES(?,?,?,?)`, strings.TrimSpace(req.Username), strings.TrimSpace(req.DisplayName), string(hash), req.Role)
+	result, err := a.db.Exec(`INSERT INTO users(username, display_name, password_hash, role) VALUES(?,?,?,?)`, strings.TrimSpace(req.Username), strings.TrimSpace(req.DisplayName), string(hash), roleUser)
 	if err != nil {
 		fail(c, http.StatusBadRequest, "账号名已存在或信息无效")
 		return
@@ -300,6 +303,7 @@ func (a *App) userByID(userID int64) (User, error) {
 	if categoryID.Valid {
 		user.CategoryID = categoryID.Int64
 	}
+	a.populateCategory(&user)
 	a.populateAvatarURL(&user)
 	return user, nil
 }
@@ -313,7 +317,7 @@ func (a *App) populateAvatarURL(user *User) {
 
 func (a *App) managerEvent(c *gin.Context) (User, int64, bool) {
 	actor, err := a.currentUser(c)
-	if err != nil || (actor.Role != roleSuperAdmin && actor.Role != roleManager) {
+	if err != nil || (!isNonSuperAdmin(actor.Role) && actor.Role != roleSuperAdmin) {
 		fail(c, http.StatusForbidden, "需要赛事管理员权限")
 		return User{}, 0, false
 	}
@@ -339,15 +343,19 @@ func (a *App) canManageEvent(userID int64, role string, eventID int64) bool {
 		return true
 	}
 	var exists int
-	return a.db.QueryRow(`SELECT COUNT(*) FROM events WHERE id=? AND manager_id=?`, eventID, userID).Scan(&exists) == nil && exists == 1
+	return isNonSuperAdmin(role) && a.db.QueryRow(`SELECT COUNT(*) FROM events WHERE id=? AND manager_id=?`, eventID, userID).Scan(&exists) == nil && exists == 1
 }
 
 func (a *App) canViewEvent(userID int64, role string, eventID int64) bool {
-	if role == roleSuperAdmin || role == roleManager {
-		if role == roleSuperAdmin {
-			return a.eventExists(eventID)
+	if role == roleSuperAdmin {
+		return a.eventExists(eventID)
+	}
+	if isNonSuperAdmin(role) {
+		if a.canManageEvent(userID, role, eventID) {
+			return true
 		}
-		return a.canManageEvent(userID, role, eventID)
+		var exists int
+		return a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=?`, eventID, userID).Scan(&exists) == nil && exists == 1
 	}
 	var exists int
 	return a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=?`, eventID, userID).Scan(&exists) == nil && exists == 1

@@ -45,6 +45,7 @@ func (a *App) router() *gin.Engine {
 	api.GET("/events", a.listEvents)
 	api.POST("/events", a.createEvent)
 	api.POST("/events/archive", a.archiveEvent)
+	api.POST("/events/:id/players", a.addEventPlayers)
 	api.GET("/site-settings", a.siteSettings)
 	api.POST("/site-settings/event-names", a.createEventName)
 	api.PATCH("/site-settings/event-names/:nameID", a.updateEventName)
