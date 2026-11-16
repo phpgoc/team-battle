@@ -47,4 +47,18 @@ go build -o team-battle .
 ./team-battle --db ./data/battle.sqlite --host 0.0.0.0 --port 9527
 ```
 
-程序只提供 HTTP，不内置 TLS。需要 HTTPS 时，请使用 Nginx 等反向代理负责证书和 TLS 终止。首次启动时使用启动参数或环境变量创建第一个超级管理员账号。
+程序只提供 HTTP，不内置 TLS。需要 HTTPS 时，请使用 Nginx 等反向代理负责证书和 TLS 终止。
+
+首次使用前先初始化超级管理员。命令会生成随机密码并在终端显示一次：
+
+```text
+./team-battle init
+```
+
+也可以为指定数据库初始化：
+
+```text
+./team-battle init --db ./data/battle.sqlite
+```
+
+如果数据库已经存在超级管理员，初始化命令不会覆盖原密码。

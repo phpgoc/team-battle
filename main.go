@@ -8,7 +8,6 @@ import (
 	mathrand "math/rand"
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -128,17 +127,20 @@ type aceRequest struct {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "init" {
+		if err := runInit(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
 	host := flag.String("host", "localhost", "HTTP listen host")
 	port := flag.Int("port", 9527, "HTTP listen port")
 	dbPath := flag.String("db", "", "SQLite database path")
 	flag.Parse()
 
 	if *dbPath == "" {
-		workingDir, err := os.Getwd()
-		if err != nil {
-			log.Fatal(err)
-		}
-		*dbPath = filepath.Join(workingDir, "team-battle.sqlite")
+		*dbPath = defaultDatabasePath()
 	}
 
 	db, err := sql.Open("sqlite", *dbPath)
@@ -153,9 +155,6 @@ func main() {
 		log.Fatal(err)
 	}
 	if err := migrate(db); err != nil {
-		log.Fatal(err)
-	}
-	if err := seedAdmin(db); err != nil {
 		log.Fatal(err)
 	}
 
