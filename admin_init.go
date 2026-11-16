@@ -25,6 +25,7 @@ func defaultDatabasePath() string {
 func runInit(args []string) error {
 	flags := flag.NewFlagSet("init", flag.ContinueOnError)
 	dbPath := flags.String("db", "", "SQLite database path")
+	sqlPath := flags.String("sql", "", "SQLite database path alias")
 	username := flags.String("user", "admin", "superadmin username")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -34,6 +35,9 @@ func runInit(args []string) error {
 		return fmt.Errorf("--user 不能为空")
 	}
 	path := *dbPath
+	if path == "" {
+		path = strings.TrimSpace(*sqlPath)
+	}
 	if path == "" {
 		path = defaultDatabasePath()
 	}

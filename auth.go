@@ -81,11 +81,6 @@ func (a *App) updateProfile(c *gin.Context) {
 			fail(c, http.StatusBadRequest, "新密码至少需要6位")
 			return
 		}
-		var hash string
-		if err := a.db.QueryRow(`SELECT password_hash FROM users WHERE id=?`, user.ID).Scan(&hash); err != nil || bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.CurrentPassword)) != nil {
-			fail(c, http.StatusBadRequest, "当前密码不正确")
-			return
-		}
 		newHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 		if err != nil {
 			fail(c, http.StatusInternalServerError, "密码处理失败")

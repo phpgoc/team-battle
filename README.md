@@ -61,4 +61,6 @@ go build -o team-battle .
 ./team-battle init --user admin-root --db ./data/battle.sqlite
 ```
 
+`init` 也支持使用 `--sql` 指定数据库文件，例如 `./team-battle init --user admin-root --sql ./data/battle.sqlite`。
+
 每次使用不同账号名都可以创建新的超级管理员；如果账号名已经存在，命令会拒绝创建，也不会覆盖原密码。
