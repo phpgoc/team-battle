@@ -36,10 +36,15 @@
 - 两轮分别产生阶段胜者；如果阶段胜者不同，进入单场大将战。
 - 每次比赛状态变化都要写入审计日志，包含操作者、时间、动作和相关数据。
 - 比赛进入进行中后，赛事管理员不能修改队伍成员和赛事目标；超级管理员可以覆盖并记录原因。
+- 赛事规则保存在 `events.rules_json`：首轮 `manual`/`random`、随机排阵约束、大将战多胜/多败/特殊候选组概率；概率和不得超过 100%，余数由全随机兜底。
+- KOF 录入结果后，如果目标分高于该队人数且所有选手都输过一次，系统自动随机复活；其他情况必须由败方队长、赛事管理员或超级管理员选择未输过的选手。
+- 修正结果会在同一事务中删除依赖该结果的后续对局并重新推进；`final_confirm` 只能由赛事管理员或超级管理员确认成 `completed`。
 
 ## 推荐数据边界
 
 核心表包括：`users`、`events`、`teams`、`event_players`、`captain_votes`、`lineup_entries`、`rounds`、`matches`、`event_actions`、`sessions`、`categories` 和 `site_event_names`。
+
+历史录入和实时推进都写入 `rounds` 与 `matches`；`matches.round_no`、`a_id`、`b_id`、`who_win` 保持与规范字段同步，其中 `who_win` 使用 `0`、`a`、`b`。
 
 账号只有 `superadmin` 和非超级管理员两层；赛事管理员由 `events.manager_id` 关联，参赛选手由 `event_players` 关联。分类目录在进程内缓存，分类变更后失效并重新加载。分类图标以图片二进制和 MIME 保存，不使用 emoji 字符代替图片。
 
