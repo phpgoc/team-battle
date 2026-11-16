@@ -1,0 +1,16 @@
+# 编译产物
+team-battle
+team-battle.exe
+*.exe~
+
+# 本地运行数据库和会话文件
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# IDE 和系统文件
+.idea/
+.vscode/
+*.log
+Thumbs.db
+.DS_Store
