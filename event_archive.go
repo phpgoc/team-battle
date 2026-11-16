@@ -1,106 +1,150 @@
 package main
 
 import (
-	"net/http"
-	"strings"
-
 	"github.com/gin-gonic/gin"
+	"strings"
 )
 
-// archiveEvent 将已经结束的线下赛事写入历史记录，不开放实时操作。
+// 过去赛事与实时赛事共用对局表，一次事务导入后立即封存。
 func (a *App) archiveEvent(c *gin.Context) {
 	actor, err := a.currentUser(c)
 	if err != nil || actor.Role != roleSuperAdmin {
-		fail(c, http.StatusForbidden, "只有超级管理员可以录入历史赛事")
+		fail(c, 403, "只有超级管理员可以录入过去赛事")
 		return
 	}
 	var req archiveEventRequest
-	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.EventTime) == "" {
-		fail(c, http.StatusBadRequest, "赛事名和比赛开始时间不能为空")
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Name) == "" {
+		fail(c, 400, "请输入赛事名称")
 		return
 	}
-	if len(req.PlayerIDs) != 0 && (len(req.PlayerIDs) < 6 || len(req.PlayerIDs) > 12) {
-		fail(c, http.StatusBadRequest, "历史赛事选手人数必须为6到12人")
+	eventTime, err := normalizeEventTime(req.EventTime)
+	if err != nil {
+		fail(c, 400, err.Error())
 		return
 	}
-	if req.Round1ScoreA < 0 || req.Round1ScoreB < 0 || req.Round2ScoreA < 0 || req.Round2ScoreB < 0 {
-		fail(c, http.StatusBadRequest, "比分不能为负数")
+	if len(req.PlayerIDs) < 6 || len(req.PlayerIDs) > 12 || len(req.Matches) == 0 {
+		fail(c, 400, "过去赛事需要6到12名选手及完整对局结果")
 		return
 	}
-	if req.Winner != "A" && req.Winner != "B" {
-		fail(c, http.StatusBadRequest, "请选择最终获胜队伍")
+	scores := [3][2]int{}
+	grouped := [3][]archivedMatch{}
+	for _, m := range req.Matches {
+		if m.Round < 1 || m.Round > 3 || (m.WhoWin != "a" && m.WhoWin != "b") {
+			fail(c, 400, "对局轮次或胜者无效")
+			return
+		}
+		grouped[m.Round-1] = append(grouped[m.Round-1], m)
+		side := 0
+		if m.WhoWin == "b" {
+			side = 1
+		}
+		scores[m.Round-1][side]++
+	}
+	for i := 0; i < 2; i++ {
+		if scores[i][0] == scores[i][1] {
+			fail(c, 400, "前两轮都需要完整比分和明确胜者")
+			return
+		}
+	}
+	winnerA := scores[0][0] > scores[0][1]
+	winnerB := scores[1][0] > scores[1][1]
+	if (winnerA != winnerB && len(grouped[2]) != 1) || (winnerA == winnerB && len(grouped[2]) != 0) {
+		fail(c, 400, "前两轮平局时需要一场大将战，否则不应录入大将战")
 		return
+	}
+	for i, matches := range grouped {
+		target := max(scores[i][0], scores[i][1])
+		current := [2]int{}
+		for seq, m := range matches {
+			side := 0
+			if m.WhoWin == "b" {
+				side = 1
+			}
+			current[side]++
+			if current[side] >= target && seq != len(matches)-1 {
+				fail(c, 400, "阶段结束后不应继续录入对局")
+				return
+			}
+		}
 	}
 	if strings.TrimSpace(req.TeamAName) == "" {
-		req.TeamAName = "赤队"
+		req.TeamAName = "A"
 	}
 	if strings.TrimSpace(req.TeamBName) == "" {
-		req.TeamBName = "蓝队"
+		req.TeamBName = "B"
 	}
-
 	tx, err := a.db.Begin()
 	if err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
+		fail(c, 500, err.Error())
 		return
 	}
 	defer tx.Rollback()
-	result, err := tx.Exec(`INSERT INTO events(name,description,event_time,status,round1_target,round2_target,manager_id,created_by) VALUES(?,?,?,?,?,?,?,?)`, strings.TrimSpace(req.Name), strings.TrimSpace(req.Description), req.EventTime, statusCompleted, 1, 1, actor.ID, actor.ID)
+	r, err := tx.Exec(`INSERT INTO events(name,description,event_time,status,round1_target,round2_target,manager_id,created_by) VALUES(?,?,?,'completed',?,?,?,?)`, strings.TrimSpace(req.Name), req.Description, eventTime, max(scores[0][0], scores[0][1]), max(scores[1][0], scores[1][1]), actor.ID, actor.ID)
 	if err != nil {
-		fail(c, http.StatusBadRequest, "历史赛事创建失败")
+		fail(c, 400, err.Error())
 		return
 	}
-	eventID, err := result.LastInsertId()
-	if err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
-		return
-	}
-	aResult, err := tx.Exec(`INSERT INTO teams(event_id,name,color) VALUES(?,?,?)`, eventID, req.TeamAName, "#ef8354")
-	if err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
-		return
-	}
-	teamA, _ := aResult.LastInsertId()
-	bResult, err := tx.Exec(`INSERT INTO teams(event_id,name,color) VALUES(?,?,?)`, eventID, req.TeamBName, "#3578e5")
-	if err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
-		return
-	}
-	teamB, _ := bResult.LastInsertId()
-	if len(req.PlayerIDs) > 0 {
-		if err := assignPlayers(tx, eventID, teamA, teamB, req.PlayerIDs, nil, a.rng); err != nil {
-			fail(c, http.StatusBadRequest, err.Error())
+	id, _ := r.LastInsertId()
+	teams := []int64{}
+	for _, name := range []string{req.TeamAName, req.TeamBName} {
+		result, err := tx.Exec(`INSERT INTO teams(event_id,name) VALUES(?,?)`, id, name)
+		if err != nil {
+			fail(c, 500, err.Error())
 			return
 		}
+		team, _ := result.LastInsertId()
+		teams = append(teams, team)
 	}
-	for _, round := range []struct {
-		stage  string
-		a, b   int
-		winner int64
-	}{
-		{stageRound1, req.Round1ScoreA, req.Round1ScoreB, 0},
-		{stageRound2, req.Round2ScoreA, req.Round2ScoreB, 0},
-		{stageAce, 0, 0, 0},
-	} {
-		winner := round.winner
-		if round.stage != stageAce && round.a > round.b {
-			winner = teamA
-		} else if round.stage != stageAce && round.b > round.a {
-			winner = teamB
+	if err := assignPlayers(tx, id, teams[0], teams[1], req.PlayerIDs, req.FixedAssignments, a.rng); err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
+	for i, stage := range []string{stageRound1, stageRound2, stageAce} {
+		winner := int64(0)
+		if scores[i][0] > scores[i][1] {
+			winner = teams[0]
 		}
-		if _, err := tx.Exec(`INSERT INTO rounds(event_id,stage,target_score,score_a,score_b,winner_team_id,status) VALUES(?,?,?,?,?,?,?)`, eventID, round.stage, 1, round.a, round.b, nullableInt64(winner), statusFinished); err != nil {
-			fail(c, http.StatusInternalServerError, err.Error())
+		if scores[i][1] > scores[i][0] {
+			winner = teams[1]
+		}
+		target := max(1, max(scores[i][0], scores[i][1]))
+		status := statusFinished
+		if len(grouped[i]) == 0 {
+			status = statusPending
+		}
+		result, err := tx.Exec(`INSERT INTO rounds(event_id,stage,target_score,score_a,score_b,winner_team_id,status) VALUES(?,?,?,?,?,?,?)`, id, stage, target, scores[i][0], scores[i][1], nullableInt64(winner), status)
+		if err != nil {
+			fail(c, 500, err.Error())
 			return
 		}
+		round, _ := result.LastInsertId()
+		for seq, m := range grouped[i] {
+			for side, player := range []int64{m.AID, m.BID} {
+				var exists int
+				if err := tx.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND team_id=? AND user_id=?`, id, teams[side], player).Scan(&exists); err != nil || exists != 1 {
+					fail(c, 400, "对局选手必须属于对应队伍")
+					return
+				}
+			}
+			matchWinner := teams[0]
+			if m.WhoWin == "b" {
+				matchWinner = teams[1]
+			}
+			if _, err := tx.Exec(`INSERT INTO matches(event_id,round_id,seq,team_a_id,team_b_id,player_a_id,player_b_id,winner_team_id,status,created_by,finished_at) VALUES(?,?,?,?,?,?,?,?,'finished',?,CURRENT_TIMESTAMP)`, id, round, seq+1, teams[0], teams[1], m.AID, m.BID, matchWinner, actor.ID); err != nil {
+				fail(c, 500, err.Error())
+				return
+			}
+		}
 	}
-	if _, err := tx.Exec(`UPDATE events SET updated_at=CURRENT_TIMESTAMP WHERE id=?`, eventID); err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
+	engine := &matchEngine{db: tx, eventID: id, actorID: actor.ID, rng: a.rng}
+	if err := engine.log("historical_event_created", map[string]any{"matches": len(req.Matches)}); err != nil {
+		fail(c, 500, err.Error())
 		return
 	}
 	if err := tx.Commit(); err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
+		fail(c, 500, err.Error())
 		return
 	}
-	a.logAction(eventID, actor.ID, "historical_event_created", gin.H{"winner": req.Winner})
 	a.invalidateHistoryCache()
-	ok(c, gin.H{"id": eventID})
+	ok(c, gin.H{"id": id})
 }

@@ -1,131 +1,137 @@
 package main
 
-import "sync"
+import (
+	"database/sql"
+	"strconv"
+	"sync"
+)
 
 type categoryInfo struct {
-	ID      int64
-	Name    string
-	IconURL string
+	ID            int64
+	Name, IconURL string
 }
 
+// 账号名称、头像地址与分类映射统一驻留内存，变更后整体失效。
 type categoryDirectoryCache struct {
-	mu             sync.RWMutex
-	loaded         bool
-	byID           map[int64]categoryInfo
-	orderedIDs     []int64
-	userToCategory map[int64]int64
-}
-
-func (a *App) categoryInfo(id int64) (categoryInfo, bool) {
-	if id == 0 {
-		return categoryInfo{}, false
-	}
-	a.directory.mu.RLock()
-	if a.directory.loaded {
-		item, ok := a.directory.byID[id]
-		a.directory.mu.RUnlock()
-		return item, ok
-	}
-	a.directory.mu.RUnlock()
-	if err := a.reloadCategoryDirectory(); err != nil {
-		return categoryInfo{}, false
-	}
-	a.directory.mu.RLock()
-	item, ok := a.directory.byID[id]
-	a.directory.mu.RUnlock()
-	return item, ok
+	mu         sync.RWMutex
+	loaded     bool
+	byID       map[int64]categoryInfo
+	orderedIDs []int64
+	users      map[int64]User
 }
 
 func (a *App) reloadCategoryDirectory() error {
-	rows, err := a.db.Query(`SELECT id,name,CASE WHEN icon_data IS NULL OR length(icon_data)=0 THEN '' ELSE '/api/categories/' || id || '/icon' END FROM categories ORDER BY sort_order,id`)
+	a.directory.mu.Lock()
+	defer a.directory.mu.Unlock()
+	if a.directory.loaded {
+		return nil
+	}
+	rows, err := a.db.Query(`SELECT id,name,CASE WHEN length(icon_data)>0 THEN '/api/categories/' || id || '/icon?v=' || updated_at ELSE '' END FROM categories ORDER BY sort_order,id`)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	byID := map[int64]categoryInfo{}
+	cats := map[int64]categoryInfo{}
 	ordered := []int64{}
 	for rows.Next() {
 		var item categoryInfo
 		if err := rows.Scan(&item.ID, &item.Name, &item.IconURL); err != nil {
+			rows.Close()
 			return err
 		}
-		byID[item.ID] = item
+		cats[item.ID] = item
 		ordered = append(ordered, item.ID)
 	}
 	if err := rows.Err(); err != nil {
+		rows.Close()
 		return err
 	}
-	userRows, err := a.db.Query(`SELECT id,category_id FROM users WHERE category_id IS NOT NULL`)
+	rows.Close()
+	rows, err = a.db.Query(`SELECT id,username,display_name,role,status,created_at,COALESCE(category_id,0),CASE WHEN length(avatar_data)>0 THEN 1 ELSE 0 END,avatar_version FROM users`)
 	if err != nil {
 		return err
 	}
-	defer userRows.Close()
-	userToCategory := map[int64]int64{}
-	for userRows.Next() {
-		var userID, categoryID int64
-		if err := userRows.Scan(&userID, &categoryID); err != nil {
+	users := map[int64]User{}
+	for rows.Next() {
+		var u User
+		var has, version int
+		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.Status, &u.CreatedAt, &u.CategoryID, &has, &version); err != nil {
+			rows.Close()
 			return err
 		}
-		userToCategory[userID] = categoryID
+		if has != 0 {
+			u.AvatarURL = "/api/users/" + strconv.FormatInt(u.ID, 10) + "/avatar?v=" + strconv.Itoa(version)
+		}
+		if cat, ok := cats[u.CategoryID]; ok {
+			u.CategoryName = cat.Name
+			u.CategoryIcon = cat.IconURL
+		}
+		users[u.ID] = u
 	}
-	if err := userRows.Err(); err != nil {
+	if err := rows.Err(); err != nil {
+		rows.Close()
 		return err
 	}
-	a.directory.mu.Lock()
-	a.directory.byID = byID
+	rows.Close()
+	a.directory.byID = cats
 	a.directory.orderedIDs = ordered
-	a.directory.userToCategory = userToCategory
+	a.directory.users = users
 	a.directory.loaded = true
-	a.directory.mu.Unlock()
 	return nil
 }
-
 func (a *App) invalidateCategoryDirectory() {
 	a.directory.mu.Lock()
 	a.directory.loaded = false
-	a.directory.byID = nil
-	a.directory.orderedIDs = nil
-	a.directory.userToCategory = nil
 	a.directory.mu.Unlock()
 }
-
-func (a *App) cachedCategories() ([]map[string]any, error) {
-	a.directory.mu.RLock()
-	loaded := a.directory.loaded
-	ids := append([]int64(nil), a.directory.orderedIDs...)
-	byID := a.directory.byID
-	a.directory.mu.RUnlock()
-	if !loaded {
-		if err := a.reloadCategoryDirectory(); err != nil {
-			return nil, err
-		}
-		a.directory.mu.RLock()
-		ids = append([]int64(nil), a.directory.orderedIDs...)
-		byID = a.directory.byID
-		a.directory.mu.RUnlock()
+func (a *App) categoryInfo(id int64) (categoryInfo, bool) {
+	if err := a.reloadCategoryDirectory(); err != nil {
+		return categoryInfo{}, false
 	}
-	items := make([]map[string]any, 0, len(ids))
-	for _, id := range ids {
-		item := byID[id]
-		items = append(items, map[string]any{"id": item.ID, "name": item.Name, "icon": item.IconURL, "icon_url": item.IconURL})
+	a.directory.mu.RLock()
+	defer a.directory.mu.RUnlock()
+	item, ok := a.directory.byID[id]
+	return item, ok
+}
+func (a *App) cachedUser(id int64) (User, error) {
+	if err := a.reloadCategoryDirectory(); err != nil {
+		return User{}, err
+	}
+	a.directory.mu.RLock()
+	defer a.directory.mu.RUnlock()
+	u, ok := a.directory.users[id]
+	if !ok {
+		return User{}, sql.ErrNoRows
+	}
+	return u, nil
+}
+func (a *App) cachedCategories() ([]map[string]any, error) {
+	if err := a.reloadCategoryDirectory(); err != nil {
+		return nil, err
+	}
+	a.directory.mu.RLock()
+	defer a.directory.mu.RUnlock()
+	items := []map[string]any{}
+	for _, id := range a.directory.orderedIDs {
+		c := a.directory.byID[id]
+		items = append(items, map[string]any{"id": c.ID, "name": c.Name, "icon_url": c.IconURL, "icon": c.IconURL})
 	}
 	return items, nil
 }
+func (a *App) populateCategory(u *User) {
+	if cached, err := a.cachedUser(u.ID); err == nil {
+		u.CategoryID = cached.CategoryID
+		u.CategoryName = cached.CategoryName
+		u.CategoryIcon = cached.CategoryIcon
+		u.AvatarURL = cached.AvatarURL
+	}
+}
 
-func (a *App) populateCategory(user *User) {
-	a.directory.mu.RLock()
-	loaded := a.directory.loaded
-	a.directory.mu.RUnlock()
-	if !loaded {
-		_ = a.reloadCategoryDirectory()
+func (a *App) userDirectory() (map[int64]User, error) {
+	if err := a.reloadCategoryDirectory(); err != nil {
+		return nil, err
 	}
 	a.directory.mu.RLock()
-	if user.CategoryID == 0 {
-		user.CategoryID = a.directory.userToCategory[user.ID]
-	}
-	a.directory.mu.RUnlock()
-	if item, ok := a.categoryInfo(user.CategoryID); ok {
-		user.CategoryName = item.Name
-		user.CategoryIcon = item.IconURL
-	}
+	defer a.directory.mu.RUnlock()
+	// 每次失效后替换整个映射，已返回的映射只读且不会再改变。
+	return a.directory.users, nil
 }

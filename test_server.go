@@ -25,9 +25,8 @@ type testAccount struct {
 
 var testCategories = []struct {
 	name string
-	icon string
 }{
-	{"虫族", "☣"}, {"神族", "✦"}, {"人族", "⚙"}, {"随机", "🎲"}}
+	{"虫族"}, {"神族"}, {"人族"}, {"随机"}}
 
 func runTestServer(args []string) error {
 	flags := flag.NewFlagSet("test", flag.ContinueOnError)

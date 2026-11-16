@@ -2,10 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"log"
-	"os"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 func migrate(db *sql.DB) error {
@@ -191,6 +187,7 @@ func migrate(db *sql.DB) error {
 		{"events", "round1_all_first", "INTEGER NOT NULL DEFAULT 1"},
 		{"events", "kof_initial_a", "INTEGER"},
 		{"events", "kof_initial_b", "INTEGER"},
+		{"events", "rules_json", "TEXT NOT NULL DEFAULT '{}'"},
 		{"matches", "round_no", "INTEGER"},
 		{"matches", "a_id", "INTEGER"},
 		{"matches", "b_id", "INTEGER"},
@@ -233,28 +230,5 @@ func ensureColumn(db *sql.DB, table, column, definition string) error {
 		return nil
 	}
 	_, err = db.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + column + ` ` + definition)
-	return err
-}
-
-func seedAdmin(db *sql.DB) error {
-	var count int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&count); err != nil {
-		return err
-	}
-	if count > 0 {
-		return nil
-	}
-	password := os.Getenv("TEAM_BATTLE_ADMIN_PASSWORD")
-	if password == "" {
-		password = "admin123"
-	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(`INSERT INTO users(username, display_name, password_hash, role) VALUES(?,?,?,?)`, "admin", "超级管理员", string(hash), roleSuperAdmin)
-	if err == nil {
-		log.Printf("created initial admin account: admin (password from TEAM_BATTLE_ADMIN_PASSWORD or admin123)")
-	}
 	return err
 }

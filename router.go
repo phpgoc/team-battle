@@ -18,6 +18,14 @@ func (a *App) router() *gin.Engine {
 	r.GET("/workspace", a.serveIndex)
 	r.GET("/assets/styles.css", a.serveStyles)
 	r.GET("/assets/app.js", a.serveAppScript)
+	r.GET("/assets/i18n.js", func(c *gin.Context) {
+		data, err := webFS.ReadFile("web/i18n.js")
+		if err != nil {
+			c.Status(500)
+			return
+		}
+		c.Data(200, "application/javascript; charset=utf-8", data)
+	})
 
 	api := r.Group("/api")
 	api.Use(func(c *gin.Context) {
@@ -47,6 +55,7 @@ func (a *App) router() *gin.Engine {
 	api.POST("/events", a.createEvent)
 	api.POST("/events/archive", a.archiveEvent)
 	api.POST("/events/:id/players", a.addEventPlayers)
+	api.GET("/events/:id/eligible-users", a.eligibleEventUsers)
 	api.GET("/site-settings", a.siteSettings)
 	api.POST("/site-settings/event-names", a.createEventName)
 	api.PATCH("/site-settings/event-names/:nameID", a.updateEventName)

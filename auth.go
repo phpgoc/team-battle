@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -26,11 +27,11 @@ func (a *App) login(c *gin.Context) {
 	if categoryID.Valid {
 		user.CategoryID = categoryID.Int64
 	}
-	a.populateCategory(&user)
 	if err != nil || user.Status != "active" || bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)) != nil {
 		fail(c, http.StatusUnauthorized, "账号或密码错误")
 		return
 	}
+	a.populateCategory(&user)
 	token, err := randomToken(32)
 	if err != nil {
 		fail(c, http.StatusInternalServerError, "创建会话失败")
@@ -115,6 +116,7 @@ func (a *App) updateProfile(c *gin.Context) {
 			return
 		}
 	}
+	a.invalidateCategoryDirectory()
 	updated, err := a.userByID(user.ID)
 	if err != nil {
 		fail(c, http.StatusInternalServerError, "读取账号失败")
@@ -155,6 +157,7 @@ func (a *App) uploadAvatar(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "保存头像失败")
 		return
 	}
+	a.invalidateCategoryDirectory()
 	updated, err := a.userByID(user.ID)
 	if err != nil {
 		fail(c, http.StatusInternalServerError, "读取账号失败")
@@ -185,27 +188,16 @@ func (a *App) listUsers(c *gin.Context) {
 		fail(c, http.StatusForbidden, "只有超级管理员可以管理账号")
 		return
 	}
-	rows, err := a.db.Query(`SELECT id, username, display_name, role, status, created_at, category_id FROM users ORDER BY role, id`)
+	directory, err := a.userDirectory()
 	if err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
+		fail(c, 500, err.Error())
 		return
 	}
-	defer rows.Close()
 	users := []User{}
-	for rows.Next() {
-		var item User
-		var categoryID sql.NullInt64
-		if err := rows.Scan(&item.ID, &item.Username, &item.DisplayName, &item.Role, &item.Status, &item.CreatedAt, &categoryID); err != nil {
-			fail(c, http.StatusInternalServerError, err.Error())
-			return
-		}
-		if categoryID.Valid {
-			item.CategoryID = categoryID.Int64
-		}
-		a.populateCategory(&item)
-		a.populateAvatarURL(&item)
-		users = append(users, item)
+	for _, u := range directory {
+		users = append(users, u)
 	}
+	sort.Slice(users, func(i, j int) bool { return users[i].ID < users[j].ID })
 	ok(c, gin.H{"users": users})
 }
 
@@ -261,6 +253,10 @@ func (a *App) createUser(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "账号角色只能是超级管理员或选手")
 		return
 	}
+	if strings.TrimSpace(req.Username) == "" || len(req.Password) < 6 {
+		fail(c, 400, "账号名不能为空，密码至少6位")
+		return
+	}
 	if strings.TrimSpace(req.DisplayName) == "" {
 		req.DisplayName = req.Username
 	}
@@ -278,6 +274,7 @@ func (a *App) createUser(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "账号名已存在或信息无效")
 		return
 	}
+	a.invalidateCategoryDirectory()
 	id, _ := result.LastInsertId()
 	ok(c, gin.H{"id": id})
 }
@@ -302,24 +299,10 @@ func (a *App) currentUser(c *gin.Context) (User, error) {
 	return user, nil
 }
 
-func (a *App) userByID(userID int64) (User, error) {
-	var user User
-	var categoryID sql.NullInt64
-	if err := a.db.QueryRow(`SELECT id,username,display_name,role,status,created_at,category_id FROM users WHERE id=?`, userID).Scan(&user.ID, &user.Username, &user.DisplayName, &user.Role, &user.Status, &user.CreatedAt, &categoryID); err != nil {
-		return User{}, err
-	}
-	if categoryID.Valid {
-		user.CategoryID = categoryID.Int64
-	}
-	a.populateCategory(&user)
-	a.populateAvatarURL(&user)
-	return user, nil
-}
-
-func (a *App) populateAvatarURL(user *User) {
-	var exists int
-	if err := a.db.QueryRow(`SELECT CASE WHEN avatar_data IS NULL OR length(avatar_data)=0 THEN 0 ELSE 1 END FROM users WHERE id=?`, user.ID).Scan(&exists); err == nil && exists == 1 {
-		user.AvatarURL = "/api/users/" + strconv.FormatInt(user.ID, 10) + "/avatar"
+func (a *App) userByID(id int64) (User, error) { return a.cachedUser(id) }
+func (a *App) populateAvatarURL(u *User) {
+	if cached, err := a.cachedUser(u.ID); err == nil {
+		u.AvatarURL = cached.AvatarURL
 	}
 }
 

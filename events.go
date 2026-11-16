@@ -22,6 +22,15 @@ func (a *App) publicStream(c *gin.Context) {
 		fail(c, http.StatusNotFound, "赛事不存在")
 		return
 	}
+	var initialStatus string
+	if err := a.db.QueryRow(`SELECT status FROM events WHERE id=?`, eventID).Scan(&initialStatus); err != nil {
+		fail(c, 404, "赛事不存在")
+		return
+	}
+	if initialStatus == statusCompleted || initialStatus == statusCancelled {
+		c.Status(http.StatusNoContent)
+		return
+	}
 	c.Header("Content-Type", "text/event-stream; charset=utf-8")
 	c.Header("Cache-Control", "no-cache, no-transform")
 	c.Header("Connection", "keep-alive")
@@ -47,9 +56,6 @@ func (a *App) publicStream(c *gin.Context) {
 			}
 			c.Writer.Flush()
 		case <-updates.C:
-			if err := a.db.QueryRow(`SELECT status FROM events WHERE id=?`, eventID).Scan(&status); err == nil && (status == statusCompleted || status == statusCancelled) {
-				return
-			}
 			payload, err = a.publicEventPayload(eventID)
 			if err != nil {
 				return
@@ -62,6 +68,9 @@ func (a *App) publicStream(c *gin.Context) {
 			}
 			previous = payload
 			c.Writer.Flush()
+			if err := a.db.QueryRow(`SELECT status FROM events WHERE id=?`, eventID).Scan(&status); err == nil && (status == statusCompleted || status == statusCancelled) {
+				return
+			}
 		}
 	}
 }

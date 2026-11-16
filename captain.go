@@ -1,159 +1,198 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
-
+	"errors"
 	"github.com/gin-gonic/gin"
 )
 
+func preMatch(status string) bool {
+	return status == statusDraft || status == statusCaptainVote || status == statusLineup
+}
 func (a *App) castCaptainVote(c *gin.Context) {
 	user, err := a.currentUser(c)
-	if err != nil || !isNonSuperAdmin(user.Role) {
-		fail(c, http.StatusForbidden, "只有参赛选手可以投票")
-		return
-	}
-	eventID, err := parseID(c.Param("id"))
 	if err != nil {
-		fail(c, http.StatusBadRequest, "赛事编号无效")
+		fail(c, 401, "未登录")
 		return
 	}
-	var body struct {
-		TargetID int64 `json:"target_id" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&body); err != nil {
-		fail(c, http.StatusBadRequest, "请选择队长候选人")
-		return
-	}
-	var teamID, targetTeamID int64
-	if err := a.db.QueryRow(`SELECT team_id FROM event_players WHERE event_id=? AND user_id=? AND active=1`, eventID, user.ID).Scan(&teamID); err != nil {
-		fail(c, http.StatusForbidden, "你不是该赛事选手")
-		return
-	}
-	if err := a.db.QueryRow(`SELECT team_id FROM event_players WHERE event_id=? AND user_id=? AND active=1`, eventID, body.TargetID).Scan(&targetTeamID); err != nil || targetTeamID != teamID {
-		fail(c, http.StatusBadRequest, "只能投票给本队选手")
-		return
-	}
-	if _, err := a.db.Exec(`INSERT INTO captain_votes(event_id,team_id,voter_id,target_id) VALUES(?,?,?,?) ON CONFLICT(event_id,voter_id) DO UPDATE SET target_id=excluded.target_id, created_at=CURRENT_TIMESTAMP`, eventID, teamID, user.ID, body.TargetID); err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
-		return
-	}
-	a.logAction(eventID, user.ID, "captain_vote_cast", gin.H{"team_id": teamID, "target_id": body.TargetID})
-	ok(c, gin.H{"ok": true})
-}
-
-func (a *App) confirmCaptains(c *gin.Context) {
-	actor, eventID, okAccess := a.managerEvent(c)
-	if !okAccess {
-		return
-	}
-	var body struct {
-		TeamAPlayerID int64 `json:"team_a_player_id" binding:"required"`
-		TeamBPlayerID int64 `json:"team_b_player_id" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&body); err != nil {
-		fail(c, http.StatusBadRequest, "请选择两队队长")
-		return
-	}
-	transaction, err := a.db.Begin()
+	id, err := parseID(c.Param("id"))
 	if err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
+		fail(c, 400, "赛事编号无效")
 		return
 	}
-	defer transaction.Rollback()
-	if _, err := transaction.Exec(`UPDATE event_players SET is_captain=0 WHERE event_id=?`, eventID); err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
+	var req struct {
+		TargetID int64 `json:"target_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fail(c, 400, "请选择队长候选人")
 		return
 	}
-	for _, playerID := range []int64{body.TeamAPlayerID, body.TeamBPlayerID} {
-		if _, err := transaction.Exec(`UPDATE event_players SET is_captain=1 WHERE event_id=? AND user_id=?`, eventID, playerID); err != nil {
-			fail(c, http.StatusBadRequest, "队长不属于该赛事")
-			return
+	err = a.runMatchMutation(id, user.ID, func(e *matchEngine) error {
+		s, err := e.status()
+		if err != nil {
+			return err
 		}
-	}
-	if _, err := transaction.Exec(`UPDATE events SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, statusLineup, eventID); err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
+		if !preMatch(s) {
+			return errors.New("比赛开始后不能投票")
+		}
+		var team int64
+		if err := e.db.QueryRow(`SELECT team_id FROM event_players WHERE event_id=? AND user_id=? AND active=1`, id, user.ID).Scan(&team); err != nil {
+			return errors.New("你不是参赛选手")
+		}
+		ids, err := e.players(team)
+		if err != nil {
+			return err
+		}
+		if !containsID(ids, req.TargetID) {
+			return errors.New("只能选本队选手")
+		}
+		if _, err := e.db.Exec(`INSERT INTO captain_votes(event_id,team_id,voter_id,target_id) VALUES(?,?,?,?) ON CONFLICT(event_id,voter_id) DO UPDATE SET target_id=excluded.target_id`, id, team, user.ID, req.TargetID); err != nil {
+			return err
+		}
+		return e.log("captain_vote_cast", req)
+	})
+	if err != nil {
+		fail(c, 400, err.Error())
 		return
 	}
-	if err := transaction.Commit(); err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
-		return
-	}
-	a.logAction(eventID, actor.ID, "captains_confirmed", body)
 	ok(c, gin.H{"ok": true})
 }
-
+func (a *App) confirmCaptains(c *gin.Context) {
+	actor, id, access := a.managerEvent(c)
+	if !access {
+		return
+	}
+	var req struct {
+		A int64 `json:"team_a_player_id"`
+		B int64 `json:"team_b_player_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fail(c, 400, "请选择两队队长")
+		return
+	}
+	err := a.runMatchMutation(id, actor.ID, func(e *matchEngine) error {
+		s, err := e.status()
+		if err != nil {
+			return err
+		}
+		if !preMatch(s) {
+			return errors.New("当前阶段不能确认队长")
+		}
+		teams, err := e.teams()
+		if err != nil {
+			return err
+		}
+		for i, player := range []int64{req.A, req.B} {
+			ids, err := e.players(teams[i])
+			if err != nil {
+				return err
+			}
+			if !containsID(ids, player) {
+				return errors.New("队长必须属于对应队伍")
+			}
+		}
+		if _, err := e.db.Exec(`UPDATE event_players SET is_captain=CASE WHEN user_id IN (?,?) THEN 1 ELSE 0 END WHERE event_id=?`, req.A, req.B, id); err != nil {
+			return err
+		}
+		if err := e.setStage(statusLineup); err != nil {
+			return err
+		}
+		return e.log("captains_confirmed", req)
+	})
+	if err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
+	ok(c, gin.H{"ok": true})
+}
 func (a *App) generateLineup(c *gin.Context) {
-	actor, eventID, okAccess := a.managerEvent(c)
-	if !okAccess {
+	actor, id, access := a.managerEvent(c)
+	if !access {
 		return
 	}
-	if err := a.generateLineupForEvent(eventID, actor.ID); err != nil {
-		fail(c, http.StatusBadRequest, err.Error())
+	err := a.runMatchMutation(id, actor.ID, func(e *matchEngine) error {
+		if err := e.fillLineups(true); err != nil {
+			return err
+		}
+		return e.log("lineup_generated", nil)
+	})
+	if err != nil {
+		fail(c, 400, err.Error())
 		return
 	}
 	ok(c, gin.H{"ok": true})
 }
-
 func (a *App) submitLineup(c *gin.Context) {
 	actor, err := a.currentUser(c)
 	if err != nil {
-		fail(c, http.StatusUnauthorized, "未登录")
+		fail(c, 401, "未登录")
 		return
 	}
-	eventID, err := parseID(c.Param("id"))
+	id, err := parseID(c.Param("id"))
 	if err != nil {
-		fail(c, http.StatusBadRequest, "赛事编号无效")
+		fail(c, 400, "赛事编号无效")
 		return
 	}
-	var status string
-	if err := a.db.QueryRow(`SELECT status FROM events WHERE id=?`, eventID).Scan(&status); err != nil {
-		fail(c, http.StatusNotFound, "赛事不存在")
+	var req lineupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fail(c, 400, "排阵格式不正确")
 		return
 	}
-	if status == statusCompleted || status == statusCancelled || status == statusRound1 || status == statusRound2 || status == statusAce {
-		fail(c, http.StatusBadRequest, "当前阶段不能修改排阵")
-		return
-	}
-	managerAccess := actor.Role == roleSuperAdmin || a.canManageEvent(actor.ID, actor.Role, eventID)
-	var body lineupRequest
-	if err := c.ShouldBindJSON(&body); err != nil {
-		fail(c, http.StatusBadRequest, "排阵格式不正确")
-		return
-	}
-	var totalPlayers int
-	if err := a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=?`, eventID).Scan(&totalPlayers); err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
-		return
-	}
-	var teamSize int
-	if err := a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND team_id=?`, eventID, body.TeamID).Scan(&teamSize); err != nil {
-		fail(c, http.StatusBadRequest, "队伍不存在")
-		return
-	}
-	if !managerAccess {
-		var captain int
-		if err := a.db.QueryRow(`SELECT is_captain FROM event_players WHERE event_id=? AND team_id=? AND user_id=? AND active=1`, eventID, body.TeamID, actor.ID).Scan(&captain); err != nil || captain != 1 {
-			fail(c, http.StatusForbidden, "只有本队队长可以提交排阵")
-			return
+	err = a.runMatchMutation(id, actor.ID, func(e *matchEngine) error {
+		s, err := e.status()
+		if err != nil {
+			return err
 		}
-	}
-	limit := totalPlayers / 2
-	if teamSize < limit {
-		limit = teamSize
-	}
-	if len(body.PlayerIDs) > limit {
-		fail(c, http.StatusBadRequest, fmt.Sprintf("该队最多排前%d名选手", limit))
+		if !preMatch(s) {
+			return errors.New("当前阶段不能排阵")
+		}
+		if !a.canManageEvent(actor.ID, actor.Role, id) {
+			var captain int
+			if err := e.db.QueryRow(`SELECT is_captain FROM event_players WHERE event_id=? AND team_id=? AND user_id=?`, id, req.TeamID, actor.ID).Scan(&captain); err != nil || captain != 1 {
+				return errors.New("只有本队队长或赛事管理员可以排阵")
+			}
+		}
+		rules, err := e.rules()
+		if err != nil {
+			return err
+		}
+		if rules.Round1Mode == "random" && len(req.PlayerIDs) > 0 {
+			return errors.New("该赛事首轮为全随机")
+		}
+		ids, err := e.players(req.TeamID)
+		if err != nil || len(ids) == 0 {
+			return errors.New("队伍不存在或没有选手")
+		}
+		var total int
+		if err := e.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=?`, id).Scan(&total); err != nil {
+			return err
+		}
+		if len(req.PlayerIDs) > min(len(ids), total/2) {
+			return errors.New("手动排阵人数超过限制")
+		}
+		seen := map[int64]bool{}
+		for _, player := range req.PlayerIDs {
+			if !containsID(ids, player) || seen[player] {
+				return errors.New("排阵选手无效或重复")
+			}
+			seen[player] = true
+		}
+		if _, err := e.db.Exec(`DELETE FROM lineup_entries WHERE event_id=? AND team_id=?`, id, req.TeamID); err != nil {
+			return err
+		}
+		source := "captain"
+		if a.canManageEvent(actor.ID, actor.Role, id) {
+			source = "manager"
+		}
+		for i, player := range req.PlayerIDs {
+			if _, err := e.db.Exec(`INSERT INTO lineup_entries(event_id,team_id,position,player_id,source) VALUES(?,?,?,?,?)`, id, req.TeamID, i+1, player, source); err != nil {
+				return err
+			}
+		}
+		return e.log("lineup_submitted", req)
+	})
+	if err != nil {
+		fail(c, 400, err.Error())
 		return
 	}
-	for i, playerID := range body.PlayerIDs {
-		var exists int
-		if err := a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND team_id=? AND user_id=?`, eventID, body.TeamID, playerID).Scan(&exists); err != nil || exists == 0 {
-			fail(c, http.StatusBadRequest, "排阵选手不属于该队")
-			return
-		}
-		_, _ = a.db.Exec(`INSERT INTO lineup_entries(event_id,team_id,position,player_id,source) VALUES(?,?,?,?,?) ON CONFLICT(event_id,team_id,position) DO UPDATE SET player_id=excluded.player_id, source=excluded.source`, eventID, body.TeamID, i+1, playerID, "captain")
-	}
-	a.logAction(eventID, actor.ID, "lineup_submitted", body)
-	ok(c, gin.H{"ok": true, "limit": limit})
+	ok(c, gin.H{"ok": true})
 }

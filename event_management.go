@@ -1,11 +1,11 @@
 package main
 
-// Tournament creation, participant allocation, and event listings.
+// 赛事创建、参赛分配和首页历史缓存。
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
-	"fmt"
 	mathrand "math/rand"
 	"net/http"
 	"strconv"
@@ -132,7 +132,7 @@ func (a *App) publicHistory(c *gin.Context) {
 
 func (a *App) historyItems() ([]map[string]any, error) {
 	a.history.mu.RLock()
-	if len(a.history.items) > 0 && time.Since(a.history.loadedAt) < 30*time.Second {
+	if !a.history.loadedAt.IsZero() && time.Since(a.history.loadedAt) < 30*time.Second {
 		items := append([]map[string]any(nil), a.history.items...)
 		a.history.mu.RUnlock()
 		return items, nil
@@ -177,25 +177,49 @@ func (a *App) createEvent(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "赛事信息不完整")
 		return
 	}
-	if len(req.PlayerIDs) != 0 && (len(req.PlayerIDs) < 6 || len(req.PlayerIDs) > 12) {
-		fail(c, http.StatusBadRequest, "赛事总人数必须在6到12人之间")
+	if len(req.PlayerIDs) > 12 {
+		fail(c, http.StatusBadRequest, "赛事最多12人")
 		return
 	}
-	if strings.TrimSpace(req.EventTime) == "" {
-		fail(c, http.StatusBadRequest, "请设置比赛开始时间")
+	eventTime, err := normalizeEventTime(req.EventTime)
+	if err != nil || strings.TrimSpace(req.Name) == "" {
+		fail(c, http.StatusBadRequest, "请填写赛事名称和有效的比赛开始时间")
 		return
 	}
+	req.EventTime = eventTime
 	if req.Round1Target == 0 {
 		req.Round1Target = 4
 	}
 	if req.Round2Target == 0 {
 		req.Round2Target = 5
 	}
-	minTarget := len(req.PlayerIDs) / 2
-	if req.Round1Target < minTarget || req.Round2Target < minTarget {
-		fail(c, http.StatusBadRequest, fmt.Sprintf("抢分目标不能小于%d", minTarget))
+	if req.Round1Target < 1 || req.Round2Target < 1 || req.Round1Target > 99 || req.Round2Target > 99 {
+		fail(c, http.StatusBadRequest, "抢分目标必须在1到99之间")
 		return
 	}
+	rules := defaultRules()
+	if req.Rules != nil {
+		rules = *req.Rules
+	}
+	if err := rules.validate(); err != nil {
+		fail(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	for _, group := range rules.AceSpecials {
+		for _, id := range group.PlayerIDs {
+			found := false
+			for _, player := range req.PlayerIDs {
+				if player == id {
+					found = true
+				}
+			}
+			if !found {
+				fail(c, http.StatusBadRequest, "大将战特殊候选必须是参赛选手")
+				return
+			}
+		}
+	}
+	rulesJSON, _ := json.Marshal(rules)
 	if req.ManagerID == 0 {
 		req.ManagerID = actor.ID
 	} else {
@@ -218,7 +242,7 @@ func (a *App) createEvent(c *gin.Context) {
 		return
 	}
 	defer transaction.Rollback()
-	result, err := transaction.Exec(`INSERT INTO events(name, description, event_time, status, round1_target, round2_target, manager_id, created_by, kof_initial_a, kof_initial_b) VALUES(?,?,?,?,?,?,?,?,?,?)`, strings.TrimSpace(req.Name), strings.TrimSpace(req.Description), req.EventTime, statusDraft, req.Round1Target, req.Round2Target, req.ManagerID, actor.ID, nullableInt64(req.KOFInitialA), nullableInt64(req.KOFInitialB))
+	result, err := transaction.Exec(`INSERT INTO events(name, description, event_time, status, round1_target, round2_target, manager_id, created_by, kof_initial_a, kof_initial_b, rules_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, strings.TrimSpace(req.Name), strings.TrimSpace(req.Description), req.EventTime, statusDraft, req.Round1Target, req.Round2Target, req.ManagerID, actor.ID, nullableInt64(req.KOFInitialA), nullableInt64(req.KOFInitialB), string(rulesJSON))
 	if err != nil {
 		fail(c, http.StatusBadRequest, "创建赛事失败")
 		return
@@ -242,6 +266,16 @@ func (a *App) createEvent(c *gin.Context) {
 			return
 		}
 	}
+	for _, entry := range []struct{ player, team int64 }{{req.KOFInitialA, teamA}, {req.KOFInitialB, teamB}} {
+		if entry.player == 0 {
+			continue
+		}
+		var exists int
+		if err := transaction.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND team_id=? AND user_id=?`, eventID, entry.team, entry.player).Scan(&exists); err != nil || exists != 1 {
+			fail(c, http.StatusBadRequest, "KOF首发必须属于对应队伍；随机分队选手请在分队后设置首发")
+			return
+		}
+	}
 	for _, round := range []struct {
 		stage  string
 		target int
@@ -260,40 +294,105 @@ func (a *App) createEvent(c *gin.Context) {
 }
 
 func (a *App) updateEventSettings(c *gin.Context) {
-	actor, eventID, okAccess := a.managerEvent(c)
-	if !okAccess {
+	actor, eventID, access := a.managerEvent(c)
+	if !access {
 		return
 	}
 	var req eventSettingsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		fail(c, http.StatusBadRequest, "赛事设置格式不正确")
+		fail(c, 400, "赛事设置格式不正确")
 		return
 	}
-	var scoreA, scoreB int
-	if err := a.db.QueryRow(`SELECT COALESCE(SUM(score_a),0),COALESCE(SUM(score_b),0) FROM rounds WHERE event_id=?`, eventID).Scan(&scoreA, &scoreB); err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
+	var count int
+	if err := a.db.QueryRow(`SELECT COUNT(*) FROM matches WHERE event_id=? AND status='finished'`, eventID).Scan(&count); err != nil {
+		fail(c, 500, err.Error())
 		return
 	}
-	if scoreA != 0 || scoreB != 0 {
-		fail(c, http.StatusBadRequest, "已有比分后不能修改随机规则")
+	if count > 0 {
+		fail(c, 400, "已有比分后不能修改赛事设置")
 		return
 	}
-	if req.KOFInitialA != 0 {
-		var exists int
-		if err := a.db.QueryRow(`SELECT COUNT(*) FROM event_players ep JOIN teams t ON t.id=ep.team_id WHERE ep.event_id=? AND t.id=(SELECT id FROM teams WHERE event_id=? ORDER BY id LIMIT 1) AND ep.user_id=?`, eventID, eventID, req.KOFInitialA).Scan(&exists); err != nil || exists == 0 {
-			fail(c, http.StatusBadRequest, "KOF A队首发不属于该队")
+	rules := defaultRules()
+	if req.Rules != nil {
+		rules = *req.Rules
+	}
+	if err := rules.validate(); err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
+	for _, group := range rules.AceSpecials {
+		for _, player := range group.PlayerIDs {
+			var exists int
+			if err := a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=?`, eventID, player).Scan(&exists); err != nil || exists == 0 {
+				fail(c, 400, "特殊候选必须是参赛选手")
+				return
+			}
+		}
+	}
+	teams, err := a.teamIDs(eventID)
+	if err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
+	for i, player := range []int64{req.KOFInitialA, req.KOFInitialB} {
+		if player != 0 && !a.isEventPlayer(eventID, teams[i], player) {
+			fail(c, 400, "KOF首发不属于对应队伍")
 			return
 		}
 	}
-	if req.KOFInitialB != 0 {
-		var exists int
-		if err := a.db.QueryRow(`SELECT COUNT(*) FROM event_players ep JOIN teams t ON t.id=ep.team_id WHERE ep.event_id=? AND t.id=(SELECT id FROM teams WHERE event_id=? ORDER BY id LIMIT 1 OFFSET 1) AND ep.user_id=?`, eventID, eventID, req.KOFInitialB).Scan(&exists); err != nil || exists == 0 {
-			fail(c, http.StatusBadRequest, "KOF B队首发不属于该队")
+	tx, err := a.db.Begin()
+	if err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	defer tx.Rollback()
+	raw, _ := json.Marshal(rules)
+	if _, err := tx.Exec(`UPDATE events SET rules_json=?,round1_no_repeat=?,round1_all_first=?,kof_initial_a=?,kof_initial_b=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, string(raw), boolInt(rules.NoRepeat), boolInt(rules.AllFirst), nullableInt64(req.KOFInitialA), nullableInt64(req.KOFInitialB), eventID); err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	if req.Name != "" || req.EventTime != "" {
+		eventTime, err := normalizeEventTime(req.EventTime)
+		if err != nil || strings.TrimSpace(req.Name) == "" || req.Round1Target < 1 || req.Round2Target < 1 || req.Round1Target > 99 || req.Round2Target > 99 {
+			fail(c, 400, "赛事名称、开始时间或抢分目标无效")
+			return
+		}
+		if _, err := tx.Exec(`UPDATE events SET name=?,description=?,event_time=?,round1_target=?,round2_target=? WHERE id=?`, strings.TrimSpace(req.Name), req.Description, eventTime, req.Round1Target, req.Round2Target, eventID); err != nil {
+			fail(c, 500, err.Error())
+			return
+		}
+		for i, name := range []string{req.TeamAName, req.TeamBName} {
+			if strings.TrimSpace(name) != "" {
+				if _, err := tx.Exec(`UPDATE teams SET name=? WHERE id=?`, strings.TrimSpace(name), teams[i]); err != nil {
+					fail(c, 500, err.Error())
+					return
+				}
+			}
+		}
+		if _, err := tx.Exec(`UPDATE rounds SET target_score=CASE stage WHEN 'round1' THEN ? WHEN 'round2' THEN ? ELSE 1 END WHERE event_id=?`, req.Round1Target, req.Round2Target, eventID); err != nil {
+			fail(c, 500, err.Error())
 			return
 		}
 	}
-	if _, err := a.db.Exec(`UPDATE events SET round1_no_repeat=?,round1_all_first=?,kof_initial_a=?,kof_initial_b=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, boolInt(req.Round1NoRepeat), boolInt(req.Round1AllFirst), nullableInt64(req.KOFInitialA), nullableInt64(req.KOFInitialB), eventID); err != nil {
-		fail(c, http.StatusInternalServerError, "保存赛事设置失败")
+	// 尚未录分的抽签随设置一起失效，返回排阵阶段重新确认。
+	if _, err := tx.Exec(`DELETE FROM matches WHERE event_id=?`, eventID); err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	if _, err := tx.Exec(`DELETE FROM lineup_entries WHERE event_id=?`, eventID); err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	if _, err := tx.Exec(`UPDATE rounds SET status='pending' WHERE event_id=?`, eventID); err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	if _, err := tx.Exec(`UPDATE events SET status='draft' WHERE id=?`, eventID); err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		fail(c, 500, err.Error())
 		return
 	}
 	a.logAction(eventID, actor.ID, "event_settings_updated", req)

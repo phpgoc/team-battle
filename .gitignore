@@ -1,6 +1,7 @@
 # 编译产物
 team-battle
 team-battle.exe
+team-battle-*.exe
 *.exe~
 
 # 本地运行数据库和会话文件

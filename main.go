@@ -15,7 +15,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-//go:embed web/index.html web/styles.css web/app.js
+//go:embed web/index.html web/styles.css web/app.js web/i18n.js
 var webFS embed.FS
 
 const (
@@ -97,18 +97,27 @@ type categoryRequest struct {
 	Icon string `json:"icon"`
 }
 
+type archivedMatch struct {
+	Round  int    `json:"round"`
+	AID    int64  `json:"a_id"`
+	BID    int64  `json:"b_id"`
+	WhoWin string `json:"who_win"`
+}
+
 type archiveEventRequest struct {
-	Name         string  `json:"name" binding:"required"`
-	Description  string  `json:"description"`
-	EventTime    string  `json:"event_time" binding:"required"`
-	TeamAName    string  `json:"team_a_name"`
-	TeamBName    string  `json:"team_b_name"`
-	PlayerIDs    []int64 `json:"player_ids"`
-	Round1ScoreA int     `json:"round1_score_a"`
-	Round1ScoreB int     `json:"round1_score_b"`
-	Round2ScoreA int     `json:"round2_score_a"`
-	Round2ScoreB int     `json:"round2_score_b"`
-	Winner       string  `json:"winner"`
+	Matches          []archivedMatch   `json:"matches"`
+	FixedAssignments map[string]string `json:"fixed_assignments"`
+	Name             string            `json:"name" binding:"required"`
+	Description      string            `json:"description"`
+	EventTime        string            `json:"event_time" binding:"required"`
+	TeamAName        string            `json:"team_a_name"`
+	TeamBName        string            `json:"team_b_name"`
+	PlayerIDs        []int64           `json:"player_ids"`
+	Round1ScoreA     int               `json:"round1_score_a"`
+	Round1ScoreB     int               `json:"round1_score_b"`
+	Round2ScoreA     int               `json:"round2_score_a"`
+	Round2ScoreB     int               `json:"round2_score_b"`
+	Winner           string            `json:"winner"`
 }
 
 type passwordResetRequest struct {
@@ -135,13 +144,22 @@ type createEventRequest struct {
 	Round2Target     int               `json:"round2_target"`
 	KOFInitialA      int64             `json:"kof_initial_a"`
 	KOFInitialB      int64             `json:"kof_initial_b"`
+	Rules            *EventRules       `json:"rules"`
 }
 
 type eventSettingsRequest struct {
-	Round1NoRepeat bool  `json:"round1_no_repeat"`
-	Round1AllFirst bool  `json:"round1_all_first"`
-	KOFInitialA    int64 `json:"kof_initial_a"`
-	KOFInitialB    int64 `json:"kof_initial_b"`
+	Name           string      `json:"name"`
+	EventTime      string      `json:"event_time"`
+	Description    string      `json:"description"`
+	TeamAName      string      `json:"team_a_name"`
+	TeamBName      string      `json:"team_b_name"`
+	Round1Target   int         `json:"round1_target"`
+	Round2Target   int         `json:"round2_target"`
+	Rules          *EventRules `json:"rules"`
+	Round1NoRepeat bool        `json:"round1_no_repeat"`
+	Round1AllFirst bool        `json:"round1_all_first"`
+	KOFInitialA    int64       `json:"kof_initial_a"`
+	KOFInitialB    int64       `json:"kof_initial_b"`
 }
 
 type resultRequest struct {
@@ -182,8 +200,12 @@ func main() {
 	host := flag.String("host", "localhost", "HTTP listen host")
 	port := flag.Int("port", 9527, "HTTP listen port")
 	dbPath := flag.String("db", "", "SQLite database path")
+	sqlPath := flag.String("sql", "", "SQLite database path alias")
 	flag.Parse()
 
+	if *dbPath == "" {
+		*dbPath = *sqlPath
+	}
 	if *dbPath == "" {
 		*dbPath = defaultDatabasePath()
 	}

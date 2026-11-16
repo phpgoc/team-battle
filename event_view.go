@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -63,6 +62,51 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 		return nil, err
 	}
 	event["teams"] = teams
+	var raw string
+	var initialA, initialB int64
+	if err := a.db.QueryRow(`SELECT rules_json,COALESCE(kof_initial_a,0),COALESCE(kof_initial_b,0) FROM events WHERE id=?`, eventID).Scan(&raw, &initialA, &initialB); err != nil {
+		return nil, err
+	}
+	rules, err := decodeRules(raw)
+	if err != nil {
+		return nil, err
+	}
+	event["rules"] = rules
+	event["kof_initial_a"] = initialA
+	event["kof_initial_b"] = initialB
+	lineups := []map[string]any{}
+	lineupRows, err := a.db.Query(`SELECT team_id,position,player_id,source FROM lineup_entries WHERE event_id=? ORDER BY team_id,position`, eventID)
+	if err != nil {
+		return nil, err
+	}
+	for lineupRows.Next() {
+		var team, player int64
+		var pos int
+		var source string
+		if err := lineupRows.Scan(&team, &pos, &player, &source); err != nil {
+			lineupRows.Close()
+			return nil, err
+		}
+		lineups = append(lineups, map[string]any{"team_id": team, "position": pos, "player_id": player, "source": source})
+	}
+	lineupRows.Close()
+	event["lineups"] = lineups
+	votes := []map[string]any{}
+	voteRows, err := a.db.Query(`SELECT target_id,COUNT(*) FROM captain_votes WHERE event_id=? GROUP BY target_id`, eventID)
+	if err != nil {
+		return nil, err
+	}
+	for voteRows.Next() {
+		var player int64
+		var count int
+		if err := voteRows.Scan(&player, &count); err != nil {
+			voteRows.Close()
+			return nil, err
+		}
+		votes = append(votes, map[string]any{"player_id": player, "count": count})
+	}
+	voteRows.Close()
+	event["votes"] = votes
 	rounds, err := a.loadRounds(eventID)
 	if err != nil {
 		return nil, err
@@ -113,41 +157,41 @@ func (a *App) loadTeams(eventID int64) ([]map[string]any, error) {
 }
 
 func (a *App) loadPlayers(eventID, teamID int64) ([]map[string]any, error) {
-	rows, err := a.db.Query(`SELECT ep.user_id,u.username,u.display_name,ep.is_captain,ep.active,COALESCE(u.category_id,0),CASE WHEN u.avatar_data IS NULL OR length(u.avatar_data)=0 THEN 0 ELSE 1 END FROM event_players ep JOIN users u ON u.id=ep.user_id WHERE ep.event_id=? AND ep.team_id=? ORDER BY ep.is_captain DESC,u.display_name`, eventID, teamID)
+	users, err := a.userDirectory()
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	type playerRow struct {
-		id, categoryID          int64
-		username, displayName   string
-		captain, active, avatar int
+	rows, err := a.db.Query(`SELECT user_id,is_captain,active FROM event_players WHERE event_id=? AND team_id=? ORDER BY is_captain DESC,user_id`, eventID, teamID)
+	if err != nil {
+		return nil, err
 	}
-	playerRows := []playerRow{}
+	type row struct {
+		id              int64
+		captain, active int
+	}
+	entries := []row{}
 	for rows.Next() {
-		var row playerRow
-		if err := rows.Scan(&row.id, &row.username, &row.displayName, &row.captain, &row.active, &row.categoryID, &row.avatar); err != nil {
+		var r row
+		if err := rows.Scan(&r.id, &r.captain, &r.active); err != nil {
+			rows.Close()
 			return nil, err
 		}
-		playerRows = append(playerRows, row)
+		entries = append(entries, r)
 	}
 	if err := rows.Err(); err != nil {
+		rows.Close()
 		return nil, err
 	}
 	rows.Close()
-	players := make([]map[string]any, 0, len(playerRows))
-	for _, row := range playerRows {
-		item := gin.H{"id": row.id, "username": row.username, "display_name": row.displayName, "is_captain": row.captain == 1, "active": row.active == 1, "category_id": row.categoryID}
-		if row.avatar == 1 {
-			item["avatar_url"] = "/api/users/" + strconv.FormatInt(row.id, 10) + "/avatar"
+	items := []map[string]any{}
+	for _, r := range entries {
+		u, exists := users[r.id]
+		if !exists {
+			return nil, errors.New("参赛账号不存在")
 		}
-		if category, ok := a.categoryInfo(row.categoryID); ok {
-			item["category_name"] = category.Name
-			item["category_icon"] = category.IconURL
-		}
-		players = append(players, item)
+		items = append(items, map[string]any{"id": u.ID, "username": u.Username, "display_name": u.DisplayName, "avatar_url": u.AvatarURL, "category_id": u.CategoryID, "category_name": u.CategoryName, "category_icon": u.CategoryIcon, "is_captain": r.captain == 1, "active": r.active == 1})
 	}
-	return players, nil
+	return items, nil
 }
 
 func (a *App) loadRounds(eventID int64) ([]map[string]any, error) {
@@ -174,7 +218,11 @@ func (a *App) loadRounds(eventID int64) ([]map[string]any, error) {
 }
 
 func (a *App) loadMatches(eventID int64) ([]map[string]any, error) {
-	rows, err := a.db.Query(`SELECT m.id,m.round_id,r.stage,m.seq,m.team_a_id,ta.name,m.team_b_id,tb.name,m.player_a_id,pa.display_name,m.player_b_id,pb.display_name,m.winner_team_id,m.next_player_id,m.status,m.note,m.created_at,m.finished_at FROM matches m JOIN rounds r ON r.id=m.round_id JOIN teams ta ON ta.id=m.team_a_id JOIN teams tb ON tb.id=m.team_b_id JOIN users pa ON pa.id=m.player_a_id JOIN users pb ON pb.id=m.player_b_id WHERE m.event_id=? ORDER BY m.round_id,m.seq`, eventID)
+	users, err := a.userDirectory()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := a.db.Query(`SELECT m.id,m.round_id,r.stage,m.seq,m.team_a_id,ta.name,m.team_b_id,tb.name,m.player_a_id,m.player_b_id,m.winner_team_id,m.next_player_id,m.status,m.note,m.created_at,m.finished_at FROM matches m JOIN rounds r ON r.id=m.round_id JOIN teams ta ON ta.id=m.team_a_id JOIN teams tb ON tb.id=m.team_b_id WHERE m.event_id=? ORDER BY m.round_id,m.seq`, eventID)
 	if err != nil {
 		return nil, err
 	}
@@ -185,9 +233,16 @@ func (a *App) loadMatches(eventID int64) ([]map[string]any, error) {
 		var winner, next sql.NullInt64
 		var stage, teamAName, teamBName, playerAName, playerBName, status, note, created string
 		var finished sql.NullString
-		if err := rows.Scan(&id, &roundID, &stage, &seq, &teamA, &teamAName, &teamB, &teamBName, &playerA, &playerAName, &playerB, &playerBName, &winner, &next, &status, &note, &created, &finished); err != nil {
+		if err := rows.Scan(&id, &roundID, &stage, &seq, &teamA, &teamAName, &teamB, &teamBName, &playerA, &playerB, &winner, &next, &status, &note, &created, &finished); err != nil {
 			return nil, err
 		}
+		pa, okA := users[playerA]
+		pb, okB := users[playerB]
+		if !okA || !okB {
+			return nil, errors.New("对局账号不存在")
+		}
+		playerAName = pa.DisplayName
+		playerBName = pb.DisplayName
 		roundNo := int64(0)
 		switch stage {
 		case stageRound1:

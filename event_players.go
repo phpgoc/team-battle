@@ -1,65 +1,132 @@
 package main
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
+	"sort"
 )
 
+// 赛事管理员可以在录分前补充或重新分配完整阵容。
 func (a *App) addEventPlayers(c *gin.Context) {
-	actor, eventID, okAccess := a.managerEvent(c)
-	if !okAccess {
+	actor, eventID, access := a.managerEvent(c)
+	if !access {
 		return
 	}
-	var req addEventPlayersRequest
-	if err := c.ShouldBindJSON(&req); err != nil || len(req.PlayerIDs) == 0 {
-		fail(c, http.StatusBadRequest, "请选择要加入赛事的账号")
+	var req createEventRequest
+	// 阵容请求无需名称，单独绑定以免触发创建赛事的必填校验。
+	var body struct {
+		PlayerIDs        []int64           `json:"player_ids"`
+		FixedAssignments map[string]string `json:"fixed_assignments"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || len(body.PlayerIDs) > 12 {
+		fail(c, 400, "参赛列表无效，最多12人")
+		return
+	}
+	req.PlayerIDs = body.PlayerIDs
+	req.FixedAssignments = body.FixedAssignments
+	var count int
+	if err := a.db.QueryRow(`SELECT COUNT(*) FROM matches WHERE event_id=? AND status='finished'`, eventID).Scan(&count); err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	if count > 0 {
+		fail(c, 400, "已有比分后不能修改参赛阵容")
 		return
 	}
 	teams, err := a.teamIDs(eventID)
 	if err != nil {
-		fail(c, http.StatusBadRequest, err.Error())
+		fail(c, 400, err.Error())
 		return
 	}
-	teamID := req.TeamID
-	if teamID != 0 && teamID != teams[0] && teamID != teams[1] {
-		fail(c, http.StatusBadRequest, "队伍不存在")
+	tx, err := a.db.Begin()
+	if err != nil {
+		fail(c, 500, err.Error())
 		return
 	}
-	for _, playerID := range req.PlayerIDs {
-		var role string
-		if err := a.db.QueryRow(`SELECT role FROM users WHERE id=? AND status='active'`, playerID).Scan(&role); err != nil || !isNonSuperAdmin(role) {
-			fail(c, http.StatusBadRequest, "参赛账号无效")
-			return
-		}
-		var exists int
-		if err := a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=?`, eventID, playerID).Scan(&exists); err != nil {
-			fail(c, http.StatusInternalServerError, err.Error())
-			return
-		}
-		if exists > 0 {
-			continue
-		}
-		if teamID == 0 {
-			var countA, countB int
-			if err := a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND team_id=?`, eventID, teams[0]).Scan(&countA); err != nil {
-				fail(c, http.StatusInternalServerError, err.Error())
-				return
-			}
-			if err := a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND team_id=?`, eventID, teams[1]).Scan(&countB); err != nil {
-				fail(c, http.StatusInternalServerError, err.Error())
-				return
-			}
-			teamID = teams[0]
-			if countB < countA {
-				teamID = teams[1]
-			}
-		}
-		if _, err := a.db.Exec(`INSERT INTO event_players(event_id,user_id,team_id) VALUES(?,?,?)`, eventID, playerID, teamID); err != nil {
-			fail(c, http.StatusBadRequest, "加入参赛选手失败")
+	defer tx.Rollback()
+	for _, table := range []string{"matches", "captain_votes", "lineup_entries", "player_selections", "event_players"} {
+		if _, err := tx.Exec(`DELETE FROM `+table+` WHERE event_id=?`, eventID); err != nil {
+			fail(c, 500, err.Error())
 			return
 		}
 	}
-	a.logAction(eventID, actor.ID, "event_players_added", req)
+	if len(req.PlayerIDs) > 0 {
+		if err := assignPlayers(tx, eventID, teams[0], teams[1], req.PlayerIDs, req.FixedAssignments, a.rng); err != nil {
+			fail(c, 400, err.Error())
+			return
+		}
+	}
+	if _, err := tx.Exec(`UPDATE events SET status='draft',kof_initial_a=NULL,kof_initial_b=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`, eventID); err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	if _, err := tx.Exec(`UPDATE rounds SET status='pending' WHERE event_id=?`, eventID); err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	var raw string
+	if err := tx.QueryRow(`SELECT rules_json FROM events WHERE id=?`, eventID).Scan(&raw); err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	rules, err := decodeRules(raw)
+	if err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	selected := map[int64]bool{}
+	for _, id := range req.PlayerIDs {
+		selected[id] = true
+	}
+	groups := []AceSpecial{}
+	for _, group := range rules.AceSpecials {
+		ids := []int64{}
+		for _, id := range group.PlayerIDs {
+			if selected[id] {
+				ids = append(ids, id)
+			}
+		}
+		if len(ids) > 0 {
+			group.PlayerIDs = ids
+			groups = append(groups, group)
+		}
+	}
+	rules.AceSpecials = groups
+	if err := saveRules(tx, eventID, rules); err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	a.logAction(eventID, actor.ID, "event_roster_updated", body)
 	ok(c, gin.H{"ok": true})
+}
+
+func (a *App) eligibleEventUsers(c *gin.Context) {
+	_, _, access := a.managerEvent(c)
+	if !access {
+		return
+	}
+	users, err := a.activePlayers()
+	if err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	ok(c, gin.H{"users": users})
+}
+
+func (a *App) activePlayers() ([]User, error) {
+	directory, err := a.userDirectory()
+	if err != nil {
+		return nil, err
+	}
+	users := []User{}
+	for _, u := range directory {
+		if isNonSuperAdmin(u.Role) && u.Status == "active" {
+			users = append(users, u)
+		}
+	}
+	sort.Slice(users, func(i, j int) bool { return users[i].ID < users[j].ID })
+	return users, nil
 }
