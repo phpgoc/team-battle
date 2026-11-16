@@ -168,7 +168,24 @@ func (a *App) loadMatches(eventID int64) ([]map[string]any, error) {
 		if err := rows.Scan(&id, &roundID, &stage, &seq, &teamA, &teamAName, &teamB, &teamBName, &playerA, &playerAName, &playerB, &playerBName, &winner, &next, &status, &note, &created, &finished); err != nil {
 			return nil, err
 		}
-		item := gin.H{"id": id, "round_id": roundID, "stage": stage, "seq": seq, "team_a_id": teamA, "team_a_name": teamAName, "team_b_id": teamB, "team_b_name": teamBName, "player_a_id": playerA, "player_a_name": playerAName, "player_b_id": playerB, "player_b_name": playerBName, "status": status, "note": note, "created_at": created, "finished_at": finished.String}
+		roundNo := int64(0)
+		switch stage {
+		case stageRound1:
+			roundNo = 1
+		case stageRound2:
+			roundNo = 2
+		case stageAce:
+			roundNo = 3
+		}
+		whoWin := "0"
+		if winner.Valid {
+			if winner.Int64 == teamA {
+				whoWin = "a"
+			} else if winner.Int64 == teamB {
+				whoWin = "b"
+			}
+		}
+		item := gin.H{"id": id, "match_id": id, "round_id": roundID, "round": roundNo, "stage": stage, "seq": seq, "match_no": seq, "team_a_id": teamA, "team_a_name": teamAName, "team_b_id": teamB, "team_b_name": teamBName, "player_a_id": playerA, "player_a_name": playerAName, "player_b_id": playerB, "player_b_name": playerBName, "a_id": playerA, "b_id": playerB, "who_win": whoWin, "status": status, "note": note, "created_at": created, "finished_at": finished.String}
 		if winner.Valid {
 			item["winner_team_id"] = winner.Int64
 		}

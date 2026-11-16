@@ -64,6 +64,7 @@ type User struct {
 	Status      string `json:"status"`
 	AvatarURL   string `json:"avatar_url,omitempty"`
 	CreatedAt   string `json:"created_at"`
+	CategoryID  int64  `json:"category_id,omitempty"`
 }
 
 type loginRequest struct {
@@ -75,6 +76,30 @@ type profileRequest struct {
 	DisplayName     string `json:"display_name"`
 	CurrentPassword string `json:"current_password"`
 	NewPassword     string `json:"new_password"`
+	CategoryID      *int64 `json:"category_id"`
+}
+
+type catalogNameRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
+type categoryRequest struct {
+	Name string `json:"name" binding:"required"`
+	Icon string `json:"icon"`
+}
+
+type archiveEventRequest struct {
+	Name         string  `json:"name" binding:"required"`
+	Description  string  `json:"description"`
+	EventTime    string  `json:"event_time" binding:"required"`
+	TeamAName    string  `json:"team_a_name"`
+	TeamBName    string  `json:"team_b_name"`
+	PlayerIDs    []int64 `json:"player_ids"`
+	Round1ScoreA int     `json:"round1_score_a"`
+	Round1ScoreB int     `json:"round1_score_b"`
+	Round2ScoreA int     `json:"round2_score_a"`
+	Round2ScoreB int     `json:"round2_score_b"`
+	Winner       string  `json:"winner"`
 }
 
 type passwordResetRequest struct {

@@ -144,6 +144,32 @@ func migrate(db *sql.DB) error {
 			player_id INTEGER NOT NULL REFERENCES users(id),
 			PRIMARY KEY(event_id, stage, team_id)
 		)`,
+		`CREATE TABLE IF NOT EXISTS site_event_names (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			sort_order INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS categories (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			icon TEXT NOT NULL DEFAULT '',
+			sort_order INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TRIGGER IF NOT EXISTS matches_sync_after_insert
+		AFTER INSERT ON matches
+		BEGIN
+			UPDATE matches SET round_no=CASE NEW.round_id WHEN (SELECT id FROM rounds WHERE id=NEW.round_id AND stage='round1') THEN 1 WHEN (SELECT id FROM rounds WHERE id=NEW.round_id AND stage='round2') THEN 2 WHEN (SELECT id FROM rounds WHERE id=NEW.round_id AND stage='ace') THEN 3 ELSE 0 END,
+				a_id=NEW.player_a_id,b_id=NEW.player_b_id,who_win=CASE WHEN NEW.winner_team_id IS NULL THEN '0' WHEN NEW.winner_team_id=NEW.team_a_id THEN 'a' ELSE 'b' END WHERE id=NEW.id;
+		END`,
+		`CREATE TRIGGER IF NOT EXISTS matches_sync_after_update
+		AFTER UPDATE OF round_id,player_a_id,player_b_id,team_a_id,team_b_id,winner_team_id ON matches
+		BEGIN
+			UPDATE matches SET round_no=CASE NEW.round_id WHEN (SELECT id FROM rounds WHERE id=NEW.round_id AND stage='round1') THEN 1 WHEN (SELECT id FROM rounds WHERE id=NEW.round_id AND stage='round2') THEN 2 WHEN (SELECT id FROM rounds WHERE id=NEW.round_id AND stage='ace') THEN 3 ELSE 0 END,
+				a_id=NEW.player_a_id,b_id=NEW.player_b_id,who_win=CASE WHEN NEW.winner_team_id IS NULL THEN '0' WHEN NEW.winner_team_id=NEW.team_a_id THEN 'a' ELSE 'b' END WHERE id=NEW.id;
+		END`,
 	}
 	for _, statement := range statements {
 		if _, err := db.Exec(statement); err != nil {
@@ -158,14 +184,22 @@ func migrate(db *sql.DB) error {
 	}
 	for _, column := range []struct{ table, name, definition string }{
 		{"users", "avatar_version", "INTEGER NOT NULL DEFAULT 0"},
+		{"users", "category_id", "INTEGER"},
 		{"events", "round1_no_repeat", "INTEGER NOT NULL DEFAULT 1"},
 		{"events", "round1_all_first", "INTEGER NOT NULL DEFAULT 1"},
 		{"events", "kof_initial_a", "INTEGER"},
 		{"events", "kof_initial_b", "INTEGER"},
+		{"matches", "round_no", "INTEGER"},
+		{"matches", "a_id", "INTEGER"},
+		{"matches", "b_id", "INTEGER"},
+		{"matches", "who_win", "TEXT NOT NULL DEFAULT '0'"},
 	} {
 		if err := ensureColumn(db, column.table, column.name, column.definition); err != nil {
 			return err
 		}
+	}
+	if _, err := db.Exec(`UPDATE matches SET round_no=CASE (SELECT stage FROM rounds WHERE id=matches.round_id) WHEN 'round1' THEN 1 WHEN 'round2' THEN 2 WHEN 'ace' THEN 3 ELSE 0 END,a_id=player_a_id,b_id=player_b_id,who_win=CASE WHEN winner_team_id IS NULL THEN '0' WHEN winner_team_id=team_a_id THEN 'a' ELSE 'b' END WHERE round_no IS NULL OR a_id IS NULL OR b_id IS NULL`); err != nil {
+		return err
 	}
 	return nil
 }

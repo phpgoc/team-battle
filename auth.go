@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
@@ -20,7 +21,11 @@ func (a *App) login(c *gin.Context) {
 	}
 	var user User
 	var hash string
-	err := a.db.QueryRow(`SELECT id, username, display_name, role, status, created_at, password_hash FROM users WHERE username = ?`, strings.TrimSpace(req.Username)).Scan(&user.ID, &user.Username, &user.DisplayName, &user.Role, &user.Status, &user.CreatedAt, &hash)
+	var categoryID sql.NullInt64
+	err := a.db.QueryRow(`SELECT id, username, display_name, role, status, created_at, password_hash, category_id FROM users WHERE username = ?`, strings.TrimSpace(req.Username)).Scan(&user.ID, &user.Username, &user.DisplayName, &user.Role, &user.Status, &user.CreatedAt, &hash, &categoryID)
+	if categoryID.Valid {
+		user.CategoryID = categoryID.Int64
+	}
 	if err != nil || user.Status != "active" || bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)) != nil {
 		fail(c, http.StatusUnauthorized, "账号或密码错误")
 		return
@@ -73,6 +78,19 @@ func (a *App) updateProfile(c *gin.Context) {
 	if strings.TrimSpace(req.DisplayName) != "" {
 		if _, err := a.db.Exec(`UPDATE users SET display_name=? WHERE id=?`, strings.TrimSpace(req.DisplayName), user.ID); err != nil {
 			fail(c, http.StatusInternalServerError, "保存显示名失败")
+			return
+		}
+	}
+	if req.CategoryID != nil {
+		if *req.CategoryID != 0 {
+			var exists int
+			if err := a.db.QueryRow(`SELECT COUNT(*) FROM categories WHERE id=?`, *req.CategoryID).Scan(&exists); err != nil || exists == 0 {
+				fail(c, http.StatusBadRequest, "分类不存在")
+				return
+			}
+		}
+		if _, err := a.db.Exec(`UPDATE users SET category_id=? WHERE id=?`, nullableInt64(*req.CategoryID), user.ID); err != nil {
+			fail(c, http.StatusInternalServerError, "保存分类失败")
 			return
 		}
 	}
@@ -161,7 +179,7 @@ func (a *App) listUsers(c *gin.Context) {
 		fail(c, http.StatusForbidden, "只有超级管理员可以管理账号")
 		return
 	}
-	rows, err := a.db.Query(`SELECT id, username, display_name, role, status, created_at FROM users ORDER BY role, id`)
+	rows, err := a.db.Query(`SELECT id, username, display_name, role, status, created_at, category_id FROM users ORDER BY role, id`)
 	if err != nil {
 		fail(c, http.StatusInternalServerError, err.Error())
 		return
@@ -170,9 +188,13 @@ func (a *App) listUsers(c *gin.Context) {
 	users := []User{}
 	for rows.Next() {
 		var item User
-		if err := rows.Scan(&item.ID, &item.Username, &item.DisplayName, &item.Role, &item.Status, &item.CreatedAt); err != nil {
+		var categoryID sql.NullInt64
+		if err := rows.Scan(&item.ID, &item.Username, &item.DisplayName, &item.Role, &item.Status, &item.CreatedAt, &categoryID); err != nil {
 			fail(c, http.StatusInternalServerError, err.Error())
 			return
+		}
+		if categoryID.Valid {
+			item.CategoryID = categoryID.Int64
 		}
 		a.populateAvatarURL(&item)
 		users = append(users, item)
@@ -271,8 +293,12 @@ func (a *App) currentUser(c *gin.Context) (User, error) {
 
 func (a *App) userByID(userID int64) (User, error) {
 	var user User
-	if err := a.db.QueryRow(`SELECT id,username,display_name,role,status,created_at FROM users WHERE id=?`, userID).Scan(&user.ID, &user.Username, &user.DisplayName, &user.Role, &user.Status, &user.CreatedAt); err != nil {
+	var categoryID sql.NullInt64
+	if err := a.db.QueryRow(`SELECT id,username,display_name,role,status,created_at,category_id FROM users WHERE id=?`, userID).Scan(&user.ID, &user.Username, &user.DisplayName, &user.Role, &user.Status, &user.CreatedAt, &categoryID); err != nil {
 		return User{}, err
+	}
+	if categoryID.Valid {
+		user.CategoryID = categoryID.Int64
 	}
 	a.populateAvatarURL(&user)
 	return user, nil
