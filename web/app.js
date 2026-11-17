@@ -530,7 +530,7 @@
       throw new Error(t('eventRosterRequired'));
     }
     if (setting) state.editor = 'settings';
-    if (state.editor) await eventEditor(state.editor, preserve); else boardPage();
+    if (state.editor) await eventEditor(state.editor, preserve); else { boardPage(); startDrawAnimation(null, state.event); }
     if (terminal(state.event)) { closeStream(); return; }
     if (state.stream) return;
     const stream = new EventSource('/api/public/events/' + id + '/stream'); state.stream = stream;
