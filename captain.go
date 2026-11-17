@@ -27,6 +27,10 @@ func (a *App) castCaptainVote(c *gin.Context) {
 		return
 	}
 	err = a.runMatchMutation(id, user.ID, func(e *matchEngine) error {
+		status, err := e.status()
+		if err != nil {
+			return err
+		}
 		var team int64
 		if err := e.db.QueryRow(`SELECT team_id FROM event_players WHERE event_id=? AND user_id=? AND active=1`, id, user.ID).Scan(&team); err != nil {
 			return errors.New("你不是参赛选手")
@@ -48,7 +52,34 @@ func (a *App) castCaptainVote(c *gin.Context) {
 		if _, err := e.db.Exec(`INSERT INTO captain_votes(event_id,team_id,voter_id,target_id) VALUES(?,?,?,?) ON CONFLICT(event_id,voter_id) DO UPDATE SET target_id=excluded.target_id`, id, team, user.ID, req.TargetID); err != nil {
 			return err
 		}
-		return e.log("captain_vote_cast", req)
+		if err := e.log("captain_vote_cast", req); err != nil {
+			return err
+		}
+		// 达到本队人数的一半（奇数向上取整）立即确定队长。
+		var votes int
+		if err := e.db.QueryRow(`SELECT COUNT(*) FROM captain_votes WHERE event_id=? AND team_id=? AND target_id=?`, id, team, req.TargetID).Scan(&votes); err != nil {
+			return err
+		}
+		threshold := (len(ids) + 1) / 2
+		if votes < threshold {
+			return nil
+		}
+		if _, err := e.db.Exec(`UPDATE event_players SET is_captain=CASE WHEN team_id=? AND user_id=? THEN 1 ELSE is_captain END WHERE event_id=? AND team_id=?`, team, req.TargetID, id, team); err != nil {
+			return err
+		}
+		if err := e.log("captain_auto_confirmed", map[string]any{"team_id": team, "player_id": req.TargetID, "votes": votes, "threshold": threshold}); err != nil {
+			return err
+		}
+		if preMatch(status) {
+			var captainCount int
+			if err := e.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND is_captain=1 AND active=1`, id).Scan(&captainCount); err != nil {
+				return err
+			}
+			if captainCount == 2 {
+				return e.setStage(statusLineup)
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		fail(c, 400, err.Error())
