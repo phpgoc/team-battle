@@ -36,16 +36,16 @@ func TestHomeSummariesAndCachedHistoryFilters(t *testing.T) {
 		t.Fatalf("实时赛事摘要有误: %+v", live)
 	}
 	history := read("/api/public/history?page_size=1")
-	if history.Total != 3 || len(history.Events) != 1 || history.Events[0].Name != "测试历史赛事 1" || history.Events[0].WinsA != 2 || history.Events[0].WinsB != 0 {
+	if history.Total != 3 || len(history.Events) != 1 || history.Events[0].Name != "OSL 经典赛" || history.Events[0].WinsA != 2 || history.Events[0].WinsB != 0 {
 		t.Fatalf("首轮与KOF获胜后应显示2:0: %+v", history)
 	}
 	second := read("/api/public/history?page_size=1&page=2")
-	if len(second.Events) != 1 || second.Events[0].Name != "测试历史赛事 2" || second.Events[0].PlayerCount != 9 || second.Events[0].WinsA != 2 || second.Events[0].WinsB != 1 {
+	if len(second.Events) != 1 || second.Events[0].Name != "MSL KOF 夜" || second.Events[0].PlayerCount != 9 || second.Events[0].WinsA != 2 || second.Events[0].WinsB != 1 {
 		t.Fatalf("缓存分页应保留大将战与参赛人数: %+v", second)
 	}
 	date := time.Now().AddDate(0, 0, -2).Format("2006-01-02")
-	filtered := read("/api/public/history?" + url.Values{"name": {"历史赛事 2"}, "from": {date}, "to": {date}}.Encode())
-	if filtered.Total != 1 || len(filtered.Events) != 1 || filtered.Events[0].Name != "测试历史赛事 2" {
+	filtered := read("/api/public/history?" + url.Values{"name": {"MSL KOF 夜"}, "from": {date}, "to": {date}}.Encode())
+	if filtered.Total != 1 || len(filtered.Events) != 1 || filtered.Events[0].Name != "MSL KOF 夜" {
 		t.Fatalf("缓存应按赛事名称和开始日期筛选: %+v", filtered)
 	}
 	missing := read("/api/public/history?name=" + url.QueryEscape("不存在的赛事"))

@@ -18,11 +18,6 @@ import (
 //go:embed web/index.html web/styles.css web/app.js web/i18n.js web/player-records.js
 var webFS embed.FS
 
-// 演示分类图片随程序打包，不依赖网络或额外资源目录。
-//
-//go:embed web/demo/*.png
-var demoFS embed.FS
-
 const (
 	roleSuperAdmin = "superadmin"
 	roleUser       = "user"
@@ -200,13 +195,6 @@ func main() {
 		}
 		return
 	}
-	if len(os.Args) > 1 && os.Args[1] == "test" {
-		if err := runTestServer(os.Args[2:]); err != nil {
-			log.Fatal(err)
-		}
-		return
-	}
-
 	host := flag.String("host", "localhost", "HTTP listen host")
 	port := flag.Int("port", 9527, "HTTP listen port")
 	dbPath := flag.String("db", "", "SQLite database path")

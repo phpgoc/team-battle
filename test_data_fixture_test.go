@@ -4,21 +4,21 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"database/sql"
-	"flag"
+	"embed"
 	"fmt"
 	"image"
 	"image/color"
 	"image/png"
-	"log"
 	mathrand "math/rand"
-	"net"
-	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+// 测试服务使用的种族图片只在测试构建中打包。
+//
+//go:embed web/demo/*.png
+var demoFS embed.FS
 
 type testAccount struct {
 	username string
@@ -32,46 +32,6 @@ var testCategories = []struct {
 	asset string
 }{
 	{"虫族", "zerg"}, {"神族", "protoss"}, {"人族", "terran"}, {"随机", "random"}}
-
-func runTestServer(args []string) error {
-	flags := flag.NewFlagSet("test", flag.ContinueOnError)
-	dbPath := flags.String("db", "", "SQLite database path")
-	sqlPath := flags.String("sql", "", "SQLite database path alias")
-	host := flags.String("host", "localhost", "HTTP listen host")
-	port := flags.Int("port", 9528, "HTTP listen port")
-	if err := flags.Parse(args); err != nil {
-		return err
-	}
-	path := strings.TrimSpace(*sqlPath)
-	if path == "" {
-		path = strings.TrimSpace(*dbPath)
-	}
-	if path == "" {
-		base := defaultDatabasePath()
-		path = filepath.Join(filepath.Dir(base), "test_"+filepath.Base(base))
-	}
-	db, err := sql.Open("sqlite", path)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	db.SetMaxOpenConns(4)
-	db.SetMaxIdleConns(4)
-	if _, err := db.Exec(`PRAGMA busy_timeout = 5000`); err != nil {
-		return err
-	}
-	if err := migrate(db); err != nil {
-		return err
-	}
-	if err := seedTestData(db); err != nil {
-		return err
-	}
-	app := &App{db: db, rng: mathrand.New(mathrand.NewSource(time.Now().UnixNano())), drawSleep: time.Sleep}
-	addr := net.JoinHostPort(*host, strconv.Itoa(*port))
-	log.Printf("test server listening on http://%s, db=%s", addr, path)
-	log.Printf("test accounts use password: test1234; superadmin=test-admin, managers=test-manager-1/test-manager-2")
-	return app.router().Run(addr)
-}
 
 const testAvatarPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 
@@ -103,15 +63,22 @@ func seedTestData(db *sql.DB) error {
 		}
 		categoryIDs[category.name] = categoryID
 	}
-	for i, name := range []string{"测试公开赛", "测试 KOF 夜", "测试邀请赛"} {
+	for i, name := range []string{"OSL 经典赛", "MSL KOF 夜", "ASL 邀请赛"} {
 		if _, err := tx.Exec(`INSERT INTO site_event_names(name,sort_order) VALUES(?,?)`, name, i); err != nil {
 			return err
 		}
 	}
-	accounts := []testAccount{{"test-admin", "测试超级管理员", roleSuperAdmin, "随机"}, {"test-manager-1", "测试账号 1", roleUser, "随机"}, {"test-manager-2", "测试账号 2", roleUser, "随机"}}
-	for i := 1; i <= 7; i++ {
-		accounts = append(accounts, testAccount{fmt.Sprintf("test-player-%02d", i), fmt.Sprintf("测试选手 %02d", i), roleUser, testCategories[(i-1)%3].name})
+	accounts := []testAccount{{"test-admin", "BoxeR", roleSuperAdmin, "人族"}, {"test-manager-1", "Flash", roleUser, "人族"}, {"test-manager-2", "Jaedong", roleUser, "虫族"}}
+	players := []testAccount{
+		{"test-player-01", "Bisu", roleUser, "神族"},
+		{"test-player-02", "Stork", roleUser, "神族"},
+		{"test-player-03", "sAviOr", roleUser, "虫族"},
+		{"test-player-04", "iloveoov", roleUser, "人族"},
+		{"test-player-05", "NaDa", roleUser, "人族"},
+		{"test-player-06", "Rain", roleUser, "神族"},
+		{"test-player-07", "soO", roleUser, "虫族"},
 	}
+	accounts = append(accounts, players...)
 	hash, err := bcrypt.GenerateFromPassword([]byte("test1234"), bcrypt.DefaultCost)
 	if err != nil {
 		return err
@@ -131,18 +98,18 @@ func seedTestData(db *sql.DB) error {
 		}
 		ids[account.username] = userID
 	}
-	players := []int64{ids["test-manager-1"], ids["test-manager-2"]}
+	playerIDs := []int64{ids["test-manager-1"], ids["test-manager-2"]}
 	for i := 1; i <= 7; i++ {
-		players = append(players, ids[fmt.Sprintf("test-player-%02d", i)])
+		playerIDs = append(playerIDs, ids[fmt.Sprintf("test-player-%02d", i)])
 	}
 	managerID := ids["test-manager-1"]
 	adminID := ids["test-admin"]
 	for i, winners := range []string{"aa", "ba", "ab"} {
-		if err := seedCompletedTestEvent(tx, managerID, adminID, players, fmt.Sprintf("测试历史赛事 %d", i+1), time.Now().AddDate(0, 0, -i-1).Format("2006-01-02T15"), winners); err != nil {
+		if err := seedCompletedTestEvent(tx, managerID, adminID, playerIDs, []string{"OSL 经典赛", "MSL KOF 夜", "ASL 邀请赛"}[i], time.Now().AddDate(0, 0, -i-1).Format("2006-01-02T15"), winners); err != nil {
 			return err
 		}
 	}
-	if err := seedLiveTestEvent(tx, managerID, adminID, players); err != nil {
+	if err := seedLiveTestEvent(tx, managerID, adminID, playerIDs); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -245,7 +212,7 @@ func seedCompletedTestEvent(tx *sql.Tx, managerID, creatorID int64, players []in
 }
 
 func seedLiveTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64) error {
-	eventID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, "测试直播赛事", time.Now().Format("2006-01-02T15"), statusDraft)
+	eventID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, "GSL 直播赛", time.Now().Format("2006-01-02T15"), statusDraft)
 	if err != nil {
 		return err
 	}

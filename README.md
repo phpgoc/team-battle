@@ -61,19 +61,19 @@ go build -o team-battle .
 
 程序只提供 HTTP，不内置 TLS。需要 HTTPS 时，请使用 Nginx 等反向代理负责证书和 TLS 终止。
 
-试用时可以使用测试服务。它会使用 `test_team-battle.sqlite`，初始化 10 个测试账号、4 个分类、3 场历史赛事和 1 场进行中赛事，然后启动服务，默认访问 `http://localhost:9528`：
+仓库内附带一个完整的试用数据库 `test.sqlite`，包含 10 个测试账号、4 个分类、3 场历史赛事和 1 场进行中赛事。它不会打包进程序，直接用普通启动参数打开即可：
 
 ```text
-./team-battle test
+./team-battle --db ./test.sqlite --port 9528
 ```
 
-也可以指定测试数据库、监听地址和端口：
+也可以指定监听地址和端口：
 
 ```text
-./team-battle test --sql ./data/test.sqlite --host 0.0.0.0 --port 9528
+./team-battle --db ./test.sqlite --host 0.0.0.0 --port 9528
 ```
 
-测试账号的初始密码都是 `test1234`，超级管理员是 `test-admin`。
+测试账号的初始密码都是 `test1234`，超级管理员账号是 `test-admin`。测试选手使用真实星际争霸选手名，分类图标使用星际争霸种族图标。
 
 网站设置中的分类支持上传 JPG、PNG、GIF 或 WebP 图片作为分类图标。
 
