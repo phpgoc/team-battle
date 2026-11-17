@@ -8,6 +8,7 @@
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
   const terminal = e => ['completed', 'cancelled'].includes(e.status);
+  const hasRoster = e => (e?.teams || []).some(team => team.players.some(player => player.active !== false));
   const preMatch = e => ['draft', 'captain_vote', 'lineup_confirm'].includes(e.status);
   const manages = e => state.user && (state.user.role === 'superadmin' || Number(state.user.id) === Number(e.manager_id));
   const editable = e => manages(e) && !terminal(e);
@@ -144,7 +145,7 @@
     $('#all-random').onclick = () => { for (const user of state.users) if (state.roster[user.id]) $(`[name="pick_${user.id}"][value="R"]`, form).checked = true; update(); };
     update();
   }
-  const defaultRules = () => ({ round1_mode: 'manual', kof_starter: 'random', no_repeat: true, all_first: true, ace_most_wins: 20, ace_most_losses: 20, ace_specials: [] });
+  const defaultRules = () => ({ round1_mode: 'manual', kof_starter: 'random', no_repeat: true, all_first: true, random_draw_seconds: 3, ace_draw_seconds: 5, ace_most_wins: 20, ace_most_losses: 20, ace_specials: [] });
   function specialCandidatesMarkup(selected = []) {
     const available = state.users.filter(u => state.roster[u.id]);
     if (!available.length) return `<p class="help">${t('selectPlayersFirst')}</p>`;
@@ -168,7 +169,7 @@
   }
   function readRulesDraft(form) {
     const f = new FormData(form);
-    return { round1_mode: f.get('round1_mode'), kof_starter: f.get('kof_starter'), no_repeat: f.has('no_repeat'), all_first: f.has('all_first'), ace_most_wins: Number(f.get('ace_most_wins')), ace_most_losses: Number(f.get('ace_most_losses')), ace_specials: $$('.special-rule', form).map(row => ({ probability: Number($('[name="special_probability"]', row).value), player_ids: $$('input[type=checkbox]:checked', row).map(el => Number(el.value)) })) };
+    return { round1_mode: f.get('round1_mode'), kof_starter: f.get('kof_starter'), no_repeat: f.has('no_repeat'), all_first: f.has('all_first'), random_draw_seconds: Number(f.get('random_draw_seconds')), ace_draw_seconds: Number(f.get('ace_draw_seconds')), ace_most_wins: Number(f.get('ace_most_wins')), ace_most_losses: Number(f.get('ace_most_losses')), ace_specials: $$('.special-rule', form).map(row => ({ probability: Number($('[name="special_probability"]', row).value), player_ids: $$('input[type=checkbox]:checked', row).map(el => Number(el.value)) })) };
   }
   function rulesValue(form) {
     const rules = readRulesDraft(form);
@@ -191,10 +192,15 @@
     form.addEventListener('change', refresh);
     refresh();
   }
+  function drawTimingMarkup(e, editableTiming, separateSave) {
+    const rules = { ...defaultRules(), ...e.rules };
+    return `<section class="panel section-gap draw-timing-panel"><div class="panel-head"><h2>${t('drawTiming')}</h2><span>${t('drawTimingMutable')}</span></div><div class="panel-body form-grid">${field('randomDrawSeconds', input('random_draw_seconds', rules.random_draw_seconds, 'number', 'min="0" step="1" required' + (editableTiming ? '' : ' disabled')))}${field('aceDrawSeconds', input('ace_draw_seconds', rules.ace_draw_seconds, 'number', 'min="0" step="1" required' + (editableTiming ? '' : ' disabled')))}<p class="help full">${t('drawTimingHint')}</p>${separateSave ? '<button type="button" class="primary accent" id="save-draw-settings">' + t('save') + '</button>' : ''}</div></section>`;
+  }
   async function eventEditor(mode = 'create', preserve = false) {
     const source = mode === 'create' ? {} : state.event;
     if (mode !== 'create' && !manages(source)) { state.editor = null; return boardPage(); }
     const readonly = mode !== 'create' && !canEditSettings(source);
+    const timingEditable = mode === 'create' || (mode !== 'roster' && manages(source) && !terminal(source));
     const e = preserve && state.ruleDraft && !readonly ? { ...source, rules: state.ruleDraft } : source;
     const [users, catalog] = await Promise.all([
       mode === 'create' ? api('/api/users') : terminal(e) ? Promise.resolve({ users: e.teams.flatMap(team => team.players) }) : api('/api/events/' + e.id + '/eligible-users'),
@@ -205,10 +211,10 @@
     const managerDefault = mode === 'create' || state.users.some(u => u.id === e.manager_id) ? 0 : e.manager_id;
     const managerField = state.user.role === 'superadmin' ? field('manager', '<select name="manager_id"><option value="' + managerDefault + '">' + t('managerDefault') + '</option>' + options(state.users, e.manager_id) + '</select>') : '';
     const basic = mode !== 'roster' ? '<section class="panel"><div class="panel-body form-grid">' + field('name', '<input name="name" list="event-names" value="' + esc(e.name || '') + '" required><datalist id="event-names">' + catalog.event_names.map(n => '<option value="' + esc(n.name) + '">').join('') + '</datalist>', true) + field('time', eventTimeInput(e.event_time || localTime())) + managerField + field('description', '<textarea name="description" rows="2">' + esc(e.description || '') + '</textarea>', true) + '</div></section>' : '';
-    const content = '<div class="page-head"><div><h1>' + t(mode === 'create' ? 'createEvent' : mode === 'roster' ? 'editRoster' : 'eventSettings') + '</h1><p class="subtitle">' + t(readonly ? 'settingsLocked' : mode === 'create' ? 'requiredHint' : 'settingsResetHint') + '</p></div>' + (mode === 'create' ? '' : '<button class="outline" id="back-board">' + t('close') + '</button>') + '</div><form id="event-form"><fieldset class="event-settings-fields">' + basic + rosterMarkup(state.users, state.roster) + (mode === 'roster' ? '' : rulesMarkup(e)) + '</fieldset>' + (readonly ? '' : '<div class="form-footer"><button class="primary accent">' + t(mode === 'create' ? 'createEvent' : 'save') + '</button></div>') + '</form>';
+    const content = '<div class="page-head"><div><h1>' + t(mode === 'create' ? 'createEvent' : mode === 'roster' ? 'editRoster' : 'eventSettings') + '</h1><p class="subtitle">' + t(readonly ? 'settingsLocked' : mode === 'create' ? 'requiredHint' : 'settingsResetHint') + '</p></div>' + (mode === 'create' ? '' : '<button class="outline" id="back-board">' + t('close') + '</button>') + '</div><form id="event-form"><fieldset class="event-settings-fields">' + basic + rosterMarkup(state.users, state.roster) + (mode === 'roster' ? '' : rulesMarkup(e)) + '</fieldset>' + (mode === 'roster' ? '' : drawTimingMarkup(e, timingEditable, readonly && timingEditable)) + (readonly ? '' : '<div class="form-footer"><button class="primary accent">' + t(mode === 'create' ? 'createEvent' : 'save') + '</button></div>') + '</form>';
     if (mode === 'create') shell(content, 'createEvent'); else {
       app.innerHTML = '<main class="event-editor-page"><div class="editor-language">' + picker() + '</div>' + content + '</main>';
-      bindCommon(); $('#back-board').onclick = () => { state.editor = null; boardPage(); };
+      bindCommon(); $('#back-board').onclick = () => { state.editor = null; if (hasRoster(state.event)) boardPage(); else go('/'); };
     }
     const form = $('#event-form');
     bindRoster(form);
@@ -225,8 +231,20 @@
         rules: rulesValue(form), ...rosterValue(form)
       };
       if (mode === 'create') { const created = await post('/api/events', body); toast(t('eventCreated')); go('/live/' + created.id); }
-      else { await post('/api/events/' + e.id + (mode === 'roster' ? '/players' : '/settings'), body, mode === 'roster' ? 'POST' : 'PATCH'); state.editor = null; await refreshEvent(); toast(t('saved')); }
+      else {
+        await post('/api/events/' + e.id + (mode === 'roster' ? '/players' : '/settings'), body, mode === 'roster' ? 'POST' : 'PATCH');
+        state.editor = null;
+        if (mode === 'settings') history.replaceState({}, '', '/live/' + e.id);
+        if (!hasRoster(state.event)) { await openEvent(e.id); } else { await refreshEvent(); }
+        toast(t('saved'));
+      }
     });
+    $('#save-draw-settings')?.addEventListener('click', action(async () => {
+      const body = { random_draw_seconds: Number($('[name="random_draw_seconds"]', form).value), ace_draw_seconds: Number($('[name="ace_draw_seconds"]', form).value) };
+      await post('/api/events/' + e.id + '/draw-settings', body, 'PATCH');
+      state.event.rules = { ...state.event.rules, ...body };
+      toast(t('saved'));
+    }));
   }
 
   function playerHasWin(e, playerID, stage) { return e.matches.some(m => m.stage === stage && m.status === 'finished' && ((m.player_a_id === playerID && m.who_win === 'a') || (m.player_b_id === playerID && m.who_win === 'b'))); }
@@ -247,7 +265,7 @@
       const candidates = team.players.filter(p => group.player_ids.includes(p.id));
       return `<div class="summary-team"><span>${t(side ? 'teamB' : 'teamA')}</span><div>${candidates.length ? candidates.map(p => `<span class="summary-candidate">${avatar(p)}<span>${esc(p.display_name)}</span>${categoryIcon(p)}</span>`).join('') : `<small>${t('noCandidateFallback')}</small>`}</div></div>`;
     }).join('')}</div>`).join('');
-    return `<section class="board-rules"><div class="board-roster-head"><span>${t('eventSettings')}</span></div><div class="board-rule-block"><h3>${t('round1')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round1_target}</dd></div><div><dt>${t('round1Mode')}</dt><dd>${t(rules.round1_mode === 'random' ? 'random' : 'manual')}</dd></div><div><dt>${t('noRepeat')}</dt><dd>${t(rules.no_repeat ? 'enabled' : 'disabled')}</dd></div><div><dt>${t('allFirst')}</dt><dd>${t(rules.all_first ? 'enabled' : 'disabled')}</dd></div></dl></div><div class="board-rule-block"><h3>${t('round2')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round2_target}</dd></div><div><dt>${t('kofStarter')}</dt><dd>${t(rules.kof_starter === 'captain' ? 'captainStarter' : 'randomStarter')}</dd></div></dl></div><div class="board-rule-block"><h3>${t('aceRules')}</h3><dl><div><dt>${t('mostWinsRule')}</dt><dd>${rules.ace_most_wins}%</dd></div><div><dt>${t('mostLossesRule')}</dt><dd>${rules.ace_most_losses}%</dd></div><div><dt>${t('random')}</dt><dd>${fallback}%</dd></div></dl>${specialGroups}</div>${e.description ? `<div class="board-rule-block"><h3>${t('description')}</h3><p class="summary-description">${esc(e.description)}</p></div>` : ''}</section>`;
+    return `<section class="board-rules"><div class="board-roster-head"><span>${t('eventSettings')}</span></div><div class="board-rule-block"><h3>${t('round1')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round1_target}</dd></div><div><dt>${t('round1Mode')}</dt><dd>${t(rules.round1_mode === 'random' ? 'random' : 'manual')}</dd></div><div><dt>${t('noRepeat')}</dt><dd>${t(rules.no_repeat ? 'enabled' : 'disabled')}</dd></div><div><dt>${t('allFirst')}</dt><dd>${t(rules.all_first ? 'enabled' : 'disabled')}</dd></div><div><dt>${t('randomDrawSeconds')}</dt><dd>${rules.random_draw_seconds}${t('seconds')}</dd></div></dl></div><div class="board-rule-block"><h3>${t('round2')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round2_target}</dd></div><div><dt>${t('kofStarter')}</dt><dd>${t(rules.kof_starter === 'captain' ? 'captainStarter' : 'randomStarter')}</dd></div><div><dt>${t('randomDrawSeconds')}</dt><dd>${rules.random_draw_seconds}${t('seconds')}</dd></div></dl></div><div class="board-rule-block"><h3>${t('aceRules')}</h3><dl><div><dt>${t('aceDrawSeconds')}</dt><dd>${rules.ace_draw_seconds}${t('seconds')}</dd></div><div><dt>${t('mostWinsRule')}</dt><dd>${rules.ace_most_wins}%</dd></div><div><dt>${t('mostLossesRule')}</dt><dd>${rules.ace_most_losses}%</dd></div><div><dt>${t('random')}</dt><dd>${fallback}%</dd></div></dl>${specialGroups}</div>${e.description ? `<div class="board-rule-block"><h3>${t('description')}</h3><p class="summary-description">${esc(e.description)}</p></div>` : ''}</section>`;
   }
   function boardContent(e) { const teams = e.teams, people = teams.flatMap(t => t.players), rounds = e.rounds; const stages = ['round1', 'round2', 'ace']; const round = stage => rounds.find(r => r.stage === stage); const panel = stage => { const matches = e.matches.filter(m => m.stage === stage); const waiting = stage === 'round2' ? waitingKOFMatch(e) : null; if (waiting) matches.push(waiting); return roundMarkup(round(stage), matches, people); }; const pending = !terminal(e) ? (e.matches.find(m => m.status === 'pending' && m.stage === e.status) || waitingKOFMatch(e)) : null; const roster = teams.map(team => `<section class="board-roster-team"><h3>${esc(team.name)} · ${team.players.length}</h3>${team.players.map(p => { const lost = playerHasLoss(e, p.id, 'round2'); const recordClass = e.status === 'round2' ? (playerHasWin(e, p.id, 'round2') ? 'is-record-winner' : 'is-record-new') : ''; return `<div class="board-roster-player ${lost ? 'is-lost' : ''} ${recordClass}">${avatar(p)}<span class="board-roster-name">${esc(p.display_name)}</span>${categoryIcon(p)}${p.is_captain ? `<b class="board-captain">${t('captain')}</b>` : ''}</div>`; }).join('')}</section>`).join(''); return `<div class="board-top"><div><span class="board-live-mark">TEAM BATTLE</span><h1>${esc(e.name)}</h1><p>${esc(displayTime(e.event_time))}</p></div><div class="board-heading-actions"><span class="board-status">${t(e.status)}</span>${manages(e) && !terminal(e) ? `<button class="board-settings-button" id="board-settings">${t('eventSettings')}</button>` : ''}</div></div><div class="board-score"><div><span>${esc(teams[0].name)}</span><strong>${rounds.filter(r => r.winner_team_id === teams[0].id).length}</strong></div><b>VS</b><div><span>${esc(teams[1].name)}</span><strong>${rounds.filter(r => r.winner_team_id === teams[1].id).length}</strong></div></div>${pending ? currentMatchMarkup(e, pending, people) : ''}<div class="board-records"><div class="board-columns"><div class="board-left">${panel(stages[0])}${panel(stages[1])}</div><div class="board-right">${panel(stages[2])}${rulesSummary(e)}<section class="board-roster"><div class="board-roster-head"><span>${t('players')}</span><b>${people.length}</b></div>${roster}</section></div></div></div>`; }
   function boardVariant(e) {
@@ -330,9 +348,18 @@
     $('#correct-form')?.addEventListener('submit', action(async event => { event.preventDefault(); if (!confirm(t('correctHint'))) return; const f = new FormData(event.target); await eventAction('/matches/' + f.get('match_id') + '/result', { winner_team_id: Number(f.get('winner_team_id')) }, 'PATCH'); }));
     $('#confirm-end')?.addEventListener('click', action(async () => { if (confirm(t('confirmEndHint'))) await eventAction('/confirm'); }));
   }
-  async function openEvent(id, preserve = false) {
+  async function openEvent(id, preserve = false, setting = false) {
     if (state.event?.id !== Number(id)) state.event = null;
     state.event = await api('/api/public/events/' + id);
+    if (!hasRoster(state.event) && !setting) {
+      if (state.user && manages(state.event)) {
+        history.replaceState({}, '', '/live/' + id + '/setting');
+        state.editor = 'settings';
+        return eventEditor('settings', preserve);
+      }
+      throw new Error(t('eventRosterRequired'));
+    }
+    if (setting) state.editor = 'settings';
     if (state.editor) await eventEditor(state.editor, preserve); else boardPage();
     if (terminal(state.event)) { closeStream(); return; }
     if (state.stream) return;
@@ -363,7 +390,10 @@
   async function renderRoute(preserve = false) {
     document.documentElement.lang = state.language;
     const path = location.pathname;
-    if (path.startsWith('/live/')) return openEvent(path.split('/').pop(), preserve);
+    if (path.startsWith('/live/')) {
+      const parts = path.split('/').filter(Boolean);
+      return openEvent(parts[1], preserve, parts[2] === 'setting');
+    }
     closeStream(); state.event = null;
     if (path === '/login') return loginPage();
     const page = new URLSearchParams(location.search).get('page') || 'home';

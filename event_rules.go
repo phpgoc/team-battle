@@ -15,17 +15,19 @@ type AceSpecial struct {
 }
 
 type EventRules struct {
-	Round1Mode    string       `json:"round1_mode"`
-	KOFStarter    string       `json:"kof_starter"`
-	NoRepeat      bool         `json:"no_repeat"`
-	AllFirst      bool         `json:"all_first"`
-	AceMostWins   int          `json:"ace_most_wins"`
-	AceMostLosses int          `json:"ace_most_losses"`
-	AceSpecials   []AceSpecial `json:"ace_specials"`
+	Round1Mode        string       `json:"round1_mode"`
+	KOFStarter        string       `json:"kof_starter"`
+	NoRepeat          bool         `json:"no_repeat"`
+	AllFirst          bool         `json:"all_first"`
+	RandomDrawSeconds int          `json:"random_draw_seconds"`
+	AceDrawSeconds    int          `json:"ace_draw_seconds"`
+	AceMostWins       int          `json:"ace_most_wins"`
+	AceMostLosses     int          `json:"ace_most_losses"`
+	AceSpecials       []AceSpecial `json:"ace_specials"`
 }
 
 func defaultRules() EventRules {
-	return EventRules{Round1Mode: "manual", KOFStarter: "random", NoRepeat: true, AllFirst: true, AceMostWins: 20, AceMostLosses: 20, AceSpecials: []AceSpecial{}}
+	return EventRules{Round1Mode: "manual", KOFStarter: "random", NoRepeat: true, AllFirst: true, RandomDrawSeconds: 3, AceDrawSeconds: 5, AceMostWins: 20, AceMostLosses: 20, AceSpecials: []AceSpecial{}}
 }
 
 // 兼容旧赛事未保存首发方式的规则，缺省时使用随机首发。
@@ -53,6 +55,9 @@ func (r EventRules) validate() error {
 	}
 	if r.KOFStarter != "random" && r.KOFStarter != "captain" {
 		return errors.New("KOF首发方式只能为随机首发或队长派人")
+	}
+	if r.RandomDrawSeconds < 0 || r.AceDrawSeconds < 0 {
+		return errors.New("抽选时间不能为负数")
 	}
 	total := r.AceMostWins + r.AceMostLosses
 	if r.AceMostWins < 0 || r.AceMostLosses < 0 {

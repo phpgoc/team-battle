@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -11,7 +12,8 @@ func (a *App) router() *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.GET("/", a.serveIndex)
-	r.GET("/live/:id", a.serveIndex)
+	r.GET("/live/:id/setting", func(c *gin.Context) { a.serveLiveEntry(c, true) })
+	r.GET("/live/:id", func(c *gin.Context) { a.serveLiveEntry(c, false) })
 	r.GET("/history", a.serveIndex)
 	r.GET("/login", a.serveIndex)
 	r.GET("/live", a.serveIndex)
@@ -67,6 +69,7 @@ func (a *App) router() *gin.Engine {
 	api.PATCH("/site-settings/categories/:categoryID", a.updateCategory)
 	api.DELETE("/site-settings/categories/:categoryID", a.deleteCategory)
 	api.PATCH("/events/:id/settings", a.updateEventSettings)
+	api.PATCH("/events/:id/draw-settings", a.updateDrawSettings)
 	api.GET("/events/:id", a.eventDetail)
 	api.POST("/events/:id/captain-votes", a.castCaptainVote)
 	api.POST("/events/:id/captains/confirm", a.confirmCaptains)
@@ -82,6 +85,39 @@ func (a *App) router() *gin.Engine {
 	api.POST("/events/:id/cancel", a.cancelEvent)
 	api.POST("/events/:id/confirm", a.confirmEvent)
 	return r
+}
+
+// 没有完成参赛分队时，赛事只允许有权限的账号进入设置页。
+func (a *App) serveLiveEntry(c *gin.Context, setting bool) {
+	eventID, err := parseID(c.Param("id"))
+	if err != nil || !a.eventExists(eventID) {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	user, loggedIn := a.currentUser(c)
+	manager := loggedIn == nil && a.canManageEvent(user.ID, user.Role, eventID)
+	var players int
+	if err := a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND active=1`, eventID).Scan(&players); err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	if setting {
+		if !manager {
+			c.Status(http.StatusForbidden)
+			return
+		}
+		a.serveIndex(c)
+		return
+	}
+	if players == 0 {
+		if manager {
+			c.Redirect(http.StatusFound, "/live/"+strconv.FormatInt(eventID, 10)+"/setting")
+			return
+		}
+		c.Status(http.StatusNotFound)
+		return
+	}
+	a.serveIndex(c)
 }
 
 func (a *App) serveIndex(c *gin.Context) {

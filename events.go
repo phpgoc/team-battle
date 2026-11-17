@@ -17,6 +17,11 @@ func (a *App) publicStream(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "赛事编号无效")
 		return
 	}
+	var players int
+	if err := a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND active=1`, eventID).Scan(&players); err != nil || players == 0 {
+		fail(c, http.StatusNotFound, "赛事尚未完成参赛分队")
+		return
+	}
 	payload, err := a.publicEventPayload(eventID)
 	if err != nil {
 		fail(c, http.StatusNotFound, "赛事不存在")
