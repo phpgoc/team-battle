@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const app = document.getElementById('app');
-  const state = { user: null, language: localStorage.getItem('tb_language') || 'zh', event: null, stream: null, operations: false, editor: null, roster: {}, users: [], page: 1, filters: {}, connection: '' };
+  const state = { user: null, language: localStorage.getItem('tb_language') || 'zh', event: null, stream: null, operations: false, editor: null, roster: {}, users: [], page: 1, filters: {}, connection: '', drawTimer: null, drawToken: 0 };
   const langs = { zh: '中文', en: 'English', ko: '한국어' };
   const t = key => window.TB_I18N[state.language]?.[key] || window.TB_I18N.zh[key] || key;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -66,7 +66,7 @@
     };
   }
   function picker() { return `<select class="language-picker" aria-label="Language">${Object.entries(langs).map(([key, name]) => `<option value="${key}"${state.language === key ? ' selected' : ''}>${name}</option>`).join('')}</select>`; }
-  function closeStream() { state.stream?.close(); state.stream = null; }
+  function closeStream() { state.stream?.close(); state.stream = null; if (state.drawTimer) clearInterval(state.drawTimer); state.drawTimer = null; state.drawToken += 1; }
   function pageURL(page) { return page === 'home' ? '/' : `/workspace?page=${page}`; }
   function go(url) { closeStream(); state.editor = null; state.ruleDraft = null; state.operations = false; history.pushState({}, '', url); renderRoute().catch(error => toast(error.message)); }
   // 语言只改变当前视图的文案，保留表单值和路由。
@@ -350,8 +350,8 @@
   }
   function matchMarkup(m, people) { const a = people.find(p => p.id === m.player_a_id) || { id: m.player_a_id, display_name: m.player_a_name }, b = people.find(p => p.id === m.player_b_id) || { id: m.player_b_id, display_name: m.player_b_name }; const decided = m.who_win === 'a' || m.who_win === 'b'; const resultLabel = (side) => !decided ? '—' : m.who_win === side ? t('win') : t('lose'); const resultClass = (side) => !decided ? 'board-result-muted' : m.who_win === side ? 'board-result-win' : 'board-result-lose'; return `<div class="board-match ${m.status === 'pending' ? 'is-pending' : ''}"><span class="board-match-no">#${m.seq}</span><div class="board-player ${m.who_win === 'a' ? 'is-winner' : m.who_win === 'b' ? 'is-loser' : ''}"><span>${recordName(a)}</span>${categoryIcon(a)}</div><span class="board-match-result"><b class="${resultClass('a')}">${resultLabel('a')}</b><span class="board-vs">VS</span><b class="${resultClass('b')}">${resultLabel('b')}</b></span><div class="board-player board-player-right ${m.who_win === 'b' ? 'is-winner' : m.who_win === 'a' ? 'is-loser' : ''}">${categoryIcon(b)}<span>${recordName(b)}</span></div></div>`; }
   function currentPlayerMarkup(e, player, stage, side) { const hasWin = playerHasWin(e, player.id, stage); const hasLoss = stage === 'round2' && playerHasLoss(e, player.id, stage); const stateClass = hasWin ? 'is-record-winner' : 'is-record-new'; return `<div class="current-player ${side === 'b' ? 'current-player-right' : ''} ${stateClass} ${hasLoss ? 'is-lost' : ''}">${side === 'a' ? avatar(player) : ''}<div><strong>${recordName(player)}</strong>${categoryIcon(player)}</div>${side === 'b' ? avatar(player) : ''}</div>`; }
-  function currentMatchMarkup(e, match, people) { const a = people.find(p => p.id === match.player_a_id) || { display_name: match.player_a_name }, b = people.find(p => p.id === match.player_b_id) || { display_name: match.player_b_name }; return `<section class="board-current-match"><div class="board-current-head"><span class="board-round-no">${t(match.stage)}</span><span>${t('currentMatch')}</span></div><div class="board-current-fighters">${currentPlayerMarkup(e, a, match.stage, 'a')}<div class="board-current-vs">VS</div>${currentPlayerMarkup(e, b, match.stage, 'b')}</div></section>`; }
-  function roundMarkup(round, matches, people) { return `<section class="board-round"><div class="board-round-head"><div><span class="board-round-no">${t(round.stage)}</span><h2>${round.score_a} : ${round.score_b}</h2></div><span class="board-target">${t('target')} ${round.target_score}</span></div><div class="board-matches">${matches.map(m => matchMarkup(m, people)).join('') || `<div class="board-empty">${t('noMatches')}</div>`}</div></section>`; }
+  function currentMatchMarkup(e, match, people) { const a = people.find(p => p.id === match.player_a_id) || { display_name: match.player_a_name }, b = people.find(p => p.id === match.player_b_id) || { display_name: match.player_b_name }; return `<section class="board-current-match"><div class="board-current-head"><span class="board-round-no">${t(match.stage)}</span><span>${t('currentMatch')}</span></div><div class="board-draw-roll" id="draw-roll" aria-live="polite" hidden><span>${t('drawing')}</span><div><strong id="draw-roll-a">${esc(a.display_name)}</strong><b>VS</b><strong id="draw-roll-b">${esc(b.display_name)}</strong></div></div><div class="board-current-fighters">${currentPlayerMarkup(e, a, match.stage, 'a')}<div class="board-current-vs">VS</div>${currentPlayerMarkup(e, b, match.stage, 'b')}</div></section>`; }
+  function roundMarkup(round, matches, people) { return `<section class="board-round"><div class="board-round-head"><div><span class="board-round-no">${t(round.stage)}</span><h2>${round.score_a} : ${round.score_b}</h2></div>${round.stage === 'ace' ? '' : `<span class="board-target">${t('target')} ${round.target_score}</span>`}</div><div class="board-matches">${matches.map(m => matchMarkup(m, people)).join('') || `<div class="board-empty">${t('noMatches')}</div>`}</div></section>`; }
   function rulesSummary(e) {
     const rules = { ...defaultRules(), ...e.rules };
     const fallback = 100 - rules.ace_most_wins - rules.ace_most_losses - rules.ace_specials.reduce((sum, group) => sum + group.probability, 0);
@@ -398,7 +398,63 @@
     bindCommon(); bindBoardSettings(); $('#toggle-operations')?.addEventListener('click', () => { state.operations = !state.operations; $('#event-operations').classList.toggle('hidden', !state.operations); if (state.operations) { renderOperations(); $('#event-operations').scrollIntoView({ behavior: 'smooth' }); } });
     if (state.operations) renderOperations();
   }
-  async function refreshEvent() { state.event = await api('/api/public/events/' + state.event.id); if (!state.editor) boardPage(); }
+  function currentPending(event) {
+    if (!event || terminal(event)) return null;
+    return event.matches.find(match => match.status === 'pending' && match.stage === event.status) || waitingKOFMatch(event);
+  }
+  function drawCandidates(event, side, previous, next) {
+    const team = event.teams[side];
+    if (!team) return [];
+    const previousMatch = currentPending(previous);
+    const nextID = side ? next.player_b_id : next.player_a_id;
+    const previousID = previousMatch ? (side ? previousMatch.player_b_id : previousMatch.player_a_id) : 0;
+    // 胜者留场、固定排阵或特殊候选只有一人时，滚动区应立即停在最终人选。
+    if (previousID && previousID === nextID) return [team.players.find(player => player.id === nextID)].filter(Boolean);
+    return team.players.filter(player => player.active !== false);
+  }
+  function startDrawAnimation(previous, next) {
+    const match = currentPending(next);
+    if (!match || match.status !== 'pending' || !['round1', 'round2', 'ace'].includes(match.stage)) return;
+    const oldMatch = currentPending(previous);
+    if (oldMatch && oldMatch.stage === match.stage && oldMatch.seq >= match.seq) return;
+    const roll = $('#draw-roll');
+    const aName = $('#draw-roll-a');
+    const bName = $('#draw-roll-b');
+    if (!roll || !aName || !bName) return;
+    if (state.drawTimer) clearInterval(state.drawTimer);
+    state.drawToken += 1;
+    const token = state.drawToken;
+    const people = next.teams.flatMap(team => team.players);
+    const aFinal = people.find(player => player.id === match.player_a_id);
+    const bFinal = people.find(player => player.id === match.player_b_id);
+    const candidates = [drawCandidates(next, 0, previous, match), drawCandidates(next, 1, previous, match)];
+    const durationSeconds = Math.max(1, Number(match.stage === 'ace' ? next.rules.ace_draw_seconds : next.rules.random_draw_seconds) || 1);
+    const interval = 250;
+    const endAt = Date.now() + durationSeconds * 1000;
+    let tick = 0;
+    const update = () => {
+      for (const [index, list] of candidates.entries()) {
+        if (list.length > 1 && Date.now() < endAt) {
+          const player = list[tick % list.length];
+          (index ? bName : aName).textContent = player.display_name;
+        } else {
+          (index ? bName : aName).textContent = (index ? bFinal : aFinal)?.display_name || t('toConfirm');
+        }
+      }
+      tick += 1;
+      if (Date.now() >= endAt) {
+        clearInterval(state.drawTimer);
+        state.drawTimer = null;
+        roll.hidden = true;
+        return;
+      }
+      roll.hidden = false;
+    };
+    roll.hidden = false;
+    update();
+    state.drawTimer = setInterval(() => { if (token === state.drawToken) update(); }, interval);
+  }
+  async function refreshEvent() { const previous = state.event; state.event = await api('/api/public/events/' + state.event.id); if (!state.editor) { boardPage(); startDrawAnimation(previous, state.event); } }
   async function eventAction(path, body = {}, method = 'POST') { await post('/api/events/' + state.event.id + path, body, method); await refreshEvent(); }
   async function renderKOFSelection(e, manager) {
     const target = $('#kof-selection');
@@ -480,10 +536,10 @@
     stream.onopen = () => { state.connection = 'connected'; if ($('#connection-state')) $('#connection-state').textContent = t('connected'); };
     stream.onerror = () => { state.connection = 'reconnecting'; if ($('#connection-state')) $('#connection-state').textContent = t('reconnecting'); };
     stream.onmessage = message => {
-      const data = JSON.parse(message.data); const changed = JSON.stringify(state.event) !== JSON.stringify(data); const variantChanged = boardVariant(state.event) !== boardVariant(data); const settingsLocked = canEditSettings(state.event) && !canEditSettings(data); state.event = data;
+      const data = JSON.parse(message.data); const previous = state.event; const changed = JSON.stringify(state.event) !== JSON.stringify(data); const variantChanged = boardVariant(state.event) !== boardVariant(data); const settingsLocked = canEditSettings(state.event) && !canEditSettings(data); state.event = data;
       if (state.editor && settingsLocked) { eventEditor(state.editor).catch(error => toast(error.message)); }
       if (variantChanged && !state.editor) { boardPage(); }
-      if (changed && !state.editor && $('#board-content')) { $('#board-content').innerHTML = boardContent(data); bindBoardSettings(); if (state.operations) { const forms = captureForms(); renderOperations(); restoreForms(forms); } }
+      if (changed && !state.editor && $('#board-content')) { $('#board-content').innerHTML = boardContent(data); bindBoardSettings(); startDrawAnimation(previous, data); if (state.operations) { const forms = captureForms(); renderOperations(); restoreForms(forms); } }
       if (terminal(data)) { closeStream(); if (!state.editor) boardPage(); }
     };
   }
