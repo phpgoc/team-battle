@@ -78,6 +78,7 @@ func TestBothTeamsRequiredBeforeOpeningLivePage(t *testing.T) {
 	}
 	// 选手全部放在一队时仍未完成分队，不能把半成品看板公开给访客。
 	f.request(t, 0, "GET", path, nil, http.StatusNotFound)
+	f.request(t, 0, "GET", fmt.Sprintf("/api/public/events/%d/stream", id), nil, http.StatusNotFound)
 	f.request(t, 2, "GET", path, nil, http.StatusFound)
 	f.request(t, 2, "GET", path+"/setting", nil, http.StatusOK)
 	f.request(t, 3, "GET", path, nil, http.StatusNotFound)
