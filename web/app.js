@@ -18,7 +18,16 @@
   const avatar = u => u.avatar_url ? `<img class="board-avatar" src="${esc(u.avatar_url)}" alt="">` : `<span class="board-avatar board-avatar-fallback">${esc((u.display_name || '?').slice(0, 1))}</span>`;
   const categoryIcon = u => u.category_icon ? `<img class="board-category-icon" src="${esc(u.category_icon)}" alt="${esc(u.category_name || '')}" title="${esc(u.category_name || '')}">` : '';
   const recordName = u => u.id ? `<button type="button" class="player-record-link" data-player-record="${u.id}" title="${t('viewPlayerRecords')}">${esc(u.display_name)}</button>` : esc(u.display_name);
-  const field = (label, html, full = false) => `<div class="field${full ? ' full' : ''}"><label>${t(label)}</label>${html}</div>`;
+  let fieldID = 0;
+  const field = (label, html, full = false) => {
+    const id = 'field-' + (++fieldID);
+    // 保留单选项自身的标签及日期、小时等独立名称，仅为未命名控件补充字段标签。
+    const template = document.createElement('template'); template.innerHTML = html;
+    template.content.querySelectorAll('input,select,textarea').forEach(control => {
+      if (!control.closest('label') && !control.hasAttribute('aria-label') && !control.hasAttribute('aria-labelledby')) control.setAttribute('aria-labelledby', id);
+    });
+    return `<div class="field${full ? ' full' : ''}" role="group" aria-labelledby="${id}"><span class="field-label" id="${id}">${t(label)}</span>${template.innerHTML}</div>`;
+  };
   const input = (name, value = '', type = 'text', attrs = '') => `<input name="${name}" type="${type}" value="${esc(value)}" ${attrs}>`;
   const options = (users, chosen = 0, empty = '') => (empty ? `<option value="0">${t(empty)}</option>` : '') + users.map(u => `<option value="${u.id}"${Number(chosen) === Number(u.id) ? ' selected' : ''}>${esc(u.display_name)}</option>`).join('');
   const localTime = () => { const date = new Date(); return new Date(date - date.getTimezoneOffset() * 60000).toISOString().slice(0, 13); };
@@ -34,7 +43,27 @@
     toast(t('sessionReplaced'));
   }
   const post = (url, body = {}, method = 'POST') => api(url, { method, body: JSON.stringify(body) });
-  function action(fn) { return async event => { try { await fn(event); } catch (error) { toast(error.message); } }; }
+  function action(fn) {
+    return async event => {
+      const source = event?.currentTarget;
+      if (source?.dataset.busy) return;
+      const form = source?.tagName === 'FORM' ? source : null;
+      const controls = form ? $$('button[type="submit"],button:not([type])', form) : source?.tagName === 'BUTTON' ? [source] : [];
+      const previous = controls.map(button => button.disabled);
+      if (source) { source.dataset.busy = 'true'; source.setAttribute('aria-busy', 'true'); }
+      controls.forEach(button => button.disabled = true);
+      form?.querySelector('.form-error')?.remove();
+      try { await fn(event); }
+      catch (error) {
+        if (error.name === 'AbortError') return;
+        if (form?.isConnected) { const message = document.createElement('p'); message.className = 'form-error full'; message.setAttribute('role', 'alert'); message.textContent = error.message; form.prepend(message); message.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+        toast(error.message);
+      } finally {
+        if (source) { delete source.dataset.busy; source.removeAttribute('aria-busy'); }
+        controls.forEach((button, index) => button.disabled = previous[index]);
+      }
+    };
+  }
   function picker() { return `<select class="language-picker" aria-label="Language">${Object.entries(langs).map(([key, name]) => `<option value="${key}"${state.language === key ? ' selected' : ''}>${name}</option>`).join('')}</select>`; }
   function closeStream() { state.stream?.close(); state.stream = null; }
   function pageURL(page) { return page === 'home' ? '/' : `/workspace?page=${page}`; }
@@ -43,30 +72,44 @@
   function captureForms() { return $$('form[id]').map(form => ({ id: form.id, fields: $$('input,select,textarea', form).map(el => ({ name: el.name, type: el.type, value: el.value, checked: el.checked, selected: el.multiple ? [...el.selectedOptions].map(o => o.value) : null, files: el.type === 'file' ? el.files : null })) })); }
   function restoreForms(forms) { for (const data of forms) { const form = document.getElementById(data.id); if (!form) continue; const used = new Set(); for (const item of data.fields) { const el = $$('input,select,textarea', form).find(el => !used.has(el) && el.name === item.name && el.type === item.type); if (!el) continue; used.add(el); if (item.type === 'file') { try { el.files = item.files; } catch (_) {} } else if (item.selected) { for (const option of el.options) option.selected = item.selected.includes(option.value); } else { el.value = item.value; el.checked = item.checked; } } } }
   function bindCommon() {
-    $$('[data-go]').forEach(el => el.addEventListener('click', () => go(el.dataset.go)));
+    $$('[data-go]').forEach(el => el.addEventListener('click', event => { if (event.ctrlKey || event.metaKey || event.shiftKey) return; event.preventDefault(); go(el.dataset.go); }));
+    $$('input[type="password"]').forEach(input => {
+      if (input.parentElement.classList.contains('password-input')) return;
+      const wrapper = document.createElement('div'); wrapper.className = 'password-input'; input.before(wrapper); wrapper.append(input);
+      const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'password-toggle'; toggle.textContent = t('showPassword'); toggle.setAttribute('aria-pressed', 'false'); wrapper.append(toggle);
+      toggle.onclick = () => { const show = input.type === 'password'; input.type = show ? 'text' : 'password'; toggle.textContent = t(show ? 'hidePassword' : 'showPassword'); toggle.setAttribute('aria-pressed', String(show)); };
+    });
     $$('.language-picker').forEach(el => el.addEventListener('change', action(async () => { const forms = captureForms(); if ($('#event-form') && $('[name=\"round1_mode\"]')) state.ruleDraft = readRulesDraft($('#event-form')); state.language = el.value; localStorage.setItem('tb_language', state.language); document.documentElement.lang = state.language; await renderRoute(true); restoreForms(forms); refreshSpecialCounts(); })));
     $('#logout')?.addEventListener('click', action(async () => { await post('/api/auth/logout'); state.user = null; go('/'); }));
   }
   function shell(content, page = 'home') {
     const admin = state.user?.role === 'superadmin';
     const nav = ['home', ...(admin ? ['createEvent', 'accounts', 'archive', 'siteSettings'] : []), ...(state.user ? ['settings'] : [])];
-    const sidebar = state.user ? `<aside class="sidebar"><div class="brand"><div class="brand-mark">TB</div><div><strong>TEAM BATTLE</strong><small>${t('home')}</small></div></div><nav class="nav">${nav.map(key => `<button class="${page === key ? 'active' : ''}" data-go="${pageURL(key)}">${t(key)}</button>`).join('')}</nav><div class="side-footer">${person(state.user)}</div></aside>` : '';
-    app.innerHTML = `<div class="shell${state.user ? '' : ' public-shell'}">${sidebar}<main class="main"><header class="topbar"><span>${t(page)}</span><div class="top-actions">${picker()}${state.user ? `<button class="ghost" id="logout">${t('logout')}</button>` : `<button class="outline" data-go="/login">${t('login')}</button>`}</div></header><div class="page">${content}</div></main></div>`;
+    const navIcons = { home: '◫', createEvent: '+', accounts: '♙', archive: '▤', siteSettings: '⚙', settings: '◎' };
+    const brand = `<a class="brand" href="/" data-go="/"><span class="brand-mark">TB<span></span></span><span><strong>TEAM BATTLE</strong><small>${t('brandCaption')}</small></span></a>`;
+    const sidebar = state.user ? `<aside class="sidebar">${brand}<span class="nav-caption">${t('workspace')}</span><nav class="nav" aria-label="${t('workspace')}">${nav.map(key => `<a href="${pageURL(key)}" class="${page === key ? 'active' : ''}" ${page === key ? 'aria-current="page"' : ''} data-go="${pageURL(key)}"><span class="nav-icon" aria-hidden="true">${navIcons[key]}</span><span>${t(key)}</span></a>`).join('')}</nav><div class="side-footer">${person(state.user)}<span class="account-role">${t(state.user.role)}</span></div></aside>` : '';
+    app.innerHTML = `<div class="shell${state.user ? '' : ' public-shell'}">${sidebar}<main class="main"><header class="topbar">${state.user ? `<span class="breadcrumb">TEAM BATTLE <span>/</span> <b>${t(page)}</b></span>` : brand}<div class="top-actions">${picker()}${state.user ? `<button class="ghost" id="logout">${t('logout')}</button>` : `<a class="primary" href="/login" data-go="/login">${t('login')} <span aria-hidden="true">↗</span></a>`}</div></header><div class="page">${content}</div><footer class="site-footer">TEAM BATTLE <span>·</span> ${t('brandCaption')}</footer></main></div>`;
     bindCommon();
   }
-  function eventTable(events) { return events.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>${t('name')}</th><th>${t('time')}</th><th>${t('status')}</th><th></th></tr></thead><tbody>${events.map(e => `<tr><td><strong>${esc(e.name)}</strong></td><td>${esc(displayTime(e.event_time))}</td><td><span class="tag ${terminal(e) ? 'done' : 'live'}">${t(e.status)}</span></td><td><button class="link" data-go="/live/${e.id}">${t('view')}</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('noEvents')}</div>`; }
+  function eventTable(events) {
+    if (!events.length) return '<div class="empty"><span class="empty-symbol" aria-hidden="true">◇</span><h3>' + t('noEvents') + '</h3><p>' + t('emptyHistoryHint') + '</p></div>';
+    return '<div class="table-wrap"><table class="table event-table"><thead><tr><th>' + t('name') + '</th><th>' + t('time') + '</th><th>' + t('results') + '</th><th>' + t('status') + '</th><th><span class="sr-only">' + t('view') + '</span></th></tr></thead><tbody>' + events.map(e => '<tr><td><a class="event-name" href="/live/' + e.id + '" data-go="/live/' + e.id + '"><span class="event-emblem" aria-hidden="true">TB</span><span>' + esc(e.name) + '<small>' + t('players') + ' · ' + (e.player_count || 0) + '</small></span></a></td><td class="event-date">' + esc(displayTime(e.event_time)) + '</td><td><span class="event-mini-score"><small>A</small><b>' + (e.round_wins_a || 0) + '</b><i>:</i><b>' + (e.round_wins_b || 0) + '</b><small>B</small></span></td><td><span class="tag ' + (terminal(e) ? 'done' : 'live') + '">' + t(e.status) + '</span></td><td><a class="row-view" aria-label="' + esc(t('view') + ' · ' + e.name) + '" href="/live/' + e.id + '" data-go="/live/' + e.id + '">↗</a></td></tr>').join('') + '</tbody></table></div>';
+  }
+  function liveCards(events) {
+    return '<div class="live-grid">' + events.map(e => '<a class="live-card" href="/live/' + e.id + '" data-go="/live/' + e.id + '"><div class="live-card-top"><span class="live-indicator">' + t('ongoing') + '</span><span class="tag">' + t(e.status) + '</span></div><h3>' + esc(e.name) + '</h3><p>' + esc(displayTime(e.event_time)) + '</p><div class="live-card-score"><span>' + t('teamA') + '</span><b>' + (e.round_wins_a || 0) + '<i>:</i>' + (e.round_wins_b || 0) + '</b><span>' + t('teamB') + '</span></div><div class="live-card-footer"><span>' + t('players') + ' · ' + (e.player_count || 0) + '</span><strong>' + t('enterLive') + ' <span aria-hidden="true">→</span></strong></div></a>').join('') + '</div>';
+  }
   async function homePage() {
     const query = new URLSearchParams(location.search); state.page = Math.max(1, Number(query.get('p') || 1)); state.filters = { name: query.get('name') || '', from: query.get('from') || '', to: query.get('to') || '' };
     const search = new URLSearchParams({ ...state.filters, page: state.page, page_size: 10 });
     const [past, live, mine] = await Promise.all([api('/api/public/history?' + search), api('/api/public/events'), state.user ? api('/api/events') : Promise.resolve({ events: [] })]);
     const publicIDs = new Set(live.events.map(e => e.id)); const own = mine.events.filter(e => !terminal(e) && !publicIDs.has(e.id));
-    shell(`<div class="page-head"><h1>${t('home')}</h1></div>${live.events.length ? `<section class="panel section-gap"><div class="panel-head"><h2>${t('ongoing')}</h2></div>${eventTable(live.events)}</section>` : ''}${own.length ? `<section class="panel section-gap"><div class="panel-head"><h2>${t('myEvents')}</h2></div>${eventTable(own)}</section>` : ''}<section class="panel"><div class="panel-head"><h2>${t('history')}</h2><span>${t('total')} ${past.total}</span></div><form id="history-filter" class="filter-bar">${field('name', input('name', state.filters.name))}${field('from', input('from', state.filters.from, 'date'))}${field('to', input('to', state.filters.to, 'date'))}<button class="primary">${t('search')}</button><button type="button" class="outline" data-go="/">${t('clear')}</button></form>${eventTable(past.events)}<div class="pagination"><button class="outline" id="previous" ${state.page <= 1 ? 'disabled' : ''}>${t('previous')}</button><span>${t('page')} ${state.page} / ${Math.max(1, Math.ceil(past.total / 10))}</span><button class="outline" id="next" ${state.page * 10 >= past.total ? 'disabled' : ''}>${t('next')}</button></div></section>`);
+    shell('<div class="home-heading"><div><span class="eyebrow">TEAM BATTLE / ' + t('eventCenter') + '</span><h1>' + t('home') + '</h1><p class="subtitle">' + t('homeIntro') + '</p></div><div class="home-summary"><span><b>' + live.events.length + '</b>' + t('ongoing') + '</span><span><b>' + past.total + '</b>' + t('history') + '</span></div></div>' + (live.events.length ? '<section class="home-live section-gap"><div class="section-title"><h2><span class="status-dot"></span>' + t('ongoing') + '</h2><span>' + t('watchPublic') + '</span></div>' + liveCards(live.events) + '</section>' : '') + (own.length ? '<section class="panel section-gap"><div class="panel-head"><h2>' + t('myEvents') + '</h2><span class="count-badge">' + own.length + '</span></div>' + eventTable(own) + '</section>' : '') + '<section class="panel history-panel"><div class="panel-head"><div><span class="eyebrow">ARCHIVE</span><h2>' + t('history') + '</h2></div><span class="count-badge">' + t('total') + ' ' + past.total + '</span></div><form id="history-filter" class="filter-bar">' + field('name', input('name', state.filters.name, 'search', 'placeholder="' + t('searchEventHint') + '"')) + field('from', input('from', state.filters.from, 'date')) + field('to', input('to', state.filters.to, 'date')) + '<button class="primary">' + t('search') + '</button><button type="button" class="ghost" data-go="/">' + t('clear') + '</button></form>' + eventTable(past.events) + '<div class="pagination"><span>' + t('total') + ' ' + past.total + '</span><div><button class="outline" id="previous" ' + (state.page <= 1 ? 'disabled' : '') + '>' + t('previous') + '</button><span>' + state.page + ' <small>/ ' + Math.max(1, Math.ceil(past.total / 10)) + '</small></span><button class="outline" id="next" ' + (state.page * 10 >= past.total ? 'disabled' : '') + '>' + t('next') + '</button></div></div></section>');
     const filterURL = (page = 1, values = state.filters) => '/?' + new URLSearchParams({ ...values, p: page });
-    $('#history-filter').addEventListener('submit', event => { event.preventDefault(); go(filterURL(1, Object.fromEntries(new FormData(event.target)))); });
+    $('#history-filter').addEventListener('submit', action(async event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.target)); if (values.from && values.to && values.from > values.to) throw Error(t('dateRangeError')); go(filterURL(1, values)); }));
     $('#previous').onclick = () => go(filterURL(state.page - 1)); $('#next').onclick = () => go(filterURL(state.page + 1));
   }
   function loginPage() {
-    app.innerHTML = `<main class="login-shell"><div class="login-card"><div class="page-head"><h1>${t('login')}</h1>${picker()}</div><form id="login-form" class="login-form">${field('username', input('username', '', 'text', 'required autocomplete="username"'))}${field('password', input('password', '', 'password', 'required autocomplete="current-password"'))}<button class="primary accent">${t('login')}</button></form><p class="help">${t('initHint')}</p><button class="link" data-go="/">${t('homeLink')}</button></div></main>`; bindCommon();
+    app.innerHTML = '<main class="login-shell"><section class="login-story"><a class="brand" href="/" data-go="/"><span class="brand-mark">TB<span></span></span><span><strong>TEAM BATTLE</strong><small>' + t('brandCaption') + '</small></span></a><div><span class="eyebrow">1V1 / KOF / ACE</span><h2>' + t('loginHeadline') + '</h2><p>' + t('homeIntro') + '</p><div class="login-art" aria-hidden="true"><span>A</span><b>VS</b><span>B</span></div></div><small>TEAM BATTLE</small></section><section class="login-main"><div class="login-language">' + picker() + '</div><div class="login-card"><span class="eyebrow">WELCOME BACK</span><h1>' + t('login') + '</h1><p class="subtitle">' + t('loginIntro') + '</p><form id="login-form" class="login-form">' + field('username', input('username', '', 'text', 'required autocomplete="username" placeholder="' + t('username') + '"')) + field('password', input('password', '', 'password', 'required autocomplete="current-password"')) + '<button class="primary accent">' + t('login') + ' <span aria-hidden="true">→</span></button></form><p class="help">' + t('persistentLoginHint') + '</p><a class="back-link" href="/" data-go="/">← ' + t('homeLink') + '</a></div></section></main>'; bindCommon();
     $('#login-form').onsubmit = action(async event => { event.preventDefault(); const form = new FormData(event.target); state.user = (await post('/api/auth/login', Object.fromEntries(form))).user; const target = new URLSearchParams(location.search).get('return'); go(target?.startsWith('/live/') ? target : '/'); });
   }
   function profileLimit(changedAt, limited) {
@@ -333,7 +376,7 @@
     const e = state.event, target = $('#event-operations'); if (!target) return;
     if (!canOperate(e)) { target.innerHTML = ''; return; }
     const manager = manages(e), people = e.teams.flatMap(team => team.players), myTeam = e.teams.find(team => team.players.some(p => p.id === state.user.id));
-    let content = `<div class="page-head"><h2>${t('eventControls')}</h2></div>`;
+    let content = `<div class="operations-heading"><div><span class="eyebrow">${t('eventControls')}</span><h2>${t(e.status)}</h2></div><button class="outline" id="close-operations">${t('close')}</button></div>`;
     if (myTeam && !myTeam.players.some(p => p.is_captain && p.active !== false)) content += `<section class="panel"><form id="vote-form" class="panel-body inline-form">${field('vote', `<select name="target_id">${options(myTeam.players)}</select>`)}<button class="primary">${t('vote')}</button></form></section>`;
     if (manager && e.teams.every(team => team.players.length)) content += `<section class="panel section-gap"><form id="captains-form" class="panel-body form-grid">${e.teams.map((team, i) => { return field(i ? 'teamB' : 'teamA', `<select name="team_${i ? 'b' : 'a'}_player_id"><option value="0">${t('noCaptain')}</option>${team.players.map(p => `<option value="${p.id}"${p.is_captain ? ' selected' : ''}>${esc(p.display_name)} · ${e.votes.find(v => v.player_id === p.id)?.count || 0} ${t('votes')}</option>`).join('')}</select>`); }).join('')}<button class="primary">${t('confirmCaptains')}</button></form></section>`;
     if (preMatch(e) && (manager || boardVariant(e) === 'captain')) {
@@ -346,6 +389,7 @@
     if (manager && e.status === 'final_confirm') content += `<section class="panel section-gap"><div class="panel-body"><p>${t('confirmEndHint')}</p><button class="primary accent" id="confirm-end">${t('confirmEnd')}</button></div></section>`;
     if (manager && e.matches.some(m => m.status === 'finished')) content += `<section class="panel section-gap"><div class="panel-head"><h2>${t('correct')}</h2></div><form id="correct-form" class="panel-body form-grid"><p class="notice full">${t('correctHint')}</p>${field('matchNo', `<select name="match_id">${e.matches.filter(m => m.status === 'finished').map(m => `<option value="${m.id}">${t(m.stage)} #${m.seq} · ${esc(m.player_a_name)} / ${esc(m.player_b_name)}</option>`).join('')}</select>`)}${field('winner', `<select name="winner_team_id">${e.teams.map(team => `<option value="${team.id}">${esc(team.name)}</option>`).join('')}</select>`)}<button class="outline">${t('correct')}</button></form></section>`;
     target.innerHTML = content;
+    $('#close-operations')?.addEventListener('click', () => { state.operations = false; $('#event-operations').classList.add('hidden'); });
     if (e.status === 'round2') renderKOFSelection(e, manager).catch(error => toast(error.message));
     $('#vote-form')?.addEventListener('submit', action(async event => { event.preventDefault(); await eventAction('/captain-votes', { target_id: Number(new FormData(event.target).get('target_id')) }); }));
     $('#captains-form')?.addEventListener('submit', action(async event => { event.preventDefault(); const f = new FormData(event.target); await eventAction('/captains/confirm', { team_a_player_id: Number(f.get('team_a_player_id')), team_b_player_id: Number(f.get('team_b_player_id')) }); }));
@@ -378,7 +422,7 @@
       const data = JSON.parse(message.data); const changed = JSON.stringify(state.event) !== JSON.stringify(data); const variantChanged = boardVariant(state.event) !== boardVariant(data); const settingsLocked = canEditSettings(state.event) && !canEditSettings(data); state.event = data;
       if (state.editor && settingsLocked) { eventEditor(state.editor).catch(error => toast(error.message)); }
       if (variantChanged && !state.editor) { boardPage(); }
-      if (changed && !state.editor && $('#board-content')) { $('#board-content').innerHTML = boardContent(data); bindBoardSettings(); const forms = captureForms(); renderOperations(); restoreForms(forms); }
+      if (changed && !state.editor && $('#board-content')) { $('#board-content').innerHTML = boardContent(data); bindBoardSettings(); if (state.operations) { const forms = captureForms(); renderOperations(); restoreForms(forms); } }
       if (terminal(data)) { closeStream(); if (!state.editor) boardPage(); }
     };
   }

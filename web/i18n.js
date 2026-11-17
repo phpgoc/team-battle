@@ -207,7 +207,21 @@ window.TB_I18N = {
     "noPlayerRecords": "暂无已录入结果的对局",
     "loadingRecords": "正在读取战绩…",
     "recordScope": "统计所有已录入胜负的对局，包含进行中的赛事；已取消赛事不计入。分类按对手当前分类汇总。",
-    "sessionReplaced": "登录已失效，可能已在其他设备登录。请重新登录。"
+    "sessionReplaced": "登录已失效，可能已在其他设备登录。请重新登录。",
+    "showPassword": "显示",
+    "hidePassword": "隐藏",
+    "brandCaption": "团战赛事管理",
+    "workspace": "工作台",
+    "eventCenter": "赛事中心",
+    "homeIntro": "查看赛事进程，回顾每一场对决。",
+    "watchPublic": "公开观赛",
+    "enterLive": "进入赛事",
+    "emptyHistoryHint": "赛事结束并确认后，会显示在这里。",
+    "searchEventHint": "输入赛事名称",
+    "dateRangeError": "结束日期不能早于开始日期",
+    "loginHeadline": "每一场对决，都有迹可循。",
+    "loginIntro": "登录后管理赛事或参与队伍操作。",
+    "persistentLoginHint": "登录会持续保留。同一账号在另一处登录后，此处登录将失效。"
   },
   "en": {
     "home": "Home",
@@ -417,7 +431,21 @@ window.TB_I18N = {
     "noPlayerRecords": "No recorded results yet",
     "loadingRecords": "Loading record…",
     "recordScope": "Includes all recorded results, including ongoing events. Cancelled events are excluded. Categories use each opponent’s current category.",
-    "sessionReplaced": "Your session is no longer valid. You may have signed in on another device. Please sign in again."
+    "sessionReplaced": "Your session is no longer valid. You may have signed in on another device. Please sign in again.",
+    "showPassword": "Show",
+    "hidePassword": "Hide",
+    "brandCaption": "Team tournament management",
+    "workspace": "Workspace",
+    "eventCenter": "Event center",
+    "homeIntro": "Follow each event and revisit every match.",
+    "watchPublic": "Open to everyone",
+    "enterLive": "View event",
+    "emptyHistoryHint": "Completed and confirmed events will appear here.",
+    "searchEventHint": "Search event names",
+    "dateRangeError": "The end date cannot be earlier than the start date.",
+    "loginHeadline": "Every match has a story.",
+    "loginIntro": "Sign in to manage events or take part with your team.",
+    "persistentLoginHint": "You stay signed in. Signing in elsewhere will end this session."
   },
   "ko": {
     "home": "홈",
@@ -627,6 +655,20 @@ window.TB_I18N = {
     "noPlayerRecords": "아직 기록된 경기 결과가 없습니다",
     "loadingRecords": "전적 불러오는 중…",
     "recordScope": "진행 중인 대회를 포함한 모든 입력된 승패를 집계합니다. 취소된 대회는 제외하며 상대의 현재 분류를 사용합니다.",
-    "sessionReplaced": "로그인이 만료되었습니다. 다른 기기에서 로그인했을 수 있습니다. 다시 로그인해 주세요."
+    "sessionReplaced": "로그인이 만료되었습니다. 다른 기기에서 로그인했을 수 있습니다. 다시 로그인해 주세요.",
+    "showPassword": "표시",
+    "hidePassword": "숨기기",
+    "brandCaption": "팀 대회 관리",
+    "workspace": "작업 공간",
+    "eventCenter": "대회 센터",
+    "homeIntro": "대회 진행 상황과 지난 경기를 확인하세요.",
+    "watchPublic": "누구나 관람 가능",
+    "enterLive": "대회 보기",
+    "emptyHistoryHint": "종료 후 확정된 대회가 여기에 표시됩니다.",
+    "searchEventHint": "대회 이름 검색",
+    "dateRangeError": "종료 날짜는 시작 날짜보다 빠를 수 없습니다.",
+    "loginHeadline": "모든 대결의 기록을 한눈에.",
+    "loginIntro": "로그인하여 대회를 관리하거나 팀 활동에 참여하세요.",
+    "persistentLoginHint": "로그인이 유지됩니다. 다른 곳에서 로그인하면 현재 로그인이 해제됩니다."
   }
 };
