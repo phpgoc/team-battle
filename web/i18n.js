@@ -221,7 +221,14 @@ window.TB_I18N = {
     "dateRangeError": "结束日期不能早于开始日期",
     "loginHeadline": "每一场对决，都有迹可循。",
     "loginIntro": "登录后管理赛事或参与队伍操作。",
-    "persistentLoginHint": "登录会持续保留。同一账号在另一处登录后，此处登录将失效。"
+    "persistentLoginHint": "登录会持续保留。同一账号在另一处登录后，此处登录将失效。",
+    "profileIdentity": "公开资料",
+    "profileCredentials": "登录与密码",
+    "profileCategory": "分类与身份",
+    "basicInfo": "基本信息",
+    "requiredBasics": "名称和开始时间为必填项",
+    "eventSections": "赛事设置分区",
+    "noneSelected": "暂未选择"
   },
   "en": {
     "home": "Home",
@@ -445,7 +452,14 @@ window.TB_I18N = {
     "dateRangeError": "The end date cannot be earlier than the start date.",
     "loginHeadline": "Every match has a story.",
     "loginIntro": "Sign in to manage events or take part with your team.",
-    "persistentLoginHint": "You stay signed in. Signing in elsewhere will end this session."
+    "persistentLoginHint": "You stay signed in. Signing in elsewhere will end this session.",
+    "profileIdentity": "Public profile",
+    "profileCredentials": "Sign-in and password",
+    "profileCategory": "Category and role",
+    "basicInfo": "Event details",
+    "requiredBasics": "Name and start time are required",
+    "eventSections": "Event settings sections",
+    "noneSelected": "No players selected"
   },
   "ko": {
     "home": "홈",
@@ -669,6 +683,13 @@ window.TB_I18N = {
     "dateRangeError": "종료 날짜는 시작 날짜보다 빠를 수 없습니다.",
     "loginHeadline": "모든 대결의 기록을 한눈에.",
     "loginIntro": "로그인하여 대회를 관리하거나 팀 활동에 참여하세요.",
-    "persistentLoginHint": "로그인이 유지됩니다. 다른 곳에서 로그인하면 현재 로그인이 해제됩니다."
+    "persistentLoginHint": "로그인이 유지됩니다. 다른 곳에서 로그인하면 현재 로그인이 해제됩니다.",
+    "profileIdentity": "공개 프로필",
+    "profileCredentials": "로그인 및 비밀번호",
+    "profileCategory": "분류 및 권한",
+    "basicInfo": "기본 정보",
+    "requiredBasics": "이름과 시작 시간은 필수입니다",
+    "eventSections": "대회 설정 항목",
+    "noneSelected": "선택된 선수 없음"
   }
 };
