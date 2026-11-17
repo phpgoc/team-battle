@@ -127,6 +127,8 @@ func migrate(db *sql.DB) error {
 			FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
 			FOREIGN KEY(actor_id) REFERENCES users(id)
 		)`,
+		`CREATE INDEX IF NOT EXISTS matches_player_a_records ON matches(player_a_id) WHERE status='finished'`,
+		`CREATE INDEX IF NOT EXISTS matches_player_b_records ON matches(player_b_id) WHERE status='finished'`,
 		`CREATE TABLE IF NOT EXISTS sessions (
 			token TEXT PRIMARY KEY,
 			user_id INTEGER NOT NULL,

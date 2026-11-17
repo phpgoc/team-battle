@@ -20,6 +20,14 @@ func (a *App) router() *gin.Engine {
 	r.GET("/workspace", a.serveIndex)
 	r.GET("/assets/styles.css", a.serveStyles)
 	r.GET("/assets/app.js", a.serveAppScript)
+	r.GET("/assets/player-records.js", func(c *gin.Context) {
+		data, err := webFS.ReadFile("web/player-records.js")
+		if err != nil {
+			c.Status(http.StatusInternalServerError)
+			return
+		}
+		c.Data(http.StatusOK, "application/javascript; charset=utf-8", data)
+	})
 	r.GET("/assets/i18n.js", func(c *gin.Context) {
 		data, err := webFS.ReadFile("web/i18n.js")
 		if err != nil {
@@ -47,6 +55,7 @@ func (a *App) router() *gin.Engine {
 	api.GET("/users/:id/avatar", a.avatar)
 	api.GET("/public/events", a.publicEvents)
 	api.GET("/public/history", a.publicHistory)
+	api.GET("/public/users/:id/records", a.publicPlayerRecords)
 	api.GET("/public/events/:id", a.publicEvent)
 	api.GET("/public/events/:id/stream", a.publicStream)
 

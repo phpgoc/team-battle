@@ -193,7 +193,20 @@ window.TB_I18N = {
     "waitingStarters": "等待双方派出首发，双方提交后自动生成 KOF 第一场。",
     "submitted": "已提交",
     "notSubmitted": "尚未派出首发",
-    "sendStarter": "派出首发"
+    "sendStarter": "派出首发",
+    "playerRecords": "个人战绩",
+    "viewPlayerRecords": "查看个人战绩",
+    "myRecords": "我的战绩",
+    "recordWins": "胜场",
+    "recordLosses": "负场",
+    "overallRecord": "总战绩",
+    "aceRecord": "大将战",
+    "byOpponentCategory": "对不同分类的战绩",
+    "opponentCategory": "对手分类",
+    "uncategorized": "未分类",
+    "noPlayerRecords": "暂无已录入结果的对局",
+    "loadingRecords": "正在读取战绩…",
+    "recordScope": "统计所有已录入胜负的对局，包含进行中的赛事；已取消赛事不计入。分类按对手当前分类汇总。"
   },
   "en": {
     "home": "Home",
@@ -389,7 +402,20 @@ window.TB_I18N = {
     "waitingStarters": "Waiting for both teams to send starters. The first KOF match appears after both submit.",
     "submitted": "Submitted",
     "notSubmitted": "Starter not submitted",
-    "sendStarter": "Send starter"
+    "sendStarter": "Send starter",
+    "playerRecords": "Player record",
+    "viewPlayerRecords": "View player record",
+    "myRecords": "My record",
+    "recordWins": "Wins",
+    "recordLosses": "Losses",
+    "overallRecord": "Overall",
+    "aceRecord": "Ace matches",
+    "byOpponentCategory": "Record by opponent category",
+    "opponentCategory": "Opponent category",
+    "uncategorized": "Uncategorized",
+    "noPlayerRecords": "No recorded results yet",
+    "loadingRecords": "Loading record…",
+    "recordScope": "Includes all recorded results, including ongoing events. Cancelled events are excluded. Categories use each opponent’s current category."
   },
   "ko": {
     "home": "홈",
@@ -585,6 +611,19 @@ window.TB_I18N = {
     "waitingStarters": "양 팀 선발 제출 대기 중입니다. 양 팀이 제출하면 KOF 첫 경기가 생성됩니다.",
     "submitted": "제출됨",
     "notSubmitted": "선발 미제출",
-    "sendStarter": "선발 제출"
+    "sendStarter": "선발 제출",
+    "playerRecords": "개인 전적",
+    "viewPlayerRecords": "개인 전적 보기",
+    "myRecords": "내 전적",
+    "recordWins": "승",
+    "recordLosses": "패",
+    "overallRecord": "전체 전적",
+    "aceRecord": "에이스 결정전",
+    "byOpponentCategory": "상대 분류별 전적",
+    "opponentCategory": "상대 분류",
+    "uncategorized": "미분류",
+    "noPlayerRecords": "아직 기록된 경기 결과가 없습니다",
+    "loadingRecords": "전적 불러오는 중…",
+    "recordScope": "진행 중인 대회를 포함한 모든 입력된 승패를 집계합니다. 취소된 대회는 제외하며 상대의 현재 분류를 사용합니다."
   }
 };
