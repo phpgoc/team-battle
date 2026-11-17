@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"database/sql"
-	"encoding/base64"
 	"flag"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"log"
 	mathrand "math/rand"
 	"net"
@@ -24,9 +28,10 @@ type testAccount struct {
 }
 
 var testCategories = []struct {
-	name string
+	name  string
+	asset string
 }{
-	{"虫族"}, {"神族"}, {"人族"}, {"随机"}}
+	{"虫族", "zerg"}, {"神族", "protoss"}, {"人族", "terran"}, {"随机", "random"}}
 
 func runTestServer(args []string) error {
 	flags := flag.NewFlagSet("test", flag.ContinueOnError)
@@ -84,11 +89,11 @@ func seedTestData(db *sql.DB) error {
 	}
 	defer tx.Rollback()
 	categoryIDs := map[string]int64{}
-	iconData, err := base64.StdEncoding.DecodeString(testAvatarPNG)
-	if err != nil {
-		return err
-	}
 	for _, category := range testCategories {
+		iconData, err := demoFS.ReadFile("web/demo/" + category.asset + ".png")
+		if err != nil {
+			return err
+		}
 		if _, err := tx.Exec(`INSERT INTO categories(name,icon,icon_data,icon_mime,sort_order) VALUES(?,?,?, ?,?)`, category.name, "", iconData, "image/png", len(categoryIDs)); err != nil {
 			return err
 		}
@@ -111,12 +116,12 @@ func seedTestData(db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	avatarData, err := base64.StdEncoding.DecodeString(testAvatarPNG)
-	if err != nil {
-		return err
-	}
 	ids := map[string]int64{}
 	for _, account := range accounts {
+		avatarData, err := demoAvatar(account.username)
+		if err != nil {
+			return err
+		}
 		if _, err := tx.Exec(`INSERT INTO users(username,display_name,password_hash,role,category_id,avatar_data,avatar_mime) VALUES(?,?,?,?,?,?,?)`, account.username, account.display, string(hash), account.role, categoryIDs[account.category], avatarData, "image/png"); err != nil {
 			return err
 		}
@@ -132,8 +137,8 @@ func seedTestData(db *sql.DB) error {
 	}
 	managerID := ids["test-manager-1"]
 	adminID := ids["test-admin"]
-	for i, scores := range []struct{ a, b int }{{4, 2}, {3, 4}, {5, 3}} {
-		if err := seedCompletedTestEvent(tx, managerID, adminID, players, fmt.Sprintf("测试历史赛事 %d", i+1), time.Now().AddDate(0, 0, -i-1).Format("2006-01-02T15:00:00"), scores.a, scores.b); err != nil {
+	for i, winners := range []string{"aa", "ba", "ab"} {
+		if err := seedCompletedTestEvent(tx, managerID, adminID, players, fmt.Sprintf("测试历史赛事 %d", i+1), time.Now().AddDate(0, 0, -i-1).Format("2006-01-02T15"), winners); err != nil {
 			return err
 		}
 	}
@@ -143,56 +148,144 @@ func seedTestData(db *sql.DB) error {
 	return tx.Commit()
 }
 
-func seedCompletedTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64, name, eventTime string, scoreA, scoreB int) error {
-	eventID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, name, eventTime, statusCompleted)
+// 用正式比赛引擎生成演示战绩，确保分队、胜者留场、阶段比分与对局一致。
+func seedCompletedTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64, name, eventTime, winners string) error {
+	eventID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, name, eventTime, statusDraft)
 	if err != nil {
 		return err
 	}
 	if err := seedPlayers(tx, eventID, teamA, teamB, players); err != nil {
 		return err
 	}
-	roundIDs := map[string]int64{}
-	for _, round := range []struct {
-		stage          string
-		scoreA, scoreB int
-	}{{stageRound1, scoreA, scoreB}, {stageRound2, scoreA, scoreB}, {stageAce, 0, 0}} {
-		var winner any
-		if round.scoreA > round.scoreB {
-			winner = teamA
-		} else if round.scoreB > round.scoreA {
-			winner = teamB
+	engine := &matchEngine{db: tx, eventID: eventID, actorID: creatorID, rng: mathrand.New(mathrand.NewSource(eventID))}
+	for _, stage := range []string{stageRound1, stageRound2, stageAce} {
+		target := 1
+		if stage == stageRound1 {
+			target = 4
 		}
-		result, err := tx.Exec(`INSERT INTO rounds(event_id,stage,target_score,score_a,score_b,winner_team_id,status) VALUES(?,?,?,?,?,?,?)`, eventID, round.stage, 1, round.scoreA, round.scoreB, winner, statusFinished)
+		if stage == stageRound2 {
+			target = 5
+		}
+		if _, err := tx.Exec("INSERT INTO rounds(event_id,stage,target_score) VALUES(?,?,?)", eventID, stage, target); err != nil {
+			return err
+		}
+	}
+	if err := engine.start(); err != nil {
+		return err
+	}
+	for n := 0; n < 60; n++ {
+		status, err := engine.status()
 		if err != nil {
 			return err
 		}
-		roundIDs[round.stage], _ = result.LastInsertId()
+		if status == statusFinalConfirm {
+			return engine.setStage(statusCompleted)
+		}
+		var matchID int64
+		err = tx.QueryRow("SELECT id FROM matches WHERE event_id=? AND status='pending'", eventID).Scan(&matchID)
+		if err == sql.ErrNoRows && status == stageRound2 {
+			var lastID int64
+			if err := tx.QueryRow("SELECT id FROM matches WHERE event_id=? AND round_no=2 ORDER BY seq DESC LIMIT 1", eventID).Scan(&lastID); err != nil {
+				return err
+			}
+			previous, err := engine.match(lastID)
+			if err != nil {
+				return err
+			}
+			_, loser := previous.loser()
+			ids, err := engine.players(loser)
+			if err != nil {
+				return err
+			}
+			for _, player := range ids {
+				lost, err := engine.lost(previous.roundID, loser, player)
+				if err != nil {
+					return err
+				}
+				if !lost {
+					if err := engine.chooseKOF(previous, player); err != nil {
+						return err
+					}
+					break
+				}
+			}
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		match, err := engine.match(matchID)
+		if err != nil {
+			return err
+		}
+		side := byte('a')
+		if status == stageRound1 {
+			side = winners[0]
+		}
+		if status == stageRound2 {
+			side = winners[1]
+		}
+		// 第一局由阶段败方获胜，让演示中同时出现胜负和KOF换人。
+		if match.seq == 1 && status != stageAce {
+			if side == 'a' {
+				side = 'b'
+			} else {
+				side = 'a'
+			}
+		}
+		winner := teamA
+		if side == 'b' {
+			winner = teamB
+		}
+		if err := engine.record(match, winner, ""); err != nil {
+			return err
+		}
 	}
-	return seedFinishedMatches(tx, eventID, roundIDs[stageRound1], teamA, teamB, players[:3], players[3:], scoreA, scoreB, creatorID)
+	return fmt.Errorf("测试赛事推进未能结束")
 }
 
 func seedLiveTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64) error {
-	eventID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, "测试直播赛事", time.Now().Format("2006-01-02T15:00:00"), statusRound1)
+	eventID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, "测试直播赛事", time.Now().Format("2006-01-02T15"), statusDraft)
 	if err != nil {
 		return err
 	}
 	if err := seedPlayers(tx, eventID, teamA, teamB, players); err != nil {
 		return err
 	}
-	var roundID int64
-	if err := tx.QueryRow(`INSERT INTO rounds(event_id,stage,target_score,status) VALUES(?,?,?,?) RETURNING id`, eventID, stageRound1, 4, statusActive).Scan(&roundID); err != nil {
-		return err
-	}
-	for _, round := range []struct {
-		stage  string
-		target int
-	}{{stageRound2, 5}, {stageAce, 1}} {
-		if _, err := tx.Exec(`INSERT INTO rounds(event_id,stage,target_score,status) VALUES(?,?,?,?)`, eventID, round.stage, round.target, statusPending); err != nil {
+	for _, stage := range []string{stageRound1, stageRound2, stageAce} {
+		target := 1
+		if stage == stageRound1 {
+			target = 4
+		}
+		if stage == stageRound2 {
+			target = 5
+		}
+		if _, err := tx.Exec("INSERT INTO rounds(event_id,stage,target_score) VALUES(?,?,?)", eventID, stage, target); err != nil {
 			return err
 		}
 	}
-	_, err = tx.Exec(`INSERT INTO matches(event_id,round_id,seq,team_a_id,team_b_id,player_a_id,player_b_id,status,created_by) VALUES(?,?,?,?,?,?,?,?,?)`, eventID, roundID, 1, teamA, teamB, players[0], players[3], statusPending, creatorID)
-	return err
+	engine := &matchEngine{db: tx, eventID: eventID, actorID: creatorID, rng: mathrand.New(mathrand.NewSource(42))}
+	if err := engine.start(); err != nil {
+		return err
+	}
+	for n := 0; n < 3; n++ {
+		var id int64
+		if err := tx.QueryRow("SELECT id FROM matches WHERE event_id=? AND status='pending'", eventID).Scan(&id); err != nil {
+			return err
+		}
+		match, err := engine.match(id)
+		if err != nil {
+			return err
+		}
+		winner := teamA
+		if n == 1 {
+			winner = teamB
+		}
+		if err := engine.record(match, winner, ""); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func seedEventShell(tx *sql.Tx, managerID, creatorID int64, name, eventTime, status string) (int64, int64, int64, error) {
@@ -227,16 +320,27 @@ func seedPlayers(tx *sql.Tx, eventID, teamA, teamB int64, players []int64) error
 	return nil
 }
 
-func seedFinishedMatches(tx *sql.Tx, eventID, roundID, teamA, teamB int64, playersA, playersB []int64, scoreA, scoreB int, creatorID int64) error {
-	total := scoreA + scoreB
-	for seq := 1; seq <= total; seq++ {
-		winner := teamB
-		if seq <= scoreA {
-			winner = teamA
-		}
-		if _, err := tx.Exec(`INSERT INTO matches(event_id,round_id,seq,team_a_id,team_b_id,player_a_id,player_b_id,winner_team_id,status,created_by,finished_at) VALUES(?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`, eventID, roundID, seq, teamA, teamB, playersA[(seq-1)%len(playersA)], playersB[(seq-1)%len(playersB)], winner, statusFinished, creatorID); err != nil {
-			return err
+// 根据账号生成对称像素头像，演示选手能够一眼区分且不使用外部图片。
+func demoAvatar(username string) ([]byte, error) {
+	hash := sha256.Sum256([]byte(username))
+	img := image.NewRGBA(image.Rect(0, 0, 96, 96))
+	foreground := color.RGBA{70 + hash[0]/2, 80 + hash[1]/2, 90 + hash[2]/2, 255}
+	for y := 0; y < 96; y++ {
+		for x := 0; x < 96; x++ {
+			shade := color.RGBA{237, 242, 247, 255}
+			col, row := (x-8)/16, (y-8)/16
+			if x >= 8 && x < 88 && y >= 8 && y < 88 {
+				if col > 2 {
+					col = 4 - col
+				}
+				if hash[row*3+col]&1 == 1 {
+					shade = foreground
+				}
+			}
+			img.SetRGBA(x, y, shade)
 		}
 	}
-	return nil
+	var out bytes.Buffer
+	err := png.Encode(&out, img)
+	return out.Bytes(), err
 }
