@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"math/rand"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -598,67 +600,122 @@ func (e *matchEngine) drawAce() error {
 	if err != nil {
 		return err
 	}
-	e.waitDraw(rules.AceDrawSeconds)
-	chosen := []int64{}
-	sources := []string{}
+	// 规则抽签只进行一次，双方使用同一个规则来源；每一方再在自己的候选人中抽取。
+	roll := e.rng.Intn(100)
+	mode := "random"
+	if roll < rules.AceMostWins {
+		mode = "most_wins"
+	} else if roll < rules.AceMostWins+rules.AceMostLosses {
+		mode = "most_losses"
+	} else {
+		cutoff := rules.AceMostWins + rules.AceMostLosses
+		for index, group := range rules.AceSpecials {
+			cutoff += group.Probability
+			if roll < cutoff {
+				mode = "special:" + strconv.Itoa(index)
+				break
+			}
+		}
+	}
+
+	candidatesByTeam := make([][]int64, 0, len(teams))
+	sources := make([]string, 0, len(teams))
+	needsDraw := false
 	for _, team := range teams {
 		ids, err := e.players(team)
 		if err != nil {
 			return err
 		}
-		roll := e.rng.Intn(100)
-		candidates := []int64{}
-		source := "random"
-		if roll < rules.AceMostWins || roll < rules.AceMostWins+rules.AceMostLosses {
-			wins := roll < rules.AceMostWins
-			best := -1
-			for _, id := range ids {
-				var count int
-				query := `SELECT COUNT(*) FROM matches WHERE event_id=? AND status='finished' AND winner_team_id= ? AND (player_a_id=? OR player_b_id=?)`
-				if !wins {
-					query = `SELECT COUNT(*) FROM matches WHERE event_id=? AND status='finished' AND winner_team_id<> ? AND (player_a_id=? OR player_b_id=?)`
-				}
-				if err := e.db.QueryRow(query, e.eventID, team, id, id).Scan(&count); err != nil {
-					return err
-				}
-				if count > best {
-					best = count
-					candidates = nil
-				}
-				if count == best {
-					candidates = append(candidates, id)
-				}
-			}
-			source = "most_losses"
-			if wins {
-				source = "most_wins"
-			}
-		} else {
-			cutoff := rules.AceMostWins + rules.AceMostLosses
-			for _, group := range rules.AceSpecials {
-				cutoff += group.Probability
-				if roll < cutoff {
-					for _, id := range group.PlayerIDs {
-						if containsID(ids, id) {
-							candidates = append(candidates, id)
-						}
+		candidates := append([]int64(nil), ids...)
+		source := mode
+		switch {
+		case mode == "most_wins":
+			candidates, err = e.aceRecordCandidates(ids, true)
+		case mode == "most_losses":
+			candidates, err = e.aceRecordCandidates(ids, false)
+		case strings.HasPrefix(mode, "special:"):
+			index, _ := strconv.Atoi(strings.TrimPrefix(mode, "special:"))
+			candidates = nil
+			if index >= 0 && index < len(rules.AceSpecials) {
+				for _, id := range rules.AceSpecials[index].PlayerIDs {
+					if containsID(ids, id) {
+						candidates = append(candidates, id)
 					}
-					source = "special"
-					break
 				}
 			}
+			if len(candidates) == 0 {
+				candidates = append([]int64(nil), ids...)
+				source = "random_fallback"
+			}
+		}
+		if err != nil {
+			return err
 		}
 		if len(candidates) == 0 {
-			candidates = ids
-			source = "random"
+			return errors.New("大将战没有可抽取的选手")
 		}
-		chosen = append(chosen, candidates[e.rng.Intn(len(candidates))])
+		if len(candidates) > 1 {
+			needsDraw = true
+		}
+		candidatesByTeam = append(candidatesByTeam, candidates)
 		sources = append(sources, source)
+	}
+	if needsDraw {
+		e.waitDraw(rules.AceDrawSeconds)
+	}
+	chosen := make([]int64, 0, len(candidatesByTeam))
+	for _, candidates := range candidatesByTeam {
+		chosen = append(chosen, candidates[e.rng.Intn(len(candidates))])
 	}
 	if err := e.insertMatch(stageAce, chosen[0], chosen[1]); err != nil {
 		return err
 	}
-	return e.log("ace_drawn", map[string]any{"player_a_id": chosen[0], "player_b_id": chosen[1], "rules": sources})
+	return e.log("ace_drawn", map[string]any{"player_a_id": chosen[0], "player_b_id": chosen[1], "rules": sources, "candidate_counts": []int{len(candidatesByTeam[0]), len(candidatesByTeam[1])}})
+}
+
+type aceRecord struct {
+	playerID     int64
+	wins, losses int
+}
+
+// 大将战只统计前两轮的已完成对局，不把大将战本身的结果带入抽选。
+func (e *matchEngine) aceRecordCandidates(ids []int64, mostWins bool) ([]int64, error) {
+	if len(ids) == 0 {
+		return nil, errors.New("大将战没有可抽取的选手")
+	}
+	records := make([]aceRecord, 0, len(ids))
+	for _, id := range ids {
+		var wins, losses int
+		if err := e.db.QueryRow(`SELECT COALESCE(SUM(CASE WHEN ((player_a_id=? AND winner_team_id=team_a_id) OR (player_b_id=? AND winner_team_id=team_b_id)) THEN 1 ELSE 0 END),0), COALESCE(SUM(CASE WHEN ((player_a_id=? AND winner_team_id=team_b_id) OR (player_b_id=? AND winner_team_id=team_a_id)) THEN 1 ELSE 0 END),0) FROM matches WHERE event_id=? AND status='finished' AND round_id IN (SELECT id FROM rounds WHERE event_id=? AND stage IN ('round1','round2'))`, id, id, id, id, e.eventID, e.eventID).Scan(&wins, &losses); err != nil {
+			return nil, err
+		}
+		records = append(records, aceRecord{playerID: id, wins: wins, losses: losses})
+	}
+	best := records[0]
+	for _, record := range records[1:] {
+		if betterAceRecord(record, best, mostWins) {
+			best = record
+		}
+	}
+	candidates := []int64{}
+	for _, record := range records {
+		if record.wins == best.wins && record.losses == best.losses {
+			candidates = append(candidates, record.playerID)
+		}
+	}
+	return candidates, nil
+}
+
+func betterAceRecord(candidate, current aceRecord, mostWins bool) bool {
+	if mostWins {
+		candidateDiff := candidate.wins - candidate.losses
+		currentDiff := current.wins - current.losses
+		return candidateDiff > currentDiff || (candidateDiff == currentDiff && candidate.wins > current.wins)
+	}
+	candidateDiff := candidate.losses - candidate.wins
+	currentDiff := current.losses - current.wins
+	// 多败在胜负差相同时优先胜场更少者，例如 2:2 优先于 3:3。
+	return candidateDiff > currentDiff || (candidateDiff == currentDiff && candidate.wins < current.wins)
 }
 
 // 修改早先结果会使之后的出场和阶段失效，回到修正位置重新推进。
