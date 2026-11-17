@@ -66,21 +66,10 @@ func (a *App) listEvents(c *gin.Context) {
 }
 
 func (a *App) publicEvents(c *gin.Context) {
-	rows, err := a.db.Query(`SELECT id, name, description, event_time, status, round1_target, round2_target, created_at FROM events WHERE status IN ('round1','round2','ace','final_confirm') ORDER BY updated_at DESC`)
+	items, err := a.publicEventSummaries(false)
 	if err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
+		fail(c, http.StatusInternalServerError, "读取赛事失败")
 		return
-	}
-	defer rows.Close()
-	items := []map[string]any{}
-	for rows.Next() {
-		var id, round1, round2 int64
-		var name, description, eventTime, status, createdAt string
-		if err := rows.Scan(&id, &name, &description, &eventTime, &status, &round1, &round2, &createdAt); err != nil {
-			fail(c, http.StatusInternalServerError, err.Error())
-			return
-		}
-		items = append(items, gin.H{"id": id, "name": name, "description": description, "event_time": eventTime, "status": status, "round1_target": round1, "round2_target": round2, "created_at": createdAt})
 	}
 	ok(c, gin.H{"events": items})
 }
@@ -138,19 +127,9 @@ func (a *App) historyItems() ([]map[string]any, error) {
 		return items, nil
 	}
 	a.history.mu.RUnlock()
-	rows, err := a.db.Query(`SELECT id,name,description,event_time,status,round1_target,round2_target,created_at FROM events WHERE status='completed' ORDER BY event_time DESC, id DESC`)
+	items, err := a.publicEventSummaries(true)
 	if err != nil {
 		return nil, err
-	}
-	defer rows.Close()
-	items := []map[string]any{}
-	for rows.Next() {
-		var id, round1, round2 int64
-		var name, description, eventTime, status, createdAt string
-		if err := rows.Scan(&id, &name, &description, &eventTime, &status, &round1, &round2, &createdAt); err != nil {
-			return nil, err
-		}
-		items = append(items, gin.H{"id": id, "name": name, "description": description, "event_time": eventTime, "status": status, "round1_target": round1, "round2_target": round2, "created_at": createdAt})
 	}
 	a.history.mu.Lock()
 	a.history.items = items

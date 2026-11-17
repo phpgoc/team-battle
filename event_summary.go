@@ -1,0 +1,30 @@
+package main
+
+import "github.com/gin-gonic/gin"
+
+// 首页使用阶段胜场呈现总比分，避免将三个阶段的小分相加造成误解。
+func (a *App) publicEventSummaries(history bool) ([]map[string]any, error) {
+	where, order := "e.status IN ('round1','round2','ace','final_confirm')", "e.updated_at DESC,e.id DESC"
+	if history {
+		where, order = "e.status='completed'", "e.event_time DESC,e.id DESC"
+	}
+	rows, err := a.db.Query(`SELECT e.id,e.name,e.description,e.event_time,e.status,e.round1_target,e.round2_target,e.created_at,
+		(SELECT COUNT(*) FROM event_players p WHERE p.event_id=e.id AND p.active=1),
+		(SELECT COUNT(*) FROM rounds r WHERE r.event_id=e.id AND r.winner_team_id=(SELECT MIN(id) FROM teams WHERE event_id=e.id)),
+		(SELECT COUNT(*) FROM rounds r WHERE r.event_id=e.id AND r.winner_team_id=(SELECT MAX(id) FROM teams WHERE event_id=e.id))
+		FROM events e WHERE ` + where + ` ORDER BY ` + order)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []map[string]any{}
+	for rows.Next() {
+		var id, round1, round2, players, winsA, winsB int64
+		var name, description, eventTime, status, created string
+		if err := rows.Scan(&id, &name, &description, &eventTime, &status, &round1, &round2, &created, &players, &winsA, &winsB); err != nil {
+			return nil, err
+		}
+		items = append(items, gin.H{"id": id, "name": name, "description": description, "event_time": eventTime, "status": status, "round1_target": round1, "round2_target": round2, "created_at": created, "player_count": players, "round_wins_a": winsA, "round_wins_b": winsB})
+	}
+	return items, rows.Err()
+}
