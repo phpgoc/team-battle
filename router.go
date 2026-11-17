@@ -50,6 +50,9 @@ func (a *App) router() *gin.Engine {
 
 	api.GET("/users", a.listUsers)
 	api.POST("/users", a.createUser)
+	api.PATCH("/users/:id", a.updateUser)
+	api.POST("/users/:id/avatar", a.uploadUserAvatar)
+	api.DELETE("/users/:id", a.deleteUser)
 	api.PATCH("/users/:id/password", a.resetUserPassword)
 	api.GET("/events", a.listEvents)
 	api.POST("/events", a.createEvent)

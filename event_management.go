@@ -224,7 +224,7 @@ func (a *App) createEvent(c *gin.Context) {
 		req.ManagerID = actor.ID
 	} else {
 		var managerRole string
-		if err := a.db.QueryRow(`SELECT role FROM users WHERE id=? AND status='active'`, req.ManagerID).Scan(&managerRole); err != nil || !isNonSuperAdmin(managerRole) {
+		if err := a.db.QueryRow(`SELECT role FROM users WHERE id=? AND status='active' AND is_deleted=0`, req.ManagerID).Scan(&managerRole); err != nil || !isNonSuperAdmin(managerRole) {
 			fail(c, http.StatusBadRequest, "赛事管理员账号无效")
 			return
 		}
@@ -413,7 +413,7 @@ func assignPlayers(tx *sql.Tx, eventID, teamA, teamB int64, ids []int64, fixed m
 		args = append(args, id)
 	}
 	var count int
-	if err := tx.QueryRow(`SELECT COUNT(*) FROM users WHERE id IN (`+strings.Join(placeholders, ",")+`) AND role<>'superadmin' AND status='active'`, args...).Scan(&count); err != nil || count != len(ids) {
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM users WHERE id IN (`+strings.Join(placeholders, ",")+`) AND role<>'superadmin' AND status='active' AND is_deleted=0`, args...).Scan(&count); err != nil || count != len(ids) {
 		return errors.New("参赛选手列表中存在无效账号")
 	}
 	remaining := append([]int64(nil), ids...)

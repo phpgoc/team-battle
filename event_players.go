@@ -123,7 +123,7 @@ func (a *App) activePlayers() ([]User, error) {
 	}
 	users := []User{}
 	for _, u := range directory {
-		if isNonSuperAdmin(u.Role) && u.Status == "active" {
+		if isNonSuperAdmin(u.Role) && u.Status == "active" && !u.IsDeleted {
 			users = append(users, u)
 		}
 	}

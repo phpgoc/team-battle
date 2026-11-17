@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"io"
+
 	"net/http"
 	"sort"
 	"strconv"
@@ -23,7 +23,7 @@ func (a *App) login(c *gin.Context) {
 	var user User
 	var hash string
 	var categoryID sql.NullInt64
-	err := a.db.QueryRow(`SELECT id, username, display_name, role, status, created_at, password_hash, category_id FROM users WHERE username = ?`, strings.TrimSpace(req.Username)).Scan(&user.ID, &user.Username, &user.DisplayName, &user.Role, &user.Status, &user.CreatedAt, &hash, &categoryID)
+	err := a.db.QueryRow(`SELECT id, username, display_name, role, status, created_at, password_hash, category_id FROM users WHERE username = ? AND is_deleted=0`, strings.TrimSpace(req.Username)).Scan(&user.ID, &user.Username, &user.DisplayName, &user.Role, &user.Status, &user.CreatedAt, &hash, &categoryID)
 	if categoryID.Valid {
 		user.CategoryID = categoryID.Int64
 	}
@@ -31,7 +31,12 @@ func (a *App) login(c *gin.Context) {
 		fail(c, http.StatusUnauthorized, "账号或密码错误")
 		return
 	}
-	a.populateCategory(&user)
+	// 登录返回和账号设置相同的缓存资料，包含本人的修改时间。
+	user, err = a.userByID(user.ID)
+	if err != nil {
+		fail(c, 500, "读取账号失败")
+		return
+	}
 	token, err := randomToken(32)
 	if err != nil {
 		fail(c, http.StatusInternalServerError, "创建会话失败")
@@ -67,103 +72,11 @@ func (a *App) me(c *gin.Context) {
 }
 
 func (a *App) updateProfile(c *gin.Context) {
-	user, err := a.currentUser(c)
-	if err != nil {
-		fail(c, http.StatusUnauthorized, "未登录")
-		return
-	}
-	var req profileRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		fail(c, http.StatusBadRequest, "请求格式不正确")
-		return
-	}
-	if strings.TrimSpace(req.DisplayName) != "" {
-		if _, err := a.db.Exec(`UPDATE users SET display_name=? WHERE id=?`, strings.TrimSpace(req.DisplayName), user.ID); err != nil {
-			fail(c, http.StatusInternalServerError, "保存显示名失败")
-			return
-		}
-	}
-	if req.CategoryID != nil {
-		if *req.CategoryID != 0 {
-			var exists int
-			if err := a.db.QueryRow(`SELECT COUNT(*) FROM categories WHERE id=?`, *req.CategoryID).Scan(&exists); err != nil || exists == 0 {
-				fail(c, http.StatusBadRequest, "分类不存在")
-				return
-			}
-		}
-		if _, err := a.db.Exec(`UPDATE users SET category_id=? WHERE id=?`, nullableInt64(*req.CategoryID), user.ID); err != nil {
-			fail(c, http.StatusInternalServerError, "保存分类失败")
-			return
-		}
-		a.invalidateCategoryDirectory()
-	}
-	if req.NewPassword != "" {
-		if len(req.NewPassword) < 6 {
-			fail(c, http.StatusBadRequest, "新密码至少需要6位")
-			return
-		}
-		if req.NewPassword != req.NewPasswordConfirm {
-			fail(c, http.StatusBadRequest, "两次输入的新密码不一致")
-			return
-		}
-		newHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
-		if err != nil {
-			fail(c, http.StatusInternalServerError, "密码处理失败")
-			return
-		}
-		if _, err := a.db.Exec(`UPDATE users SET password_hash=? WHERE id=?`, string(newHash), user.ID); err != nil {
-			fail(c, http.StatusInternalServerError, "保存密码失败")
-			return
-		}
-	}
-	a.invalidateCategoryDirectory()
-	updated, err := a.userByID(user.ID)
-	if err != nil {
-		fail(c, http.StatusInternalServerError, "读取账号失败")
-		return
-	}
-	ok(c, gin.H{"user": updated})
+	a.editAccount(c, false)
 }
 
 func (a *App) uploadAvatar(c *gin.Context) {
-	user, err := a.currentUser(c)
-	if err != nil {
-		fail(c, http.StatusUnauthorized, "未登录")
-		return
-	}
-	file, header, err := c.Request.FormFile("avatar")
-	if err != nil {
-		fail(c, http.StatusBadRequest, "请选择头像文件")
-		return
-	}
-	defer file.Close()
-	if header.Size > 2*1024*1024 {
-		fail(c, http.StatusBadRequest, "头像文件不能超过2MB")
-		return
-	}
-	data, err := io.ReadAll(io.LimitReader(file, 2*1024*1024+1))
-	if err != nil || len(data) == 0 || len(data) > 2*1024*1024 {
-		fail(c, http.StatusBadRequest, "头像文件无效")
-		return
-	}
-	mimeType := http.DetectContentType(data)
-	switch mimeType {
-	case "image/jpeg", "image/png", "image/gif", "image/webp":
-	default:
-		fail(c, http.StatusBadRequest, "头像只支持 JPG、PNG、GIF 或 WebP")
-		return
-	}
-	if _, err := a.db.Exec(`UPDATE users SET avatar_data=?, avatar_mime=?, avatar_version=avatar_version+1 WHERE id=?`, data, mimeType, user.ID); err != nil {
-		fail(c, http.StatusInternalServerError, "保存头像失败")
-		return
-	}
-	a.invalidateCategoryDirectory()
-	updated, err := a.userByID(user.ID)
-	if err != nil {
-		fail(c, http.StatusInternalServerError, "读取账号失败")
-		return
-	}
-	ok(c, gin.H{"user": updated})
+	a.updateAvatar(c, false)
 }
 
 func (a *App) avatar(c *gin.Context) {
@@ -194,7 +107,32 @@ func (a *App) listUsers(c *gin.Context) {
 		return
 	}
 	users := []User{}
+	rows, err := a.db.Query(`SELECT player_a_id FROM matches WHERE status='finished' UNION SELECT player_b_id FROM matches WHERE status='finished'`)
+	if err != nil {
+		fail(c, 500, "读取账号战绩失败")
+		return
+	}
+	played := map[int64]bool{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			fail(c, 500, "读取账号战绩失败")
+			return
+		}
+		played[id] = true
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		fail(c, 500, "读取账号战绩失败")
+		return
+	}
 	for _, u := range directory {
+		if u.IsDeleted {
+			continue
+		}
+		u.CanDelete = u.ID != user.ID && !played[u.ID]
 		users = append(users, u)
 	}
 	sort.Slice(users, func(i, j int) bool { return users[i].ID < users[j].ID })
@@ -213,12 +151,8 @@ func (a *App) resetUserPassword(c *gin.Context) {
 		return
 	}
 	var role string
-	if err := a.db.QueryRow(`SELECT role FROM users WHERE id=?`, userID).Scan(&role); err != nil {
+	if err := a.db.QueryRow(`SELECT role FROM users WHERE id=? AND is_deleted=0`, userID).Scan(&role); err != nil {
 		fail(c, http.StatusNotFound, "账号不存在")
-		return
-	}
-	if role == roleSuperAdmin {
-		fail(c, http.StatusForbidden, "不能通过此功能修改超级管理员密码")
 		return
 	}
 	var req passwordResetRequest
@@ -239,44 +173,7 @@ func (a *App) resetUserPassword(c *gin.Context) {
 }
 
 func (a *App) createUser(c *gin.Context) {
-	actor, err := a.currentUser(c)
-	if err != nil || actor.Role != roleSuperAdmin {
-		fail(c, http.StatusForbidden, "只有超级管理员可以创建账号")
-		return
-	}
-	var req createUserRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		fail(c, http.StatusBadRequest, "请填写完整的账号信息")
-		return
-	}
-	if req.Role != roleSuperAdmin && req.Role != rolePlayer && req.Role != roleUser {
-		fail(c, http.StatusBadRequest, "账号角色只能是超级管理员或选手")
-		return
-	}
-	if strings.TrimSpace(req.Username) == "" || len(req.Password) < 6 {
-		fail(c, 400, "账号名不能为空，密码至少6位")
-		return
-	}
-	if strings.TrimSpace(req.DisplayName) == "" {
-		req.DisplayName = req.Username
-	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err != nil {
-		fail(c, http.StatusInternalServerError, "密码处理失败")
-		return
-	}
-	accountRole := roleUser
-	if req.Role == roleSuperAdmin {
-		accountRole = roleSuperAdmin
-	}
-	result, err := a.db.Exec(`INSERT INTO users(username, display_name, password_hash, role) VALUES(?,?,?,?)`, strings.TrimSpace(req.Username), strings.TrimSpace(req.DisplayName), string(hash), accountRole)
-	if err != nil {
-		fail(c, http.StatusBadRequest, "账号名已存在或信息无效")
-		return
-	}
-	a.invalidateCategoryDirectory()
-	id, _ := result.LastInsertId()
-	ok(c, gin.H{"id": id})
+	a.createAccount(c)
 }
 
 func (a *App) currentUser(c *gin.Context) (User, error) {
@@ -293,7 +190,7 @@ func (a *App) currentUser(c *gin.Context) (User, error) {
 		}
 	}
 	user, err := a.userByID(userID)
-	if err != nil || user.Status != "active" {
+	if err != nil || user.Status != "active" || user.IsDeleted {
 		return User{}, errors.New("unauthorized")
 	}
 	return user, nil

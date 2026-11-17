@@ -40,7 +40,7 @@
   }
   function shell(content, page = 'home') {
     const admin = state.user?.role === 'superadmin';
-    const nav = ['home', ...(admin ? ['createEvent', 'createUser', 'passwords', 'archive', 'siteSettings'] : []), ...(state.user ? ['settings'] : [])];
+    const nav = ['home', ...(admin ? ['createEvent', 'accounts', 'archive', 'siteSettings'] : []), ...(state.user ? ['settings'] : [])];
     app.innerHTML = `<div class="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">TB</div><div><strong>TEAM BATTLE</strong><small>${t('home')}</small></div></div><nav class="nav">${nav.map(key => `<button class="${page === key ? 'active' : ''}" data-go="${pageURL(key)}">${t(key)}</button>`).join('')}</nav>${state.user ? `<div class="side-footer">${person(state.user)}</div>` : ''}</aside><main class="main"><header class="topbar"><span>${t(page)}</span><div class="top-actions">${picker()}${state.user ? `<button class="ghost" id="logout">${t('logout')}</button>` : `<button class="outline" data-go="/login">${t('login')}</button>`}</div></header><div class="page">${content}</div></main></div>`;
     bindCommon();
   }
@@ -59,18 +59,63 @@
     app.innerHTML = `<main class="login-shell"><div class="login-card"><div class="page-head"><h1>${t('login')}</h1>${picker()}</div><form id="login-form" class="login-form">${field('username', input('username', '', 'text', 'required autocomplete="username"'))}${field('password', input('password', '', 'password', 'required autocomplete="current-password"'))}<button class="primary accent">${t('login')}</button></form><p class="help">${t('initHint')}</p><button class="link" data-go="/">${t('homeLink')}</button></div></main>`; bindCommon();
     $('#login-form').onsubmit = action(async event => { event.preventDefault(); const form = new FormData(event.target); state.user = (await post('/api/auth/login', Object.fromEntries(form))).user; const target = new URLSearchParams(location.search).get('return'); go(target?.startsWith('/live/') ? target : '/'); });
   }
+  function profileLimit(changedAt, limited) {
+    const next = changedAt ? new Date(Date.parse(changedAt) + 7 * 24 * 60 * 60 * 1000) : null;
+    return limited && next && next > new Date() ? next : null;
+  }
+  function profileFields(user, categories, managed = false, creating = false) {
+    const limited = !managed && user.role !== 'superadmin';
+    const nameNext = profileLimit(user.display_name_changed_at, limited), avatarNext = profileLimit(user.avatar_changed_at, limited);
+    const editableLogin = creating || user.id === state.user.id;
+    const dateText = date => new Intl.DateTimeFormat({ zh: 'zh-CN', en: 'en-GB', ko: 'ko-KR' }[state.language], { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+    const limitHint = (key, next) => limited ? '<p class="help">' + t(key) + (next ? ' ' + t('availableOn') + ' ' + esc(dateText(next)) : '') + '</p>' : '';
+    return `${field('username', input('username', user.username || '', 'text', 'required autocomplete="username"' + (editableLogin ? '' : ' readonly')) + (editableLogin ? '' : '<p class="help">' + t('usernameSelfOnly') + '</p>'))}${field('displayName', input('display_name', user.display_name || '', 'text', (creating ? '' : 'required') + (nameNext ? ' disabled' : '')) + limitHint('nameWeekly', nameNext))}${managed ? field('role', '<select name="role">' + ['user', 'superadmin'].map(role => '<option value="' + role + '"' + (role === (user.role || 'user') ? ' selected' : '') + '>' + t(role) + '</option>').join('') + '</select>', true) : ''}${field('newPassword', input('new_password', '', 'password', 'minlength="6" autocomplete="new-password"' + (creating ? ' required' : '')))}${field('confirmPassword', input('new_password_confirm', '', 'password', 'autocomplete="new-password"' + (creating ? ' required' : '')))}<p class="help full">${t('passwordHint')}</p>${field('category', `<div class="category-choices"><label><input type="radio" name="category_id" value="0"${!user.category_id ? ' checked' : ''}>${t('noCategory')}</label>${categories.map(c => `<label><input type="radio" name="category_id" value="${c.id}"${Number(c.id) === Number(user.category_id) ? ' checked' : ''}>${c.icon_url ? `<img src="${esc(c.icon_url)}" alt="">` : ''}${esc(c.name)}</label>`).join('')}</div>`, true)}${field('avatar', `<div class="avatar-upload"><div id="avatar-preview">${user.avatar_url ? `<img class="account-avatar-preview" src="${esc(user.avatar_url)}" alt="">` : `<span class="account-avatar-empty">${t('noAvatar')}</span>`}</div><div><input type="file" name="avatar" accept="image/jpeg,image/png,image/gif,image/webp"${avatarNext ? ' disabled' : ''}><p class="help">${t('imageHint')}</p>${limitHint('avatarWeekly', avatarNext)}</div></div>`, true)}`;
+  }
+  function bindProfileForm(form, endpoint, method, saved) {
+    let previewURL;
+    $('[name="avatar"]', form).onchange = event => {
+      if (previewURL) URL.revokeObjectURL(previewURL);
+      const file = event.target.files[0];
+      if (file) {
+        previewURL = URL.createObjectURL(file);
+        $('#avatar-preview').innerHTML = '<img class="account-avatar-preview" src="' + previewURL + '" alt="">';
+      }
+    };
+    form.onsubmit = action(async event => {
+      event.preventDefault();
+      const values = new FormData(form);
+      if (values.get('new_password') !== values.get('new_password_confirm')) throw Error(t('passwordMismatch'));
+      if (!values.get('avatar')?.size) values.delete('avatar');
+      const button = $('button[type="submit"]', form);
+      button.disabled = true;
+      try { await saved(await api(endpoint, { method, body: values })); if (previewURL) URL.revokeObjectURL(previewURL); }
+      finally { button.disabled = false; }
+    });
+  }
   async function accountPage() {
-    const categories = (await api('/api/settings/catalog')).categories;
-    shell(`<div class="page-head"><h1>${t('settings')}</h1></div><section class="panel"><form id="account-form" class="panel-body form-grid">${field('displayName', input('display_name', state.user.display_name, 'text', 'required'), true)}${field('newPassword', input('new_password', '', 'password', 'minlength="6" autocomplete="new-password"'))}${field('confirmPassword', input('new_password_confirm', '', 'password', 'autocomplete="new-password"'))}<p class="help full">${t('passwordHint')}</p>${field('category', `<div class="category-choices"><label><input type="radio" name="category_id" value="0"${!state.user.category_id ? ' checked' : ''}>${t('noCategory')}</label>${categories.map(c => `<label><input type="radio" name="category_id" value="${c.id}"${Number(c.id) === Number(state.user.category_id) ? ' checked' : ''}>${c.icon_url ? `<img src="${esc(c.icon_url)}" alt="">` : ''}${esc(c.name)}</label>`).join('')}</div>`, true)}${field('avatar', `<div class="avatar-upload"><div id="avatar-preview">${state.user.avatar_url ? `<img class="account-avatar-preview" src="${esc(state.user.avatar_url)}" alt="">` : `<span class="account-avatar-empty">${t('noAvatar')}</span>`}</div><div><input type="file" name="avatar" accept="image/jpeg,image/png,image/gif,image/webp"><p class="help">${t('imageHint')}</p></div></div>`, true)}<button class="primary accent">${t('save')}</button></form></section>`, 'settings');
-    $('[name="avatar"]').onchange = event => { const file = event.target.files[0]; if (file) { const url = URL.createObjectURL(file); $('#avatar-preview').innerHTML = `<img class="account-avatar-preview" src="${url}" alt="">`; } };
-    $('#account-form').onsubmit = action(async event => { event.preventDefault(); const form = new FormData(event.target); if (form.get('new_password') !== form.get('new_password_confirm')) throw Error(t('passwordMismatch')); state.user = (await post('/api/auth/profile', { display_name: form.get('display_name'), category_id: Number(form.get('category_id')), new_password: form.get('new_password'), new_password_confirm: form.get('new_password_confirm') }, 'PATCH')).user; const file = form.get('avatar'); if (file?.size) { const upload = new FormData(); upload.append('avatar', file); state.user = (await api('/api/auth/avatar', { method: 'POST', body: upload })).user; } toast(t('saved')); await accountPage(); });
+    const [catalog, current] = await Promise.all([api('/api/settings/catalog'), api('/api/auth/me')]);
+    state.user = current.user;
+    shell(`<div class="page-head"><h1>${t('settings')}</h1></div><section class="panel"><form id="account-form" class="panel-body form-grid">${profileFields(state.user, catalog.categories)}<button type="submit" class="primary accent">${t('save')}</button></form></section>`, 'settings');
+    bindProfileForm($('#account-form'), '/api/auth/profile', 'PATCH', async result => { state.user = result.user; await accountPage(); toast(t('saved')); });
   }
-  async function usersPage(reset = false) {
-    const users = (await api('/api/users')).users;
-    const form = reset ? `${field('account', `<select name="user_id">${options(users.filter(u => u.role !== 'superadmin'))}</select>`)}${field('newPassword', input('password', '', 'password', 'required minlength="6"'))}${field('confirmPassword', input('confirm', '', 'password', 'required'))}` : `${field('username', input('username', '', 'text', 'required'))}${field('displayName', input('display_name'))}${field('password', input('password', '', 'password', 'required minlength="6"'))}${field('role', `<select name="role"><option value="user">${t('user')}</option><option value="superadmin">${t('superadmin')}</option></select>`)}`;
-    shell(`<div class="page-head"><h1>${t(reset ? 'passwords' : 'createUser')}</h1></div><section class="panel"><form id="user-form" class="form-grid panel-body">${form}<button class="primary accent">${t('save')}</button>${reset ? `<p class="help full">${t('resetHint')}</p>` : ''}</form></section>${!reset ? `<section class="panel section-gap"><div class="table-wrap"><table class="table"><thead><tr><th>${t('account')}</th><th>${t('role')}</th><th>${t('category')}</th></tr></thead><tbody>${users.map(u => `<tr><td>${person(u)}</td><td>${t(u.role)}</td><td>${esc(u.category_name || '—')}</td></tr>`).join('')}</tbody></table></div></section>` : ''}`, reset ? 'passwords' : 'createUser');
-    $('#user-form').onsubmit = action(async event => { event.preventDefault(); const form = new FormData(event.target); if (reset) { if (form.get('password') !== form.get('confirm')) throw Error(t('passwordMismatch')); await post('/api/users/' + form.get('user_id') + '/password', { password: form.get('password') }, 'PATCH'); } else await post('/api/users', Object.fromEntries(form)); toast(t(reset ? 'saved' : 'accountCreated')); await usersPage(reset); });
+  async function usersPage() {
+    const [directory, catalog] = await Promise.all([api('/api/users'), api('/api/settings/catalog')]);
+    const users = directory.users, edit = new URLSearchParams(location.search).get('edit');
+    const creating = edit === 'new', user = creating ? {} : users.find(u => String(u.id) === edit);
+    if (creating || user) {
+      shell(`<div class="page-head"><div><h1>${t('accounts')}</h1><p class="subtitle">${t(creating ? 'createUser' : 'editAccount')}</p></div><button class="outline" data-go="${pageURL('accounts')}">${t('backAccounts')}</button></div><section class="panel"><form id="user-form" class="form-grid panel-body">${profileFields(user, catalog.categories, true, creating)}<button type="submit" class="primary accent">${t(creating ? 'createUser' : 'save')}</button></form></section>`, 'accounts');
+      bindProfileForm($('#user-form'), '/api/users' + (creating ? '' : '/' + user.id), creating ? 'POST' : 'PATCH', async result => {
+        if (result.user?.id === state.user.id) state.user = result.user;
+        toast(t(creating ? 'accountCreated' : 'saved'));
+        go(state.user.role === 'superadmin' ? pageURL('accounts') : '/');
+      });
+      return;
+    }
+    shell(`<div class="page-head"><h1>${t('accounts')}</h1><button class="primary accent" data-go="${pageURL('accounts')}&edit=new">${t('createUser')}</button></div><section class="panel"><div class="panel-body"><input id="account-search" aria-label="${t('searchPlayers')}" placeholder="${t('searchPlayers')}"><p class="help">${t('accountDeleteHint')}</p></div><div class="table-wrap"><table class="table"><thead><tr><th>${t('account')}</th><th>${t('role')}</th><th>${t('category')}</th><th>${t('actions')}</th></tr></thead><tbody>${users.map(u => `<tr data-account-row="${esc((u.username + ' ' + u.display_name).toLowerCase())}"><td>${person(u)}</td><td>${t(u.role)}</td><td>${esc(u.category_name || '—')}</td><td><div class="account-actions"><button class="link" data-go="${pageURL('accounts')}&edit=${u.id}">${t('editAccount')}</button><button class="link danger" data-delete-user="${u.id}"${u.can_delete ? '' : ' disabled'} title="${u.can_delete ? '' : t(u.id === state.user.id ? 'cannotDeleteSelf' : 'cannotDeletePlayed')}">${t('delete')}</button></div></td></tr>`).join('')}</tbody></table></div></section>`, 'accounts');
+    $('#account-search').oninput = event => { const text = event.target.value.trim().toLowerCase(); $$('[data-account-row]').forEach(row => { row.hidden = !row.dataset.accountRow.includes(text); }); };
+    $$('[data-delete-user]').forEach(button => button.onclick = action(async () => { if (!confirm(t('deleteAccountConfirm'))) return; await api('/api/users/' + button.dataset.deleteUser, { method: 'DELETE' }); await usersPage(); toast(t('saved')); }));
   }
+
   async function siteSettingsPage() {
     const data = await api('/api/site-settings');
     shell(`<div class="page-head"><h1>${t('siteSettings')}</h1></div><div class="settings-columns"><section class="panel"><div class="panel-head"><h2>${t('names')}</h2></div><div class="panel-body"><form id="name-form" class="inline-form">${input('name', '', 'text', 'required')}<button class="primary">${t('add')}</button></form>${data.event_names.map(n => `<form class="inline-form item-form" data-name="${n.id}">${input('name', n.name, 'text', 'required')}<button class="outline">${t('save')}</button><button type="button" class="link danger" data-delete-name="${n.id}">${t('delete')}</button></form>`).join('')}</div></section><section class="panel"><div class="panel-head"><h2>${t('categories')}</h2></div><div class="panel-body"><form id="category-form" class="field">${field('categoryName', input('name', '', 'text', 'required'))}${field('icon', '<input type="file" name="icon" accept="image/jpeg,image/png,image/gif,image/webp" required>')}<p class="help">${t('imageHint')}</p><button class="primary">${t('add')}</button></form>${data.categories.map(c => `<form class="category-edit item-form" data-category="${c.id}">${c.icon_url ? `<img class="category-icon-preview" src="${esc(c.icon_url)}" alt="">` : `<span>${t('noIcon')}</span>`}${input('name', c.name, 'text', 'required')}<input type="file" name="icon" accept="image/jpeg,image/png,image/gif,image/webp"><button class="outline">${t('save')}</button><button type="button" class="link danger" data-delete-category="${c.id}">${t('delete')}</button></form>`).join('')}</div></section></div>`, 'siteSettings');
@@ -266,8 +311,7 @@
     if (page === 'settings') return accountPage();
     if (state.user.role !== 'superadmin') return go('/');
     if (page === 'createEvent' || page === 'events') return eventEditor('create', preserve);
-    if (page === 'createUser' || page === 'users') return usersPage();
-    if (page === 'passwords') return usersPage(true);
+    if (['accounts', 'createUser', 'users', 'passwords'].includes(page)) return usersPage();
     if (page === 'siteSettings' || page === 'site-settings') return siteSettingsPage();
     if (page === 'archive') return archivePage(preserve);
     return homePage();

@@ -46,7 +46,7 @@ func (a *App) reloadCategoryDirectory() error {
 		return err
 	}
 	rows.Close()
-	rows, err = a.db.Query(`SELECT id,username,display_name,role,status,created_at,COALESCE(category_id,0),CASE WHEN length(avatar_data)>0 THEN 1 ELSE 0 END,avatar_version FROM users`)
+	rows, err = a.db.Query(`SELECT id,username,display_name,role,status,created_at,COALESCE(category_id,0),CASE WHEN length(avatar_data)>0 THEN 1 ELSE 0 END,avatar_version,COALESCE(display_name_changed_at,''),COALESCE(avatar_changed_at,''),is_deleted FROM users`)
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func (a *App) reloadCategoryDirectory() error {
 	for rows.Next() {
 		var u User
 		var has, version int
-		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.Status, &u.CreatedAt, &u.CategoryID, &has, &version); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.Status, &u.CreatedAt, &u.CategoryID, &has, &version, &u.DisplayNameChangedAt, &u.AvatarChangedAt, &u.IsDeleted); err != nil {
 			rows.Close()
 			return err
 		}

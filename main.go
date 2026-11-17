@@ -63,16 +63,20 @@ type historyCache struct {
 }
 
 type User struct {
-	ID           int64  `json:"id"`
-	Username     string `json:"username"`
-	DisplayName  string `json:"display_name"`
-	Role         string `json:"role"`
-	Status       string `json:"status"`
-	AvatarURL    string `json:"avatar_url,omitempty"`
-	CreatedAt    string `json:"created_at"`
-	CategoryID   int64  `json:"category_id,omitempty"`
-	CategoryName string `json:"category_name,omitempty"`
-	CategoryIcon string `json:"category_icon,omitempty"`
+	ID                   int64  `json:"id"`
+	Username             string `json:"username"`
+	DisplayName          string `json:"display_name"`
+	Role                 string `json:"role"`
+	Status               string `json:"status"`
+	AvatarURL            string `json:"avatar_url,omitempty"`
+	CreatedAt            string `json:"created_at"`
+	CategoryID           int64  `json:"category_id,omitempty"`
+	CategoryName         string `json:"category_name,omitempty"`
+	CategoryIcon         string `json:"category_icon,omitempty"`
+	DisplayNameChangedAt string `json:"display_name_changed_at,omitempty"`
+	AvatarChangedAt      string `json:"avatar_changed_at,omitempty"`
+	IsDeleted            bool   `json:"-"`
+	CanDelete            bool   `json:"can_delete"`
 }
 
 type loginRequest struct {
@@ -81,11 +85,14 @@ type loginRequest struct {
 }
 
 type profileRequest struct {
-	DisplayName        string `json:"display_name"`
-	CurrentPassword    string `json:"current_password"`
-	NewPassword        string `json:"new_password"`
-	NewPasswordConfirm string `json:"new_password_confirm"`
-	CategoryID         *int64 `json:"category_id"`
+	Username           *string `json:"username"`
+	DisplayName        *string `json:"display_name"`
+	CurrentPassword    string  `json:"current_password"`
+	NewPassword        string  `json:"new_password"`
+	NewPasswordConfirm string  `json:"new_password_confirm"`
+	CategoryID         *int64  `json:"category_id"`
+	Role               *string `json:"role"`
+	Password           string  `json:"password"`
 }
 
 type catalogNameRequest struct {
