@@ -105,8 +105,8 @@ func (a *App) serveLiveEntry(c *gin.Context, setting bool) {
 	}
 	user, loggedIn := a.currentUser(c)
 	manager := loggedIn == nil && a.canManageEvent(user.ID, user.Role, eventID)
-	var players int
-	if err := a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND active=1`, eventID).Scan(&players); err != nil {
+	var assignedTeams int
+	if err := a.db.QueryRow(`SELECT COUNT(DISTINCT team_id) FROM event_players WHERE event_id=? AND active=1`, eventID).Scan(&assignedTeams); err != nil {
 		c.Status(http.StatusInternalServerError)
 		return
 	}
@@ -118,7 +118,7 @@ func (a *App) serveLiveEntry(c *gin.Context, setting bool) {
 		a.serveIndex(c)
 		return
 	}
-	if players == 0 {
+	if assignedTeams != 2 {
 		if manager {
 			c.Redirect(http.StatusFound, "/live/"+strconv.FormatInt(eventID, 10)+"/setting")
 			return

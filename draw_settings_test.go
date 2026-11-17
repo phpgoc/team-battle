@@ -67,3 +67,24 @@ func TestEmptyRosterLiveRouteRequiresManagerSettings(t *testing.T) {
 	f.request(t, 2, "GET", fmt.Sprintf("/live/%d/setting", created.ID), nil, http.StatusOK)
 	f.request(t, 3, "GET", fmt.Sprintf("/live/%d/setting", created.ID), nil, http.StatusForbidden)
 }
+
+func TestBothTeamsRequiredBeforeOpeningLivePage(t *testing.T) {
+	f := newWorkflowFixture(t)
+	id := f.create(t, "random")
+	path := fmt.Sprintf("/live/%d", id)
+	team := f.teams(t, id)[0]
+	if _, err := f.app.db.Exec(`UPDATE event_players SET team_id=? WHERE event_id=?`, team, id); err != nil {
+		t.Fatal(err)
+	}
+	// 选手全部放在一队时仍未完成分队，不能把半成品看板公开给访客。
+	f.request(t, 0, "GET", path, nil, http.StatusNotFound)
+	f.request(t, 2, "GET", path, nil, http.StatusFound)
+	f.request(t, 2, "GET", path+"/setting", nil, http.StatusOK)
+	f.request(t, 3, "GET", path, nil, http.StatusNotFound)
+	otherTeam := f.teams(t, id)[1]
+	if _, err := f.app.db.Exec(`UPDATE event_players SET team_id=? WHERE event_id=? AND user_id=6`, otherTeam, id); err != nil {
+		t.Fatal(err)
+	}
+	f.request(t, 0, "GET", path, nil, http.StatusOK)
+	f.request(t, 2, "GET", path, nil, http.StatusOK)
+}

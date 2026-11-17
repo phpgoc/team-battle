@@ -8,7 +8,7 @@
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
   const terminal = e => ['completed', 'cancelled'].includes(e.status);
-  const hasRoster = e => (e?.teams || []).some(team => team.players.some(player => player.active !== false));
+  const hasRoster = e => e?.teams?.length === 2 && e.teams.every(team => team.players.some(player => player.active !== false));
   const preMatch = e => ['draft', 'captain_vote', 'lineup_confirm'].includes(e.status);
   const manages = e => state.user && (state.user.role === 'superadmin' || Number(state.user.id) === Number(e.manager_id));
   const editable = e => manages(e) && !terminal(e);
@@ -307,7 +307,7 @@
     const content = '<div class="page-head"><div><h1>' + t(mode === 'create' ? 'createEvent' : mode === 'roster' ? 'editRoster' : 'eventSettings') + '</h1><p class="subtitle">' + t(readonly ? 'settingsLocked' : mode === 'create' ? 'requiredHint' : 'settingsResetHint') + '</p></div>' + (mode === 'create' ? '' : '<button class="outline" id="back-board">' + t('close') + '</button>') + '</div>' + (mode === 'roster' ? '' : editorJumps()) + '<form id="event-form"><fieldset class="event-settings-fields">' + basic + rosterMarkup(state.users, state.roster) + (mode === 'roster' ? '' : rulesMarkup(e)) + '</fieldset>' + (mode === 'roster' ? '' : drawTimingMarkup(e, timingEditable, readonly && timingEditable)) + (readonly ? '' : '<div class="form-footer"><button class="primary accent">' + t(mode === 'create' ? 'createEvent' : 'save') + '</button></div>') + '</form>';
     if (mode === 'create') shell(content, 'createEvent'); else {
       app.innerHTML = '<main class="event-editor-page"><div class="editor-language">' + picker() + '</div>' + content + '</main>';
-      bindCommon(); $('#back-board').onclick = () => { state.editor = null; if (hasRoster(state.event)) boardPage(); else go('/'); };
+      bindCommon(); $('#back-board').onclick = () => go(hasRoster(state.event) ? '/live/' + state.event.id : '/');
     }
     const form = $('#event-form');
     bindRoster(form);
@@ -371,9 +371,7 @@
   }
   function canOperate(e) { return boardVariant(e) !== 'spectator'; }
   function bindBoardSettings() {
-    $('#board-settings')?.addEventListener('click', action(async () => {
-      state.ruleDraft = null; state.editor = 'settings'; await eventEditor('settings');
-    }));
+    $('#board-settings')?.addEventListener('click', () => go('/live/' + state.event.id + '/setting'));
   }
   function boardPage() {
     const e = state.event;
