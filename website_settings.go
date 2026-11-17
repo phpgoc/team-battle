@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -98,8 +99,12 @@ func (a *App) createCategory(c *gin.Context) {
 		return
 	}
 	name, data, mimeType, err := readCategoryForm(c, true)
-	if err != nil || strings.TrimSpace(name) == "" {
+	if strings.TrimSpace(name) == "" {
 		fail(c, http.StatusBadRequest, "分类名不能为空")
+		return
+	}
+	if err != nil {
+		fail(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	if _, err := a.db.Exec(`INSERT INTO categories(name,icon,icon_data,icon_mime,sort_order) VALUES(?,?,?, ?,COALESCE((SELECT MAX(sort_order)+1 FROM categories),0))`, strings.TrimSpace(name), "", data, mimeType); err != nil {
@@ -120,15 +125,21 @@ func (a *App) updateCategory(c *gin.Context) {
 		return
 	}
 	name, data, mimeType, err := readCategoryForm(c, false)
-	if err != nil || strings.TrimSpace(name) == "" {
+	if strings.TrimSpace(name) == "" {
 		fail(c, http.StatusBadRequest, "分类名不能为空")
 		return
 	}
+	if err != nil {
+		fail(c, http.StatusBadRequest, err.Error())
+		return
+	}
 	var updateErr error
+	// 图片地址含更新时间作为版本号，使用纳秒避免同一秒内替换图片后仍命中旧缓存。
+	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
 	if len(data) > 0 {
-		_, updateErr = a.db.Exec(`UPDATE categories SET name=?,icon='',icon_data=?,icon_mime=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, strings.TrimSpace(name), data, mimeType, id)
+		_, updateErr = a.db.Exec(`UPDATE categories SET name=?,icon='',icon_data=?,icon_mime=?,updated_at=? WHERE id=?`, strings.TrimSpace(name), data, mimeType, updatedAt, id)
 	} else {
-		_, updateErr = a.db.Exec(`UPDATE categories SET name=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, strings.TrimSpace(name), id)
+		_, updateErr = a.db.Exec(`UPDATE categories SET name=?,updated_at=? WHERE id=?`, strings.TrimSpace(name), updatedAt, id)
 	}
 	if updateErr != nil {
 		fail(c, http.StatusBadRequest, "分类已存在或无法修改")
@@ -179,10 +190,13 @@ func readCategoryForm(c *gin.Context, requiredIcon bool) (string, []byte, string
 	name := strings.TrimSpace(c.PostForm("name"))
 	file, header, err := c.Request.FormFile("icon")
 	if err != nil {
-		if requiredIcon {
-			return name, nil, "", err
+		if err == http.ErrMissingFile {
+			if !requiredIcon {
+				return name, nil, "", nil
+			}
+			return name, nil, "", fmt.Errorf("请上传分类图标图片")
 		}
-		return name, nil, "", nil
+		return name, nil, "", fmt.Errorf("分类图标无效")
 	}
 	defer file.Close()
 	if header.Size > 2*1024*1024 {

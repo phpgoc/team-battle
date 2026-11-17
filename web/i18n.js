@@ -230,7 +230,11 @@ window.TB_I18N = {
     "eventSections": "赛事设置分区",
     "noneSelected": "暂未选择",
     "voteThreshold": "同一候选人获得 {count} 票后，自动确定为队长。",
-    "voteSaved": "投票已提交"
+    "voteSaved": "投票已提交",
+    "categoryIconRequired": "请上传分类图标图片",
+    "categoryIconTooLarge": "分类图标不能超过2MB",
+    "categoryIconInvalid": "分类图标无效",
+    "categoryIconFormat": "分类图标只支持 JPG、PNG、GIF 或 WebP"
   },
   "en": {
     "home": "Home",
@@ -463,7 +467,11 @@ window.TB_I18N = {
     "eventSections": "Event settings sections",
     "noneSelected": "No players selected",
     "voteThreshold": "A candidate becomes captain at {count} votes.",
-    "voteSaved": "Vote submitted"
+    "voteSaved": "Vote submitted",
+    "categoryIconRequired": "Upload a category icon image.",
+    "categoryIconTooLarge": "Category icons must be no larger than 2 MB.",
+    "categoryIconInvalid": "The category icon image is invalid.",
+    "categoryIconFormat": "Category icons must be JPG, PNG, GIF or WebP."
   },
   "ko": {
     "home": "홈",
@@ -696,6 +704,10 @@ window.TB_I18N = {
     "eventSections": "대회 설정 항목",
     "noneSelected": "선택된 선수 없음",
     "voteThreshold": "같은 후보가 {count}표를 받으면 주장으로 확정됩니다.",
-    "voteSaved": "투표가 제출되었습니다"
+    "voteSaved": "투표가 제출되었습니다",
+    "categoryIconRequired": "분류 아이콘 이미지를 업로드해 주세요.",
+    "categoryIconTooLarge": "분류 아이콘은 2MB 이하여야 합니다.",
+    "categoryIconInvalid": "분류 아이콘 이미지가 올바르지 않습니다.",
+    "categoryIconFormat": "분류 아이콘은 JPG, PNG, GIF 또는 WebP 형식이어야 합니다."
   }
 };
