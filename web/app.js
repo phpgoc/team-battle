@@ -416,7 +416,8 @@
     const match = currentPending(next);
     if (!match || match.status !== 'pending' || !['round1', 'round2', 'ace'].includes(match.stage)) return;
     const oldMatch = currentPending(previous);
-    if (oldMatch && oldMatch.stage === match.stage && oldMatch.seq >= match.seq) return;
+    // 等待报名的占位对局和正式待确认对局可以使用同一个序号，只有旧状态本身已经是待确认时才跳过。
+    if (oldMatch && oldMatch.status === 'pending' && oldMatch.stage === match.stage && oldMatch.seq >= match.seq) return;
     const roll = $('#draw-roll');
     const aName = $('#draw-roll-a');
     const bName = $('#draw-roll-b');
