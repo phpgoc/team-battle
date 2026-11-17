@@ -21,7 +21,7 @@ func defaultDatabasePath() string {
 	return filepath.Join(workingDir, "team-battle.sqlite")
 }
 
-// runInit 创建首个超级管理员，并只在终端输出一次随机初始密码。
+// runInit 创建一个超级管理员，并只在终端输出一次随机初始密码。
 func runInit(args []string) error {
 	flags := flag.NewFlagSet("init", flag.ContinueOnError)
 	dbPath := flags.String("db", "", "SQLite database path")
