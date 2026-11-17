@@ -61,7 +61,7 @@ func runTestServer(args []string) error {
 	if err := seedTestData(db); err != nil {
 		return err
 	}
-	app := &App{db: db, sessions: make(map[string]int64), rng: mathrand.New(mathrand.NewSource(time.Now().UnixNano()))}
+	app := &App{db: db, sessions: make(map[string]int64), rng: mathrand.New(mathrand.NewSource(time.Now().UnixNano())), drawSleep: time.Sleep}
 	addr := net.JoinHostPort(*host, strconv.Itoa(*port))
 	log.Printf("test server listening on http://%s, db=%s", addr, path)
 	log.Printf("test accounts use password: test1234; superadmin=test-admin, managers=test-manager-1/test-manager-2")

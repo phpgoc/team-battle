@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 )
 
 func prepareSignupKOF(t *testing.T, f *workflowFixture) (int64, []int64, int64) {
@@ -109,6 +110,13 @@ func TestCaptainSelectionAndAutomaticRevival(t *testing.T) {
 	for i, player := range []int64{3, 6} {
 		f.request(t, int(player), "POST", fmt.Sprintf("/api/events/%d/kof/starter", id), map[string]any{"team_id": teams[i], "player_id": player}, 200)
 	}
+	revivals := 0
+	f.app.drawSleep = func(d time.Duration) {
+		if d != 3*time.Second {
+			t.Fatalf("随机复活应使用随机抽人时间，实际为 %v", d)
+		}
+		revivals++
+	}
 	path := fmt.Sprintf("/api/events/%d/kof/next-player", id)
 	for seq := int64(1); seq <= 5; seq++ {
 		match := f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=2 AND seq=?`, id, seq)
@@ -121,6 +129,9 @@ func TestCaptainSelectionAndAutomaticRevival(t *testing.T) {
 		if seq < 5 {
 			f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE event_id=? AND round_no=2 AND seq=? AND status='pending'`, id, seq+1)
 		}
+	}
+	if revivals != 2 {
+		t.Fatalf("应当仅在两次随机复活时等待，实际为 %d 次", revivals)
 	}
 	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/confirm", id), nil, 200)
 	last := f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=2 AND seq=5`, id)

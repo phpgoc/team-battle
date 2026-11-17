@@ -52,6 +52,7 @@ type App struct {
 	mu        sync.RWMutex
 	writeMu   sync.Mutex
 	rng       *mathrand.Rand
+	drawSleep func(time.Duration)
 	history   historyCache
 	directory categoryDirectoryCache
 }
@@ -226,9 +227,10 @@ func main() {
 	}
 
 	app := &App{
-		db:       db,
-		sessions: make(map[string]int64),
-		rng:      mathrand.New(mathrand.NewSource(time.Now().UnixNano())),
+		db:        db,
+		sessions:  make(map[string]int64),
+		rng:       mathrand.New(mathrand.NewSource(time.Now().UnixNano())),
+		drawSleep: time.Sleep,
 	}
 	r := app.router()
 	addr := net.JoinHostPort(*host, strconv.Itoa(*port))

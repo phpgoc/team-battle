@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math/rand"
+	"time"
 )
 
 // 比赛推进在单个事务中完成，任何校验失败都不会留下半条比分。
@@ -17,7 +18,15 @@ type matchEngine struct {
 	db               sqlRunner
 	eventID, actorID int64
 	rng              *rand.Rand
+	drawSleep        func(time.Duration)
 }
+
+func (e *matchEngine) waitDraw(seconds int) {
+	if seconds > 0 && e.drawSleep != nil {
+		e.drawSleep(time.Duration(seconds) * time.Second)
+	}
+}
+
 type engineRound struct {
 	id, winner   int64
 	target, a, b int
@@ -188,6 +197,7 @@ func (e *matchEngine) fillLineups(force bool) error {
 	if err := e.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=?`, e.eventID).Scan(&total); err != nil {
 		return err
 	}
+	drawing := false
 	for _, team := range teams {
 		ids, err := e.players(team)
 		if err != nil {
@@ -209,6 +219,10 @@ func (e *matchEngine) fillLineups(force bool) error {
 			}
 			if existing > 0 {
 				continue
+			}
+			if !drawing {
+				e.waitDraw(rules.RandomDrawSeconds)
+				drawing = true
 			}
 			var chosen int64
 			for _, id := range ids {
@@ -246,12 +260,17 @@ func (e *matchEngine) nextRound1() error {
 		return err
 	}
 	chosen := []int64{}
+	drawing := false
 	for _, team := range teams {
 		var id int64
 		err := e.db.QueryRow(`SELECT player_id FROM lineup_entries WHERE event_id=? AND team_id=? AND position=?`, e.eventID, team, count+1).Scan(&id)
 		if err == nil {
 			chosen = append(chosen, id)
 			continue
+		}
+		if !drawing {
+			e.waitDraw(rules.RandomDrawSeconds)
+			drawing = true
 		}
 		ids, err := e.players(team)
 		if err != nil {
@@ -396,6 +415,11 @@ func (e *matchEngine) afterResult(m engineMatch) error {
 			if err != nil {
 				return err
 			}
+			rules, err := e.rules()
+			if err != nil {
+				return err
+			}
+			e.waitDraw(rules.RandomDrawSeconds)
 			return e.chooseKOF(m, ids[e.rng.Intn(len(ids))])
 		}
 	}
@@ -477,6 +501,7 @@ func (e *matchEngine) initialKOF() error {
 	if rules.KOFStarter == "captain" {
 		return nil
 	}
+	e.waitDraw(rules.RandomDrawSeconds)
 	teams, err := e.teams()
 	if err != nil {
 		return err
@@ -573,6 +598,7 @@ func (e *matchEngine) drawAce() error {
 	if err != nil {
 		return err
 	}
+	e.waitDraw(rules.AceDrawSeconds)
 	chosen := []int64{}
 	sources := []string{}
 	for _, team := range teams {
