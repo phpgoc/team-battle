@@ -67,12 +67,6 @@ func (a *App) archiveEvent(c *gin.Context) {
 			}
 		}
 	}
-	if strings.TrimSpace(req.TeamAName) == "" {
-		req.TeamAName = "A"
-	}
-	if strings.TrimSpace(req.TeamBName) == "" {
-		req.TeamBName = "B"
-	}
 	tx, err := a.db.Begin()
 	if err != nil {
 		fail(c, 500, err.Error())
@@ -86,7 +80,7 @@ func (a *App) archiveEvent(c *gin.Context) {
 	}
 	id, _ := r.LastInsertId()
 	teams := []int64{}
-	for _, name := range []string{req.TeamAName, req.TeamBName} {
+	for _, name := range []string{"A 队", "B 队"} {
 		result, err := tx.Exec(`INSERT INTO teams(event_id,name) VALUES(?,?)`, id, name)
 		if err != nil {
 			fail(c, 500, err.Error())

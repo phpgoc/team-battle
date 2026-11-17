@@ -441,26 +441,105 @@ func (e *matchEngine) chooseKOF(m engineMatch, player int64) error {
 	return e.insertMatch(stageRound2, a, b)
 }
 func (e *matchEngine) initialKOF() error {
+	// 重走首轮结果时不能沿用此前的队长首发选择。
+	if _, err := e.db.Exec(`DELETE FROM player_selections WHERE event_id=? AND stage='round2'`, e.eventID); err != nil {
+		return err
+	}
+	rules, err := e.rules()
+	if err != nil {
+		return err
+	}
+	if rules.KOFStarter == "captain" {
+		return nil
+	}
 	teams, err := e.teams()
 	if err != nil {
 		return err
 	}
-	var a, b int64
-	if err := e.db.QueryRow(`SELECT COALESCE(kof_initial_a,0),COALESCE(kof_initial_b,0) FROM events WHERE id=?`, e.eventID).Scan(&a, &b); err != nil {
-		return err
-	}
-	selected := []int64{a, b}
-	for i, team := range teams {
+	chosen := []int64{}
+	for _, team := range teams {
 		ids, err := e.players(team)
 		if err != nil {
 			return err
 		}
-		if !containsID(ids, selected[i]) {
-			selected[i] = ids[e.rng.Intn(len(ids))]
+		if len(ids) == 0 {
+			return errors.New("队伍没有可出场选手")
+		}
+		chosen = append(chosen, ids[e.rng.Intn(len(ids))])
+	}
+	return e.insertMatch(stageRound2, chosen[0], chosen[1])
+}
+
+func (e *matchEngine) selectKOFStarter(teamID, playerID int64, manager bool) error {
+	status, err := e.status()
+	if err != nil {
+		return err
+	}
+	if status != stageRound2 {
+		return errors.New("只有进入KOF后才能选择首发")
+	}
+	rules, err := e.rules()
+	if err != nil {
+		return err
+	}
+	if rules.KOFStarter != "captain" {
+		return errors.New("该赛事使用随机首发")
+	}
+	teams, err := e.teams()
+	if err != nil {
+		return err
+	}
+	if !containsID(teams, teamID) {
+		return errors.New("队伍不存在")
+	}
+	var matches int
+	if err := e.db.QueryRow(`SELECT COUNT(*) FROM matches m JOIN rounds r ON r.id=m.round_id WHERE m.event_id=? AND r.stage='round2'`, e.eventID).Scan(&matches); err != nil {
+		return err
+	}
+	if matches > 0 {
+		return errors.New("KOF已经生成对局，不能重新选择首发")
+	}
+	ids, err := e.players(teamID)
+	if err != nil {
+		return err
+	}
+	if !containsID(ids, playerID) {
+		return errors.New("首发必须属于对应队伍")
+	}
+	if !manager {
+		var captain int
+		if err := e.db.QueryRow(`SELECT is_captain FROM event_players WHERE event_id=? AND team_id=? AND user_id=? AND active=1`, e.eventID, teamID, e.actorID).Scan(&captain); err != nil || captain != 1 {
+			return errors.New("只有本队队长或赛事管理员可以派出首发")
+		}
+		var selected int
+		if err := e.db.QueryRow(`SELECT COUNT(*) FROM player_selections WHERE event_id=? AND stage='round2' AND team_id=?`, e.eventID, teamID).Scan(&selected); err != nil {
+			return err
+		}
+		if selected > 0 {
+			return errors.New("本队已提交首发，如需调整请联系赛事管理员")
 		}
 	}
-	return e.insertMatch(stageRound2, selected[0], selected[1])
+	if _, err := e.db.Exec(`INSERT INTO player_selections(event_id,stage,team_id,player_id) VALUES(?,'round2',?,?) ON CONFLICT(event_id,stage,team_id) DO UPDATE SET player_id=excluded.player_id`, e.eventID, teamID, playerID); err != nil {
+		return err
+	}
+	if err := e.log("kof_starter_selected", map[string]any{"team_id": teamID, "player_id": playerID}); err != nil {
+		return err
+	}
+	chosen := []int64{}
+	for _, team := range teams {
+		var player int64
+		err := e.db.QueryRow(`SELECT player_id FROM player_selections WHERE event_id=? AND stage='round2' AND team_id=?`, e.eventID, team).Scan(&player)
+		if err == sql.ErrNoRows {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		chosen = append(chosen, player)
+	}
+	return e.insertMatch(stageRound2, chosen[0], chosen[1])
 }
+
 func (e *matchEngine) drawAce() error {
 	teams, err := e.teams()
 	if err != nil {

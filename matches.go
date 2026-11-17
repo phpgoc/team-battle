@@ -255,3 +255,32 @@ func (a *App) cancelEvent(c *gin.Context) {
 	}
 	ok(c, gin.H{"ok": true})
 }
+
+// 首发为双方独立提交；管理员可以在对局生成前覆盖已提交的选择。
+func (a *App) selectKOFStarter(c *gin.Context) {
+	actor, err := a.currentUser(c)
+	if err != nil {
+		fail(c, 401, "未登录")
+		return
+	}
+	id, err := parseID(c.Param("id"))
+	if err != nil {
+		fail(c, 400, "赛事编号无效")
+		return
+	}
+	var req struct {
+		TeamID   int64 `json:"team_id"`
+		PlayerID int64 `json:"player_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.PlayerID <= 0 {
+		fail(c, 400, "请选择首发选手")
+		return
+	}
+	manager := a.canManageEvent(actor.ID, actor.Role, id)
+	err = a.runMatchMutation(id, actor.ID, func(e *matchEngine) error { return e.selectKOFStarter(req.TeamID, req.PlayerID, manager) })
+	if err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
+	ok(c, gin.H{"ok": true})
+}

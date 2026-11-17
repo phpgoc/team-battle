@@ -110,8 +110,6 @@ type archiveEventRequest struct {
 	Name             string            `json:"name" binding:"required"`
 	Description      string            `json:"description"`
 	EventTime        string            `json:"event_time" binding:"required"`
-	TeamAName        string            `json:"team_a_name"`
-	TeamBName        string            `json:"team_b_name"`
 	PlayerIDs        []int64           `json:"player_ids"`
 	Round1ScoreA     int               `json:"round1_score_a"`
 	Round1ScoreB     int               `json:"round1_score_b"`
@@ -137,13 +135,9 @@ type createEventRequest struct {
 	EventTime        string            `json:"event_time"`
 	ManagerID        int64             `json:"manager_id"`
 	PlayerIDs        []int64           `json:"player_ids"`
-	TeamAName        string            `json:"team_a_name"`
-	TeamBName        string            `json:"team_b_name"`
 	FixedAssignments map[string]string `json:"fixed_assignments"`
 	Round1Target     int               `json:"round1_target"`
 	Round2Target     int               `json:"round2_target"`
-	KOFInitialA      int64             `json:"kof_initial_a"`
-	KOFInitialB      int64             `json:"kof_initial_b"`
 	Rules            *EventRules       `json:"rules"`
 }
 
@@ -151,15 +145,11 @@ type eventSettingsRequest struct {
 	Name           string      `json:"name"`
 	EventTime      string      `json:"event_time"`
 	Description    string      `json:"description"`
-	TeamAName      string      `json:"team_a_name"`
-	TeamBName      string      `json:"team_b_name"`
 	Round1Target   int         `json:"round1_target"`
 	Round2Target   int         `json:"round2_target"`
 	Rules          *EventRules `json:"rules"`
 	Round1NoRepeat bool        `json:"round1_no_repeat"`
 	Round1AllFirst bool        `json:"round1_all_first"`
-	KOFInitialA    int64       `json:"kof_initial_a"`
-	KOFInitialB    int64       `json:"kof_initial_b"`
 }
 
 type resultRequest struct {

@@ -203,7 +203,7 @@ func migrate(db *sql.DB) error {
 	if _, err := db.Exec(`UPDATE users SET role='user' WHERE role IN ('manager','player')`); err != nil {
 		return err
 	}
-	return nil
+	return normalizeEventMetadata(db)
 }
 
 func ensureColumn(db *sql.DB, table, column, definition string) error {

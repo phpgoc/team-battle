@@ -63,8 +63,7 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 	}
 	event["teams"] = teams
 	var raw string
-	var initialA, initialB int64
-	if err := a.db.QueryRow(`SELECT rules_json,COALESCE(kof_initial_a,0),COALESCE(kof_initial_b,0) FROM events WHERE id=?`, eventID).Scan(&raw, &initialA, &initialB); err != nil {
+	if err := a.db.QueryRow(`SELECT rules_json FROM events WHERE id=?`, eventID).Scan(&raw); err != nil {
 		return nil, err
 	}
 	rules, err := decodeRules(raw)
@@ -72,8 +71,25 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 		return nil, err
 	}
 	event["rules"] = rules
-	event["kof_initial_a"] = initialA
-	event["kof_initial_b"] = initialB
+	starters := []map[string]any{}
+	selectionRows, err := a.db.Query(`SELECT team_id,player_id FROM player_selections WHERE event_id=? AND stage='round2' ORDER BY team_id`, eventID)
+	if err != nil {
+		return nil, err
+	}
+	for selectionRows.Next() {
+		var team, player int64
+		if err := selectionRows.Scan(&team, &player); err != nil {
+			selectionRows.Close()
+			return nil, err
+		}
+		starters = append(starters, map[string]any{"team_id": team, "player_id": player})
+	}
+	if err := selectionRows.Err(); err != nil {
+		selectionRows.Close()
+		return nil, err
+	}
+	selectionRows.Close()
+	event["kof_starters"] = starters
 	lineups := []map[string]any{}
 	lineupRows, err := a.db.Query(`SELECT team_id,position,player_id,source FROM lineup_entries WHERE event_id=? ORDER BY team_id,position`, eventID)
 	if err != nil {

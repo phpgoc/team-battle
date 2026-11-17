@@ -133,7 +133,7 @@ func seedTestData(db *sql.DB) error {
 	managerID := ids["test-manager-1"]
 	adminID := ids["test-admin"]
 	for i, scores := range []struct{ a, b int }{{4, 2}, {3, 4}, {5, 3}} {
-		if err := seedCompletedTestEvent(tx, managerID, adminID, players, fmt.Sprintf("测试历史赛事 %d", i+1), time.Now().AddDate(0, 0, -i-1).Format("2006-01-02T15:04"), scores.a, scores.b); err != nil {
+		if err := seedCompletedTestEvent(tx, managerID, adminID, players, fmt.Sprintf("测试历史赛事 %d", i+1), time.Now().AddDate(0, 0, -i-1).Format("2006-01-02T15:00:00"), scores.a, scores.b); err != nil {
 			return err
 		}
 	}
@@ -172,7 +172,7 @@ func seedCompletedTestEvent(tx *sql.Tx, managerID, creatorID int64, players []in
 }
 
 func seedLiveTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64) error {
-	eventID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, "测试直播赛事", time.Now().Format("2006-01-02T15:04"), statusRound1)
+	eventID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, "测试直播赛事", time.Now().Format("2006-01-02T15:00:00"), statusRound1)
 	if err != nil {
 		return err
 	}
@@ -201,12 +201,12 @@ func seedEventShell(tx *sql.Tx, managerID, creatorID int64, name, eventTime, sta
 		return 0, 0, 0, err
 	}
 	eventID, _ := result.LastInsertId()
-	a, err := tx.Exec(`INSERT INTO teams(event_id,name,color) VALUES(?,?,?)`, eventID, "测试 A 队", "#ef8354")
+	a, err := tx.Exec(`INSERT INTO teams(event_id,name,color) VALUES(?,?,?)`, eventID, "A 队", "#ef8354")
 	if err != nil {
 		return 0, 0, 0, err
 	}
 	teamA, _ := a.LastInsertId()
-	b, err := tx.Exec(`INSERT INTO teams(event_id,name,color) VALUES(?,?,?)`, eventID, "测试 B 队", "#3578e5")
+	b, err := tx.Exec(`INSERT INTO teams(event_id,name,color) VALUES(?,?,?)`, eventID, "B 队", "#3578e5")
 	if err != nil {
 		return 0, 0, 0, err
 	}
