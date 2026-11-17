@@ -228,7 +228,9 @@ window.TB_I18N = {
     "basicInfo": "基本信息",
     "requiredBasics": "名称和开始时间为必填项",
     "eventSections": "赛事设置分区",
-    "noneSelected": "暂未选择"
+    "noneSelected": "暂未选择",
+    "voteThreshold": "同一候选人获得 {count} 票后，自动确定为队长。",
+    "voteSaved": "投票已提交"
   },
   "en": {
     "home": "Home",
@@ -459,7 +461,9 @@ window.TB_I18N = {
     "basicInfo": "Event details",
     "requiredBasics": "Name and start time are required",
     "eventSections": "Event settings sections",
-    "noneSelected": "No players selected"
+    "noneSelected": "No players selected",
+    "voteThreshold": "A candidate becomes captain at {count} votes.",
+    "voteSaved": "Vote submitted"
   },
   "ko": {
     "home": "홈",
@@ -690,6 +694,8 @@ window.TB_I18N = {
     "basicInfo": "기본 정보",
     "requiredBasics": "이름과 시작 시간은 필수입니다",
     "eventSections": "대회 설정 항목",
-    "noneSelected": "선택된 선수 없음"
+    "noneSelected": "선택된 선수 없음",
+    "voteThreshold": "같은 후보가 {count}표를 받으면 주장으로 확정됩니다.",
+    "voteSaved": "투표가 제출되었습니다"
   }
 };
