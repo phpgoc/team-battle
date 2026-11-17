@@ -135,6 +135,12 @@ func migrate(db *sql.DB) error {
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 		)`,
+		// 升级时仅保留每个账号最新的一次登录，再约束一账号一个有效会话。
+		`DELETE FROM sessions WHERE EXISTS (
+			SELECT 1 FROM sessions newer WHERE newer.user_id=sessions.user_id
+			AND (newer.created_at>sessions.created_at OR (newer.created_at=sessions.created_at AND newer.rowid>sessions.rowid))
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS sessions_one_per_user ON sessions(user_id)`,
 		`CREATE TABLE IF NOT EXISTS player_selections (
 			event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
 			stage TEXT NOT NULL,

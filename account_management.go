@@ -362,13 +362,6 @@ func (a *App) deleteUser(c *gin.Context) {
 		fail(c, 500, "删除账号失败")
 		return
 	}
-	a.mu.Lock()
-	for token, id := range a.sessions {
-		if id == target.ID {
-			delete(a.sessions, token)
-		}
-	}
-	a.mu.Unlock()
 	a.invalidateCategoryDirectory()
 	ok(c, gin.H{"ok": true})
 }

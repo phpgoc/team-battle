@@ -26,7 +26,13 @@
   function eventTimeInput(value = localTime()) { return `<div class="event-time-input"><input type="date" name="event_date" value="${esc(value.slice(0, 10))}" required aria-label="${t('date')}"><select name="event_hour" required aria-label="${t('hour')}">${Array.from({ length: 24 }, (_, hour) => `<option value="${String(hour).padStart(2, '0')}"${hour === Number(value.slice(11, 13)) ? ' selected' : ''}>${String(hour).padStart(2, '0')} ${t('hour')}</option>`).join('')}</select></div>`; }
   const eventTimeValue = form => `${form.get('event_date')}T${form.get('event_hour')}`;
   function toast(message) { const box = $('#toast'); box.textContent = message; box.classList.remove('hidden'); clearTimeout(state.toastTimer); state.toastTimer = setTimeout(() => box.classList.add('hidden'), 4000); }
-  async function api(url, options = {}) { const headers = { ...options.headers }; if (options.body !== undefined && !(options.body instanceof FormData)) headers['Content-Type'] = 'application/json'; const res = await fetch(url, { ...options, headers }); const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data.error || t('requestFailed')); return data; }
+  async function api(url, options = {}) { const headers = { ...options.headers }; if (options.body !== undefined && !(options.body instanceof FormData)) headers['Content-Type'] = 'application/json'; const res = await fetch(url, { ...options, headers }); const data = await res.json().catch(() => ({})); if (!res.ok) { if (res.status === 401 && state.user) { sessionEnded(); throw new Error(t('sessionReplaced')); } throw new Error(data.error || t('requestFailed')); } return data; }
+  function sessionEnded() {
+    state.user = null; state.editor = null; state.operations = false;
+    if (location.pathname === '/workspace' || location.pathname.endsWith('/setting')) go('/login');
+    else renderRoute().catch(error => toast(error.message));
+    toast(t('sessionReplaced'));
+  }
   const post = (url, body = {}, method = 'POST') => api(url, { method, body: JSON.stringify(body) });
   function action(fn) { return async event => { try { await fn(event); } catch (error) { toast(error.message); } }; }
   function picker() { return `<select class="language-picker" aria-label="Language">${Object.entries(langs).map(([key, name]) => `<option value="${key}"${state.language === key ? ' selected' : ''}>${name}</option>`).join('')}</select>`; }
@@ -410,6 +416,16 @@
     return homePage();
   }
   window.addEventListener('popstate', () => { closeStream(); state.editor = null; state.operations = false; renderRoute().catch(error => toast(error.message)); });
+  // 公开SSE保持一致，登录是否已在其他设备被替换通过独立鉴权检查确认。
+  let checkingSession = false;
+  async function checkSession() {
+    if (!state.user || document.hidden || checkingSession) return;
+    checkingSession = true;
+    try { await api('/api/auth/me'); } catch (_) {} finally { checkingSession = false; }
+  }
+  setInterval(checkSession, 10000);
+  window.addEventListener('focus', checkSession);
+  document.addEventListener('visibilitychange', checkSession);
   // 预报名不进入公开推送，操作面板单独刷新本队报名状态。
   let pollingKOF = false;
   setInterval(async () => {

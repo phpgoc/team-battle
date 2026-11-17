@@ -15,6 +15,7 @@ import (
 type workflowFixture struct {
 	app     *App
 	handler http.Handler
+	tokens  map[int]string
 }
 
 func newWorkflowFixture(t *testing.T) *workflowFixture {
@@ -37,11 +38,15 @@ func newWorkflowFixture(t *testing.T) *workflowFixture {
 			t.Fatal(err)
 		}
 	}
-	app := &App{db: db, sessions: map[string]int64{}, rng: rand.New(rand.NewSource(7))}
+	app := &App{db: db, rng: rand.New(rand.NewSource(7))}
+	tokens := map[int]string{}
 	for id := 1; id <= 9; id++ {
-		app.sessions[fmt.Sprint(id)] = int64(id)
+		tokens[id] = fmt.Sprint(id)
+		if _, err := db.Exec(`INSERT INTO sessions(token,user_id) VALUES(?,?)`, tokens[id], id); err != nil {
+			t.Fatal(err)
+		}
 	}
-	return &workflowFixture{app: app, handler: app.router()}
+	return &workflowFixture{app: app, handler: app.router(), tokens: tokens}
 }
 func (f *workflowFixture) request(t *testing.T, user int, method, path string, body any, want int) []byte {
 	t.Helper()
@@ -52,12 +57,26 @@ func (f *workflowFixture) request(t *testing.T, user int, method, path string, b
 	req := httptest.NewRequest(method, path, bytes.NewReader(raw))
 	req.Header.Set("Content-Type", "application/json")
 	if user > 0 {
-		req.AddCookie(&http.Cookie{Name: "tb_session", Value: fmt.Sprint(user)})
+		req.AddCookie(&http.Cookie{Name: "tb_session", Value: f.tokens[user]})
 	}
 	res := httptest.NewRecorder()
 	f.handler.ServeHTTP(res, req)
 	if res.Code != want {
 		t.Fatalf("%s %s: want %d, got %d: %s", method, path, want, res.Code, res.Body.String())
+	}
+	// 登录会替换旧会话，后续测试请求和真实浏览器一样采用响应中的新Cookie。
+	if path == "/api/auth/login" && res.Code == http.StatusOK {
+		var result struct {
+			User User `json:"user"`
+		}
+		if err := json.Unmarshal(res.Body.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		for _, cookie := range res.Result().Cookies() {
+			if cookie.Name == "tb_session" {
+				f.tokens[int(result.User.ID)] = cookie.Value
+			}
+		}
 	}
 	return res.Body.Bytes()
 }

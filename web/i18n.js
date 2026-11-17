@@ -206,7 +206,8 @@ window.TB_I18N = {
     "uncategorized": "未分类",
     "noPlayerRecords": "暂无已录入结果的对局",
     "loadingRecords": "正在读取战绩…",
-    "recordScope": "统计所有已录入胜负的对局，包含进行中的赛事；已取消赛事不计入。分类按对手当前分类汇总。"
+    "recordScope": "统计所有已录入胜负的对局，包含进行中的赛事；已取消赛事不计入。分类按对手当前分类汇总。",
+    "sessionReplaced": "登录已失效，可能已在其他设备登录。请重新登录。"
   },
   "en": {
     "home": "Home",
@@ -415,7 +416,8 @@ window.TB_I18N = {
     "uncategorized": "Uncategorized",
     "noPlayerRecords": "No recorded results yet",
     "loadingRecords": "Loading record…",
-    "recordScope": "Includes all recorded results, including ongoing events. Cancelled events are excluded. Categories use each opponent’s current category."
+    "recordScope": "Includes all recorded results, including ongoing events. Cancelled events are excluded. Categories use each opponent’s current category.",
+    "sessionReplaced": "Your session is no longer valid. You may have signed in on another device. Please sign in again."
   },
   "ko": {
     "home": "홈",
@@ -624,6 +626,7 @@ window.TB_I18N = {
     "uncategorized": "미분류",
     "noPlayerRecords": "아직 기록된 경기 결과가 없습니다",
     "loadingRecords": "전적 불러오는 중…",
-    "recordScope": "진행 중인 대회를 포함한 모든 입력된 승패를 집계합니다. 취소된 대회는 제외하며 상대의 현재 분류를 사용합니다."
+    "recordScope": "진행 중인 대회를 포함한 모든 입력된 승패를 집계합니다. 취소된 대회는 제외하며 상대의 현재 분류를 사용합니다.",
+    "sessionReplaced": "로그인이 만료되었습니다. 다른 기기에서 로그인했을 수 있습니다. 다시 로그인해 주세요."
   }
 };

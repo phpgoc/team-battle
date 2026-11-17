@@ -14,6 +14,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// 服务端会话不设到期时间；持久Cookie在使用时续期，浏览器清理Cookie后需重新登录。
+const sessionCookieMaxAge = 10 * 365 * 24 * 60 * 60
+
+func setSessionCookie(c *gin.Context, token string) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("tb_session", token, sessionCookieMaxAge, "/", "", false, true)
+}
+
 func (a *App) login(c *gin.Context) {
 	var req loginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -42,27 +50,30 @@ func (a *App) login(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "创建会话失败")
 		return
 	}
-	a.mu.Lock()
-	a.sessions[token] = user.ID
-	a.mu.Unlock()
-	_, _ = a.db.Exec(`INSERT INTO sessions(token, user_id) VALUES(?,?)`, token, user.ID)
-	c.SetCookie("tb_session", token, 60*60*24*7, "/", "", false, true)
+	// 唯一账号索引保证一次原子写入即替换旧会话，保存失败时不会签发新Cookie。
+	if _, err := a.db.Exec(`INSERT INTO sessions(token,user_id) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET token=excluded.token,created_at=CURRENT_TIMESTAMP`, token, user.ID); err != nil {
+		fail(c, http.StatusInternalServerError, "保存登录会话失败")
+		return
+	}
+	setSessionCookie(c, token)
 	a.populateAvatarURL(&user)
 	ok(c, gin.H{"user": user})
 }
 
 func (a *App) logout(c *gin.Context) {
 	if token, err := c.Cookie("tb_session"); err == nil {
-		a.mu.Lock()
-		delete(a.sessions, token)
-		a.mu.Unlock()
-		_, _ = a.db.Exec(`DELETE FROM sessions WHERE token = ?`, token)
+		// 只删除提交的会话，旧设备退出不能影响新设备的有效登录。
+		if _, err := a.db.Exec(`DELETE FROM sessions WHERE token = ?`, token); err != nil {
+			fail(c, http.StatusInternalServerError, "退出登录失败")
+			return
+		}
 	}
 	c.SetCookie("tb_session", "", -1, "/", "", false, true)
 	ok(c, gin.H{"ok": true})
 }
 
 func (a *App) me(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
 	user, err := a.currentUser(c)
 	if err != nil {
 		fail(c, http.StatusUnauthorized, "未登录")
@@ -181,18 +192,16 @@ func (a *App) currentUser(c *gin.Context) (User, error) {
 	if err != nil || token == "" {
 		return User{}, errors.New("unauthorized")
 	}
-	a.mu.RLock()
-	userID, ok := a.sessions[token]
-	a.mu.RUnlock()
-	if !ok {
-		if err := a.db.QueryRow(`SELECT user_id FROM sessions WHERE token=?`, token).Scan(&userID); err != nil {
-			return User{}, errors.New("unauthorized")
-		}
+	// 每次鉴权都核对数据库中的有效会话，避免进程内缓存让已被顶掉的设备继续操作。
+	var userID int64
+	if err := a.db.QueryRow(`SELECT user_id FROM sessions WHERE token=?`, token).Scan(&userID); err != nil {
+		return User{}, errors.New("unauthorized")
 	}
 	user, err := a.userByID(userID)
 	if err != nil || user.Status != "active" || user.IsDeleted {
 		return User{}, errors.New("unauthorized")
 	}
+	setSessionCookie(c, token)
 	return user, nil
 }
 

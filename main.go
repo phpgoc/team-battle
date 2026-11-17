@@ -48,8 +48,6 @@ func isNonSuperAdmin(role string) bool {
 
 type App struct {
 	db        *sql.DB
-	sessions  map[string]int64
-	mu        sync.RWMutex
 	writeMu   sync.Mutex
 	rng       *mathrand.Rand
 	drawSleep func(time.Duration)
@@ -228,7 +226,6 @@ func main() {
 
 	app := &App{
 		db:        db,
-		sessions:  make(map[string]int64),
 		rng:       mathrand.New(mathrand.NewSource(time.Now().UnixNano())),
 		drawSleep: time.Sleep,
 	}

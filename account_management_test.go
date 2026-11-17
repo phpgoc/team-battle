@@ -39,7 +39,7 @@ func (f *workflowFixture) accountForm(t *testing.T, user int, method, path strin
 	}
 	req := httptest.NewRequest(method, path, &body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.AddCookie(&http.Cookie{Name: "tb_session", Value: fmt.Sprint(user)})
+	req.AddCookie(&http.Cookie{Name: "tb_session", Value: f.tokens[user]})
 	res := httptest.NewRecorder()
 	f.handler.ServeHTTP(res, req)
 	if res.Code != want {
