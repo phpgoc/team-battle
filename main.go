@@ -149,14 +149,17 @@ type createEventRequest struct {
 }
 
 type eventSettingsRequest struct {
-	Name           string      `json:"name"`
-	EventTime      string      `json:"event_time"`
-	Description    string      `json:"description"`
-	Round1Target   int         `json:"round1_target"`
-	Round2Target   int         `json:"round2_target"`
-	Rules          *EventRules `json:"rules"`
-	Round1NoRepeat bool        `json:"round1_no_repeat"`
-	Round1AllFirst bool        `json:"round1_all_first"`
+	ManagerID        *int64            `json:"manager_id"`
+	PlayerIDs        *[]int64          `json:"player_ids"`
+	FixedAssignments map[string]string `json:"fixed_assignments"`
+	Name             string            `json:"name"`
+	EventTime        string            `json:"event_time"`
+	Description      string            `json:"description"`
+	Round1Target     int               `json:"round1_target"`
+	Round2Target     int               `json:"round2_target"`
+	Rules            *EventRules       `json:"rules"`
+	Round1NoRepeat   bool              `json:"round1_no_repeat"`
+	Round1AllFirst   bool              `json:"round1_all_first"`
 }
 
 type resultRequest struct {

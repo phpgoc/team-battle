@@ -5,7 +5,7 @@ import (
 	"sort"
 )
 
-// 赛事管理员可以在录分前补充或重新分配完整阵容。
+// 正式开始前可以补充或重新分配完整阵容。
 func (a *App) addEventPlayers(c *gin.Context) {
 	actor, eventID, access := a.managerEvent(c)
 	if !access {
@@ -23,15 +23,6 @@ func (a *App) addEventPlayers(c *gin.Context) {
 	}
 	req.PlayerIDs = body.PlayerIDs
 	req.FixedAssignments = body.FixedAssignments
-	var count int
-	if err := a.db.QueryRow(`SELECT COUNT(*) FROM matches WHERE event_id=? AND status='finished'`, eventID).Scan(&count); err != nil {
-		fail(c, 500, err.Error())
-		return
-	}
-	if count > 0 {
-		fail(c, 400, "已有比分后不能修改参赛阵容")
-		return
-	}
 	teams, err := a.teamIDs(eventID)
 	if err != nil {
 		fail(c, 400, err.Error())
@@ -43,6 +34,10 @@ func (a *App) addEventPlayers(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback()
+	if err := requireEditableSettings(tx, eventID); err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
 	for _, table := range []string{"kof_reservations", "matches", "captain_votes", "lineup_entries", "player_selections", "event_players"} {
 		if _, err := tx.Exec(`DELETE FROM `+table+` WHERE event_id=?`, eventID); err != nil {
 			fail(c, 500, err.Error())

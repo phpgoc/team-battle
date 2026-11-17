@@ -27,13 +27,6 @@ func (a *App) castCaptainVote(c *gin.Context) {
 		return
 	}
 	err = a.runMatchMutation(id, user.ID, func(e *matchEngine) error {
-		s, err := e.status()
-		if err != nil {
-			return err
-		}
-		if !preMatch(s) {
-			return errors.New("比赛开始后不能投票")
-		}
 		var team int64
 		if err := e.db.QueryRow(`SELECT team_id FROM event_players WHERE event_id=? AND user_id=? AND active=1`, id, user.ID).Scan(&team); err != nil {
 			return errors.New("你不是参赛选手")
@@ -44,6 +37,13 @@ func (a *App) castCaptainVote(c *gin.Context) {
 		}
 		if !containsID(ids, req.TargetID) {
 			return errors.New("只能选本队选手")
+		}
+		var captains int
+		if err := e.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND team_id=? AND is_captain=1 AND active=1`, id, team).Scan(&captains); err != nil {
+			return err
+		}
+		if captains != 0 {
+			return errors.New("本队已有队长，不能继续投票")
 		}
 		if _, err := e.db.Exec(`INSERT INTO captain_votes(event_id,team_id,voter_id,target_id) VALUES(?,?,?,?) ON CONFLICT(event_id,voter_id) DO UPDATE SET target_id=excluded.target_id`, id, team, user.ID, req.TargetID); err != nil {
 			return err
@@ -74,9 +74,6 @@ func (a *App) confirmCaptains(c *gin.Context) {
 		if err != nil {
 			return err
 		}
-		if !preMatch(s) {
-			return errors.New("当前阶段不能确认队长")
-		}
 		teams, err := e.teams()
 		if err != nil {
 			return err
@@ -93,8 +90,10 @@ func (a *App) confirmCaptains(c *gin.Context) {
 		if _, err := e.db.Exec(`UPDATE event_players SET is_captain=CASE WHEN user_id IN (?,?) THEN 1 ELSE 0 END WHERE event_id=?`, req.A, req.B, id); err != nil {
 			return err
 		}
-		if err := e.setStage(statusLineup); err != nil {
-			return err
+		if preMatch(s) {
+			if err := e.setStage(statusLineup); err != nil {
+				return err
+			}
 		}
 		return e.log("captains_confirmed", req)
 	})

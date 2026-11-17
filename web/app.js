@@ -12,6 +12,7 @@
   const manages = e => state.user && (state.user.role === 'superadmin' || Number(state.user.id) === Number(e.manager_id));
   const editable = e => manages(e) && !terminal(e);
   const noScore = e => !(e.matches || []).some(m => m.status === 'finished');
+  const canEditSettings = e => editable(e) && preMatch(e) && noScore(e);
   const person = u => `<span class="person">${avatar(u)}<span><strong>${esc(u.display_name)}</strong><small>${esc(u.username || '')}</small></span>${categoryIcon(u)}</span>`;
   const avatar = u => u.avatar_url ? `<img class="board-avatar" src="${esc(u.avatar_url)}" alt="">` : `<span class="board-avatar board-avatar-fallback">${esc((u.display_name || '?').slice(0, 1))}</span>`;
   const categoryIcon = u => u.category_icon ? `<img class="board-category-icon" src="${esc(u.category_icon)}" alt="${esc(u.category_name || '')}" title="${esc(u.category_name || '')}">` : '';
@@ -192,16 +193,40 @@
   }
   async function eventEditor(mode = 'create', preserve = false) {
     const source = mode === 'create' ? {} : state.event;
-    const e = preserve && state.ruleDraft ? { ...source, rules: state.ruleDraft } : source;
-    const [users, catalog] = await Promise.all([mode === 'create' ? api('/api/users') : api('/api/events/' + e.id + '/eligible-users'), state.user.role === 'superadmin' ? api('/api/site-settings') : Promise.resolve({ event_names: [] })]);
+    if (mode !== 'create' && !manages(source)) { state.editor = null; return boardPage(); }
+    const readonly = mode !== 'create' && !canEditSettings(source);
+    const e = preserve && state.ruleDraft && !readonly ? { ...source, rules: state.ruleDraft } : source;
+    const [users, catalog] = await Promise.all([
+      mode === 'create' ? api('/api/users') : terminal(e) ? Promise.resolve({ users: e.teams.flatMap(team => team.players) }) : api('/api/events/' + e.id + '/eligible-users'),
+      state.user.role === 'superadmin' ? api('/api/site-settings') : Promise.resolve({ event_names: [] })
+    ]);
     state.users = users.users.filter(u => u.role !== 'superadmin');
-    if (!preserve) state.roster = Object.fromEntries((e.teams || []).flatMap((team, i) => team.players.map(p => [p.id, i ? 'B' : 'A'])));
-    const basic = mode !== 'roster' ? `<section class="panel"><div class="panel-body form-grid">${field('name', '<input name="name" list="event-names" value="' + esc(e.name || '') + '" required><datalist id="event-names">' + catalog.event_names.map(n => '<option value="' + esc(n.name) + '">').join('') + '</datalist>', true)}${field('time', eventTimeInput(e.event_time || localTime()))}${mode === 'create' ? field('manager', `<select name="manager_id"><option value="0">${t('managerDefault')}</option>${options(state.users)}</select>`) : ''}${field('description', `<textarea name="description" rows="2">${esc(e.description || '')}</textarea>`, true)}</div></section>` : '';
-    const content = `<div class="page-head"><div><h1>${t(mode === 'create' ? 'createEvent' : mode === 'roster' ? 'editRoster' : 'eventSettings')}</h1><p class="subtitle">${t(mode === 'create' ? 'requiredHint' : mode === 'roster' ? 'rosterResetHint' : 'settingsResetHint')}</p></div>${mode === 'create' ? '' : `<button class="outline" id="back-board">${t('close')}</button>`}</div><form id="event-form">${basic}${mode === 'settings' ? '' : rosterMarkup(state.users, state.roster)}${mode === 'roster' ? '' : rulesMarkup(e)}<div class="form-footer"><button class="primary accent">${t(mode === 'create' ? 'createEvent' : 'save')}</button></div></form>`;
-    if (mode === 'create') shell(content, 'createEvent'); else { app.innerHTML = `<main class="event-editor-page"><div class="editor-language">${picker()}</div>${content}</main>`; bindCommon(); $('#back-board').onclick = () => { state.editor = null; boardPage(); }; }
-    if (mode !== 'settings') bindRoster($('#event-form'));
-    if (mode !== 'roster') bindRules($('#event-form'));
-    $('#event-form').onsubmit = action(async event => { event.preventDefault(); const form = event.target, f = new FormData(form); const body = mode === 'roster' ? rosterValue(form) : { name: f.get('name'), event_time: eventTimeValue(f), description: f.get('description'), manager_id: Number(f.get('manager_id') || 0), round1_target: Number(f.get('round1_target')), round2_target: Number(f.get('round2_target')), rules: rulesValue(form), ...(mode === 'create' ? rosterValue(form) : {}) }; if (mode === 'create') { const created = await post('/api/events', body); toast(t('eventCreated')); go('/live/' + created.id); } else { await post('/api/events/' + e.id + (mode === 'roster' ? '/players' : '/settings'), body, mode === 'roster' ? 'POST' : 'PATCH'); state.editor = null; await refreshEvent(); toast(t('saved')); } });
+    if (!preserve || readonly) state.roster = Object.fromEntries((e.teams || []).flatMap((team, i) => team.players.filter(p => p.active !== false).map(p => [p.id, i ? 'B' : 'A'])));
+    const managerDefault = mode === 'create' || state.users.some(u => u.id === e.manager_id) ? 0 : e.manager_id;
+    const managerField = state.user.role === 'superadmin' ? field('manager', '<select name="manager_id"><option value="' + managerDefault + '">' + t('managerDefault') + '</option>' + options(state.users, e.manager_id) + '</select>') : '';
+    const basic = mode !== 'roster' ? '<section class="panel"><div class="panel-body form-grid">' + field('name', '<input name="name" list="event-names" value="' + esc(e.name || '') + '" required><datalist id="event-names">' + catalog.event_names.map(n => '<option value="' + esc(n.name) + '">').join('') + '</datalist>', true) + field('time', eventTimeInput(e.event_time || localTime())) + managerField + field('description', '<textarea name="description" rows="2">' + esc(e.description || '') + '</textarea>', true) + '</div></section>' : '';
+    const content = '<div class="page-head"><div><h1>' + t(mode === 'create' ? 'createEvent' : mode === 'roster' ? 'editRoster' : 'eventSettings') + '</h1><p class="subtitle">' + t(readonly ? 'settingsLocked' : mode === 'create' ? 'requiredHint' : 'settingsResetHint') + '</p></div>' + (mode === 'create' ? '' : '<button class="outline" id="back-board">' + t('close') + '</button>') + '</div><form id="event-form"><fieldset class="event-settings-fields">' + basic + rosterMarkup(state.users, state.roster) + (mode === 'roster' ? '' : rulesMarkup(e)) + '</fieldset>' + (readonly ? '' : '<div class="form-footer"><button class="primary accent">' + t(mode === 'create' ? 'createEvent' : 'save') + '</button></div>') + '</form>';
+    if (mode === 'create') shell(content, 'createEvent'); else {
+      app.innerHTML = '<main class="event-editor-page"><div class="editor-language">' + picker() + '</div>' + content + '</main>';
+      bindCommon(); $('#back-board').onclick = () => { state.editor = null; boardPage(); };
+    }
+    const form = $('#event-form');
+    bindRoster(form);
+    if (mode !== 'roster') bindRules(form);
+    $('.event-settings-fields', form).disabled = readonly;
+    form.onsubmit = action(async event => {
+      event.preventDefault();
+      if (mode !== 'create' && !canEditSettings(state.event)) throw Error(t('settingsLocked'));
+      const f = new FormData(form);
+      const body = mode === 'roster' ? rosterValue(form) : {
+        name: f.get('name'), event_time: eventTimeValue(f), description: f.get('description'),
+        ...(state.user.role === 'superadmin' ? { manager_id: Number(f.get('manager_id') || 0) } : {}),
+        round1_target: Number(f.get('round1_target')), round2_target: Number(f.get('round2_target')),
+        rules: rulesValue(form), ...rosterValue(form)
+      };
+      if (mode === 'create') { const created = await post('/api/events', body); toast(t('eventCreated')); go('/live/' + created.id); }
+      else { await post('/api/events/' + e.id + (mode === 'roster' ? '/players' : '/settings'), body, mode === 'roster' ? 'POST' : 'PATCH'); state.editor = null; await refreshEvent(); toast(t('saved')); }
+    });
   }
 
   function playerHasWin(e, playerID, stage) { return e.matches.some(m => m.stage === stage && m.status === 'finished' && ((m.player_a_id === playerID && m.who_win === 'a') || (m.player_b_id === playerID && m.who_win === 'b'))); }
@@ -224,12 +249,26 @@
     }).join('')}</div>`).join('');
     return `<section class="board-rules"><div class="board-roster-head"><span>${t('eventSettings')}</span></div><div class="board-rule-block"><h3>${t('round1')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round1_target}</dd></div><div><dt>${t('round1Mode')}</dt><dd>${t(rules.round1_mode === 'random' ? 'random' : 'manual')}</dd></div><div><dt>${t('noRepeat')}</dt><dd>${t(rules.no_repeat ? 'enabled' : 'disabled')}</dd></div><div><dt>${t('allFirst')}</dt><dd>${t(rules.all_first ? 'enabled' : 'disabled')}</dd></div></dl></div><div class="board-rule-block"><h3>${t('round2')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round2_target}</dd></div><div><dt>${t('kofStarter')}</dt><dd>${t(rules.kof_starter === 'captain' ? 'captainStarter' : 'randomStarter')}</dd></div></dl></div><div class="board-rule-block"><h3>${t('aceRules')}</h3><dl><div><dt>${t('mostWinsRule')}</dt><dd>${rules.ace_most_wins}%</dd></div><div><dt>${t('mostLossesRule')}</dt><dd>${rules.ace_most_losses}%</dd></div><div><dt>${t('random')}</dt><dd>${fallback}%</dd></div></dl>${specialGroups}</div>${e.description ? `<div class="board-rule-block"><h3>${t('description')}</h3><p class="summary-description">${esc(e.description)}</p></div>` : ''}</section>`;
   }
-  function boardContent(e) { const teams = e.teams, people = teams.flatMap(t => t.players), rounds = e.rounds; const stages = ['round1', 'round2', 'ace']; const round = stage => rounds.find(r => r.stage === stage); const panel = stage => { const matches = e.matches.filter(m => m.stage === stage); const waiting = stage === 'round2' ? waitingKOFMatch(e) : null; if (waiting) matches.push(waiting); return roundMarkup(round(stage), matches, people); }; const pending = !terminal(e) ? (e.matches.find(m => m.status === 'pending' && m.stage === e.status) || waitingKOFMatch(e)) : null; const roster = teams.map(team => `<section class="board-roster-team"><h3>${esc(team.name)} · ${team.players.length}</h3>${team.players.map(p => { const lost = playerHasLoss(e, p.id, 'round2'); const recordClass = e.status === 'round2' ? (playerHasWin(e, p.id, 'round2') ? 'is-record-winner' : 'is-record-new') : ''; return `<div class="board-roster-player ${lost ? 'is-lost' : ''} ${recordClass}">${avatar(p)}<span class="board-roster-name">${esc(p.display_name)}</span>${categoryIcon(p)}${p.is_captain ? `<b class="board-captain">${t('captain')}</b>` : ''}</div>`; }).join('')}</section>`).join(''); return `<div class="board-top"><div><span class="board-live-mark">TEAM BATTLE</span><h1>${esc(e.name)}</h1><p>${esc(displayTime(e.event_time))}</p></div><span class="board-status">${t(e.status)}</span></div><div class="board-score"><div><span>${esc(teams[0].name)}</span><strong>${rounds.filter(r => r.winner_team_id === teams[0].id).length}</strong></div><b>VS</b><div><span>${esc(teams[1].name)}</span><strong>${rounds.filter(r => r.winner_team_id === teams[1].id).length}</strong></div></div>${pending ? currentMatchMarkup(e, pending, people) : ''}<div class="board-records"><div class="board-columns"><div class="board-left">${panel(stages[0])}${panel(stages[1])}</div><div class="board-right">${panel(stages[2])}${rulesSummary(e)}<section class="board-roster"><div class="board-roster-head"><span>${t('players')}</span><b>${people.length}</b></div>${roster}</section></div></div></div>`; }
-  function canOperate(e) { return state.user && !terminal(e) && (manages(e) || e.teams.some(team => team.players.some(p => p.id === state.user.id))); }
+  function boardContent(e) { const teams = e.teams, people = teams.flatMap(t => t.players), rounds = e.rounds; const stages = ['round1', 'round2', 'ace']; const round = stage => rounds.find(r => r.stage === stage); const panel = stage => { const matches = e.matches.filter(m => m.stage === stage); const waiting = stage === 'round2' ? waitingKOFMatch(e) : null; if (waiting) matches.push(waiting); return roundMarkup(round(stage), matches, people); }; const pending = !terminal(e) ? (e.matches.find(m => m.status === 'pending' && m.stage === e.status) || waitingKOFMatch(e)) : null; const roster = teams.map(team => `<section class="board-roster-team"><h3>${esc(team.name)} · ${team.players.length}</h3>${team.players.map(p => { const lost = playerHasLoss(e, p.id, 'round2'); const recordClass = e.status === 'round2' ? (playerHasWin(e, p.id, 'round2') ? 'is-record-winner' : 'is-record-new') : ''; return `<div class="board-roster-player ${lost ? 'is-lost' : ''} ${recordClass}">${avatar(p)}<span class="board-roster-name">${esc(p.display_name)}</span>${categoryIcon(p)}${p.is_captain ? `<b class="board-captain">${t('captain')}</b>` : ''}</div>`; }).join('')}</section>`).join(''); return `<div class="board-top"><div><span class="board-live-mark">TEAM BATTLE</span><h1>${esc(e.name)}</h1><p>${esc(displayTime(e.event_time))}</p></div><div class="board-heading-actions"><span class="board-status">${t(e.status)}</span>${manages(e) && !terminal(e) ? `<button class="board-settings-button" id="board-settings">${t('eventSettings')}</button>` : ''}</div></div><div class="board-score"><div><span>${esc(teams[0].name)}</span><strong>${rounds.filter(r => r.winner_team_id === teams[0].id).length}</strong></div><b>VS</b><div><span>${esc(teams[1].name)}</span><strong>${rounds.filter(r => r.winner_team_id === teams[1].id).length}</strong></div></div>${pending ? currentMatchMarkup(e, pending, people) : ''}<div class="board-records"><div class="board-columns"><div class="board-left">${panel(stages[0])}${panel(stages[1])}</div><div class="board-right">${panel(stages[2])}${rulesSummary(e)}<section class="board-roster"><div class="board-roster-head"><span>${t('players')}</span><b>${people.length}</b></div>${roster}</section></div></div></div>`; }
+  function boardVariant(e) {
+    if (!state.user || terminal(e)) return 'spectator';
+    if (manages(e)) return 'admin';
+    const team = e.teams.find(team => team.players.some(p => p.id === state.user.id && p.active !== false));
+    if (!team) return 'spectator';
+    const captain = team.players.find(p => p.is_captain && p.active !== false);
+    return captain ? (captain.id === state.user.id ? 'captain' : 'spectator') : 'member';
+  }
+  function canOperate(e) { return boardVariant(e) !== 'spectator'; }
+  function bindBoardSettings() {
+    $('#board-settings')?.addEventListener('click', action(async () => {
+      state.ruleDraft = null; state.editor = 'settings'; await eventEditor('settings');
+    }));
+  }
   function boardPage() {
     const e = state.event;
-    app.innerHTML = `<main class="broadcast-board"><div id="board-content">${boardContent(e)}</div><div id="event-operations" class="event-operations${state.operations ? '' : ' hidden'}"></div><details class="board-menu"><summary aria-label="${t('eventControls')}">☰</summary><div>${picker()}<button data-go="/">${t('homeLink')}</button>${canOperate(e) ? `<button id="toggle-operations">${t('eventControls')}</button>` : ''}${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></main>`;
-    bindCommon(); $('#toggle-operations')?.addEventListener('click', () => { state.operations = !state.operations; $('#event-operations').classList.toggle('hidden', !state.operations); if (state.operations) { renderOperations(); $('#event-operations').scrollIntoView({ behavior: 'smooth' }); } });
+    if (!canOperate(e)) state.operations = false;
+    app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div id="board-content">${boardContent(e)}</div><div id="event-operations" class="event-operations${state.operations ? '' : ' hidden'}"></div><details class="board-menu"><summary aria-label="${t('eventControls')}">☰</summary><div>${picker()}<button data-go="/">${t('homeLink')}</button>${canOperate(e) ? `<button id="toggle-operations">${t('eventControls')}</button>` : ''}${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></main>`;
+    bindCommon(); bindBoardSettings(); $('#toggle-operations')?.addEventListener('click', () => { state.operations = !state.operations; $('#event-operations').classList.toggle('hidden', !state.operations); if (state.operations) { renderOperations(); $('#event-operations').scrollIntoView({ behavior: 'smooth' }); } });
     if (state.operations) renderOperations();
   }
   async function refreshEvent() { state.event = await api('/api/public/events/' + state.event.id); if (!state.editor) boardPage(); }
@@ -268,10 +307,10 @@
     const e = state.event, target = $('#event-operations'); if (!target) return;
     if (!canOperate(e)) { target.innerHTML = ''; return; }
     const manager = manages(e), people = e.teams.flatMap(team => team.players), myTeam = e.teams.find(team => team.players.some(p => p.id === state.user.id));
-    let content = `<div class="page-head"><h2>${t('eventControls')}</h2><div class="inline-form">${manager && noScore(e) ? `<button class="outline" id="edit-event">${t('eventSettings')}</button><button class="outline" id="edit-roster">${t('editRoster')}</button>` : ''}</div></div>`;
-    if (preMatch(e)) {
-      if (myTeam) content += `<section class="panel"><form id="vote-form" class="panel-body inline-form">${field('vote', `<select name="target_id">${options(myTeam.players)}</select>`)}<button class="primary">${t('vote')}</button></form></section>`;
-      if (manager && e.teams.every(team => team.players.length)) content += `<section class="panel section-gap"><form id="captains-form" class="panel-body form-grid">${e.teams.map((team, i) => { const candidate = [...team.players].sort((a, b) => (e.votes.find(v => v.player_id === b.id)?.count || 0) - (e.votes.find(v => v.player_id === a.id)?.count || 0))[0]; return field(i ? 'teamB' : 'teamA', `<select name="team_${i ? 'b' : 'a'}_player_id"><option value="0">${t('noCaptain')}</option>${team.players.map(p => `<option value="${p.id}"${p.is_captain ? ' selected' : ''}>${esc(p.display_name)} · ${e.votes.find(v => v.player_id === p.id)?.count || 0} ${t('votes')}</option>`).join('')}</select>`); }).join('')}<button class="primary">${t('confirmCaptains')}</button></form></section>`;
+    let content = `<div class="page-head"><h2>${t('eventControls')}</h2></div>`;
+    if (myTeam && !myTeam.players.some(p => p.is_captain && p.active !== false)) content += `<section class="panel"><form id="vote-form" class="panel-body inline-form">${field('vote', `<select name="target_id">${options(myTeam.players)}</select>`)}<button class="primary">${t('vote')}</button></form></section>`;
+    if (manager && e.teams.every(team => team.players.length)) content += `<section class="panel section-gap"><form id="captains-form" class="panel-body form-grid">${e.teams.map((team, i) => { return field(i ? 'teamB' : 'teamA', `<select name="team_${i ? 'b' : 'a'}_player_id"><option value="0">${t('noCaptain')}</option>${team.players.map(p => `<option value="${p.id}"${p.is_captain ? ' selected' : ''}>${esc(p.display_name)} · ${e.votes.find(v => v.player_id === p.id)?.count || 0} ${t('votes')}</option>`).join('')}</select>`); }).join('')}<button class="primary">${t('confirmCaptains')}</button></form></section>`;
+    if (preMatch(e) && (manager || boardVariant(e) === 'captain')) {
       content += `<section class="panel section-gap"><div class="panel-head"><h2>${t('lineup')}</h2><span>${t(e.rules.round1_mode === 'random' ? 'random' : 'manual')}</span></div><div class="panel-body"><p class="help">${t('lineupHint')}</p><div class="team-lineups">${e.teams.filter(team => manager || team.players.some(p => p.id === state.user.id && p.is_captain)).map(team => `<form id="lineup-${team.id}" data-lineup="${team.id}" class="field"><h3>${esc(team.name)}</h3>${Array.from({ length: Math.min(team.players.length, Math.floor(people.length / 2)) }, (_, i) => field('matchNo', `<span>${i + 1}</span><select name="player_${i}"${e.rules.round1_mode === 'random' ? ' disabled' : ''}>${options(team.players, (e.lineups.find(l => l.team_id === team.id && l.position === i + 1)?.player_id || 0), 'randomSlot')}</select>`)).join('')}<button class="outline">${t('saveLineup')}</button></form>`).join('')}</div>${manager ? `<div class="form-footer"><button class="outline" id="random-lineup">${t('randomLineup')}</button><button class="primary accent" id="start-event">${t('start')}</button></div>` : ''}</div></section>`;
     }
     const pending = e.matches.find(m => m.status === 'pending' && m.stage === e.status);
@@ -282,7 +321,6 @@
     if (manager && e.matches.some(m => m.status === 'finished')) content += `<section class="panel section-gap"><div class="panel-head"><h2>${t('correct')}</h2></div><form id="correct-form" class="panel-body form-grid"><p class="notice full">${t('correctHint')}</p>${field('matchNo', `<select name="match_id">${e.matches.filter(m => m.status === 'finished').map(m => `<option value="${m.id}">${t(m.stage)} #${m.seq} · ${esc(m.player_a_name)} / ${esc(m.player_b_name)}</option>`).join('')}</select>`)}${field('winner', `<select name="winner_team_id">${e.teams.map(team => `<option value="${team.id}">${esc(team.name)}</option>`).join('')}</select>`)}<button class="outline">${t('correct')}</button></form></section>`;
     target.innerHTML = content;
     if (e.status === 'round2') renderKOFSelection(e, manager).catch(error => toast(error.message));
-    $('#edit-event')?.addEventListener('click', action(async () => { state.ruleDraft = null; state.editor = 'settings'; await eventEditor('settings'); })); $('#edit-roster')?.addEventListener('click', action(async () => { state.ruleDraft = null; state.editor = 'roster'; await eventEditor('roster'); }));
     $('#vote-form')?.addEventListener('submit', action(async event => { event.preventDefault(); await eventAction('/captain-votes', { target_id: Number(new FormData(event.target).get('target_id')) }); }));
     $('#captains-form')?.addEventListener('submit', action(async event => { event.preventDefault(); const f = new FormData(event.target); await eventAction('/captains/confirm', { team_a_player_id: Number(f.get('team_a_player_id')), team_b_player_id: Number(f.get('team_b_player_id')) }); }));
     $$('[data-lineup]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); const ids = [...new FormData(form).values()].map(Number); const manual = []; let randomSeen = false; for (const id of ids) { if (!id) randomSeen = true; else { if (randomSeen) throw Error(t('lineupHint')); manual.push(id); } } await eventAction('/lineup/submit', { team_id: Number(form.dataset.lineup), player_ids: manual }); toast(t('saved')); }));
@@ -302,8 +340,10 @@
     stream.onopen = () => { state.connection = 'connected'; if ($('#connection-state')) $('#connection-state').textContent = t('connected'); };
     stream.onerror = () => { state.connection = 'reconnecting'; if ($('#connection-state')) $('#connection-state').textContent = t('reconnecting'); };
     stream.onmessage = message => {
-      const data = JSON.parse(message.data); const changed = JSON.stringify(state.event) !== JSON.stringify(data); state.event = data;
-      if (changed && !state.editor && $('#board-content')) { $('#board-content').innerHTML = boardContent(data); const forms = captureForms(); renderOperations(); restoreForms(forms); }
+      const data = JSON.parse(message.data); const changed = JSON.stringify(state.event) !== JSON.stringify(data); const variantChanged = boardVariant(state.event) !== boardVariant(data); const settingsLocked = canEditSettings(state.event) && !canEditSettings(data); state.event = data;
+      if (state.editor && settingsLocked) { eventEditor(state.editor).catch(error => toast(error.message)); }
+      if (variantChanged && !state.editor) { boardPage(); }
+      if (changed && !state.editor && $('#board-content')) { $('#board-content').innerHTML = boardContent(data); bindBoardSettings(); const forms = captureForms(); renderOperations(); restoreForms(forms); }
       if (terminal(data)) { closeStream(); if (!state.editor) boardPage(); }
     };
   }
