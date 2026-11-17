@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -46,7 +48,8 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 	var event = map[string]any{}
 	var name, description, eventTime, status, createdAt string
 	var round1Target, round2Target, managerID int64
-	if err := a.db.QueryRow(`SELECT e.name,e.description,e.event_time,e.status,e.round1_target,e.round2_target,e.manager_id,e.created_at FROM events e WHERE e.id=?`, eventID).Scan(&name, &description, &eventTime, &status, &round1Target, &round2Target, &managerID, &createdAt); err != nil {
+	var backgroundID sql.NullInt64
+	if err := a.db.QueryRow(`SELECT e.name,e.description,e.event_time,e.status,e.round1_target,e.round2_target,e.manager_id,e.created_at,e.background_id FROM events e WHERE e.id=?`, eventID).Scan(&name, &description, &eventTime, &status, &round1Target, &round2Target, &managerID, &createdAt, &backgroundID); err != nil {
 		return nil, err
 	}
 	event["id"] = eventID
@@ -58,6 +61,14 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 	event["round2_target"] = round2Target
 	event["manager_id"] = managerID
 	event["created_at"] = createdAt
+	if backgroundID.Valid {
+		var backgroundName, updatedAt string
+		if err := a.db.QueryRow(`SELECT name,updated_at FROM backgrounds WHERE id=?`, backgroundID.Int64).Scan(&backgroundName, &updatedAt); err == nil {
+			event["background_id"] = backgroundID.Int64
+			event["background_name"] = backgroundName
+			event["background_url"] = "/api/backgrounds/" + strconv.FormatInt(backgroundID.Int64, 10) + "/image?v=" + url.QueryEscape(updatedAt)
+		}
+	}
 	teams, err := a.loadTeams(eventID)
 	if err != nil {
 		return nil, err

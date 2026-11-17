@@ -21,7 +21,12 @@ func (a *App) settingsCatalog(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "读取分类失败")
 		return
 	}
-	ok(c, gin.H{"categories": categories})
+	backgrounds, err := a.loadBackgrounds()
+	if err != nil {
+		fail(c, http.StatusInternalServerError, "读取背景失败")
+		return
+	}
+	ok(c, gin.H{"categories": categories, "backgrounds": backgrounds})
 }
 
 func (a *App) siteSettings(c *gin.Context) {
@@ -38,7 +43,12 @@ func (a *App) siteSettings(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "读取分类失败")
 		return
 	}
-	ok(c, gin.H{"event_names": names, "categories": categories})
+	backgrounds, err := a.loadBackgrounds()
+	if err != nil {
+		fail(c, http.StatusInternalServerError, "读取背景失败")
+		return
+	}
+	ok(c, gin.H{"event_names": names, "categories": categories, "backgrounds": backgrounds})
 }
 
 func (a *App) createEventName(c *gin.Context) {

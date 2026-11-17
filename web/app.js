@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const app = document.getElementById('app');
-  const state = { user: null, language: localStorage.getItem('tb_language') || 'zh', event: null, stream: null, operations: false, editor: null, roster: {}, users: [], page: 1, filters: {}, connection: '', drawTimer: null, drawToken: 0 };
+  const state = { user: null, language: localStorage.getItem('tb_language') || 'zh', event: null, stream: null, operations: false, editor: null, roster: {}, users: [], backgrounds: [], page: 1, filters: {}, connection: '', drawTimer: null, drawToken: 0 };
   const langs = { zh: '中文', en: 'English', ko: '한국어' };
   const t = key => window.TB_I18N[state.language]?.[key] || window.TB_I18N.zh[key] || key;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -205,12 +205,14 @@
 
   async function siteSettingsPage() {
     const data = await api('/api/site-settings');
-    shell(`<div class="page-head"><h1>${t('siteSettings')}</h1></div><div class="settings-columns"><section class="panel"><div class="panel-head"><h2>${t('names')}</h2></div><div class="panel-body"><form id="name-form" class="inline-form">${input('name', '', 'text', 'required')}<button class="primary">${t('add')}</button></form>${data.event_names.map(n => `<form class="inline-form item-form" data-name="${n.id}">${input('name', n.name, 'text', 'required')}<button class="outline">${t('save')}</button><button type="button" class="link danger" data-delete-name="${n.id}">${t('delete')}</button></form>`).join('')}</div></section><section class="panel"><div class="panel-head"><h2>${t('categories')}</h2></div><div class="panel-body"><form id="category-form" class="field">${field('categoryName', input('name', '', 'text', 'required'))}${field('icon', '<input type="file" name="icon" accept="image/jpeg,image/png,image/gif,image/webp" required>')}<p class="help">${t('imageHint')}</p><button class="primary">${t('add')}</button></form>${data.categories.map(c => `<form class="category-edit item-form" data-category="${c.id}">${c.icon_url ? `<img class="category-icon-preview" src="${esc(c.icon_url)}" alt="">` : `<span>${t('noIcon')}</span>`}${input('name', c.name, 'text', 'required')}<input type="file" name="icon" accept="image/jpeg,image/png,image/gif,image/webp"><button class="outline">${t('save')}</button><button type="button" class="link danger" data-delete-category="${c.id}">${t('delete')}</button></form>`).join('')}</div></section></div>`, 'siteSettings');
+    shell(`<div class="page-head"><h1>${t('siteSettings')}</h1></div><div class="settings-columns"><section class="panel"><div class="panel-head"><h2>${t('names')}</h2></div><div class="panel-body"><form id="name-form" class="inline-form">${input('name', '', 'text', 'required')}<button class="primary">${t('add')}</button></form>${data.event_names.map(n => `<form class="inline-form item-form" data-name="${n.id}">${input('name', n.name, 'text', 'required')}<button class="outline">${t('save')}</button><button type="button" class="link danger" data-delete-name="${n.id}">${t('delete')}</button></form>`).join('')}</div></section><section class="panel"><div class="panel-head"><h2>${t('categories')}</h2></div><div class="panel-body"><form id="category-form" class="field">${field('categoryName', input('name', '', 'text', 'required'))}${field('icon', '<input type="file" name="icon" accept="image/jpeg,image/png,image/gif,image/webp" required>')}<p class="help">${t('imageHint')}</p><button class="primary">${t('add')}</button></form>${data.categories.map(c => `<form class="category-edit item-form" data-category="${c.id}">${c.icon_url ? `<img class="category-icon-preview" src="${esc(c.icon_url)}" alt="">` : `<span>${t('noIcon')}</span>`}${input('name', c.name, 'text', 'required')}<input type="file" name="icon" accept="image/jpeg,image/png,image/gif,image/webp"><button class="outline">${t('save')}</button><button type="button" class="link danger" data-delete-category="${c.id}">${t('delete')}</button></form>`).join('')}</div></section><section class="panel"><div class="panel-head"><h2>${t('backgrounds')}</h2></div><div class="panel-body"><form id="background-form" class="field">${field('backgroundName', input('name', '', 'text', 'required'))}${field('backgroundImage', '<input type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp" required>')}<p class="help">${t('backgroundHint')}</p><button class="primary">${t('add')}</button></form>${data.backgrounds.map(b => `<form class="background-edit item-form" data-background="${b.id}"><img class="background-preview" src="${esc(b.image_url)}" alt="">${input('name', b.name, 'text', 'required')}<input type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp"><button class="outline">${t('save')}</button><button type="button" class="link danger" data-delete-background="${b.id}">${t('delete')}</button></form>`).join('')}</div></section></div>`, 'siteSettings');
     $('#name-form').onsubmit = action(async event => { event.preventDefault(); await post('/api/site-settings/event-names', Object.fromEntries(new FormData(event.target))); await siteSettingsPage(); });
     $('#category-form').onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/categories', { method: 'POST', body: new FormData(event.target) }); await siteSettingsPage(); });
+    $('#background-form').onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/backgrounds', { method: 'POST', body: new FormData(event.target) }); await siteSettingsPage(); });
     $$('[data-name]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); await post('/api/site-settings/event-names/' + form.dataset.name, Object.fromEntries(new FormData(form)), 'PATCH'); await siteSettingsPage(); }));
     $$('[data-category]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/categories/' + form.dataset.category, { method: 'PATCH', body: new FormData(form) }); await siteSettingsPage(); }));
-    for (const kind of ['name', 'category']) $$(`[data-delete-${kind}]`).forEach(button => button.onclick = action(async () => { if (!confirm(t('deleteConfirm'))) return; const id = button.getAttribute('data-delete-' + kind); await api('/api/site-settings/' + (kind === 'name' ? 'event-names' : 'categories') + '/' + id, { method: 'DELETE' }); await siteSettingsPage(); }));
+    $$('[data-background]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/backgrounds/' + form.dataset.background, { method: 'PATCH', body: new FormData(form) }); await siteSettingsPage(); }));
+    for (const kind of ['name', 'category', 'background']) $$(`[data-delete-${kind}]`).forEach(button => button.onclick = action(async () => { if (!confirm(t('deleteConfirm'))) return; const id = button.getAttribute('data-delete-' + kind); const path = kind === 'name' ? 'event-names' : kind === 'category' ? 'categories' : 'backgrounds'; await api('/api/site-settings/' + path + '/' + id, { method: 'DELETE' }); await siteSettingsPage(); }));
   }
 
   function rosterMarkup(users, assignments) {
@@ -290,6 +292,12 @@
     const sections = [['basics', 'basicInfo'], ['roster', 'players'], ['round1', 'round1'], ['round2', 'round2'], ['ace', 'ace'], ['timing', 'drawTiming']];
     return `<nav class="editor-jumps" aria-label="${t('eventSections')}">${sections.map(([id, title], index) => `<a href="#event-${id}"><span>${index + 1}</span>${t(title)}</a>`).join('')}</nav>`;
   }
+  function backgroundOptions(backgrounds, selected = 0) {
+    return `<option value="0"${Number(selected) ? '' : ' selected'}>${t('noBackground')}</option>` + backgrounds.map(background => `<option value="${background.id}"${Number(background.id) === Number(selected) ? ' selected' : ''}>${esc(background.name)}</option>`).join('');
+  }
+  function eventBackgroundMarkup(e, backgrounds, editable) {
+    return `<section class="panel section-gap event-background-panel"><div class="panel-head"><h2>${t('background')}</h2><span>${esc(e.background_name || t('noBackground'))}</span></div><div class="panel-body"><form id="event-background-form" class="inline-form"><select name="background_id"${editable ? '' : ' disabled'}>${backgroundOptions(backgrounds, e.background_id)}</select>${editable ? `<button class="primary accent">${t('save')}</button>` : ''}</form><p class="help">${t('eventBackgroundHint')}</p></div></section>`;
+  }
   async function eventEditor(mode = 'create', preserve = false) {
     const source = mode === 'create' ? {} : state.event;
     if (mode !== 'create' && !manages(source)) { state.editor = null; return boardPage(); }
@@ -298,14 +306,17 @@
     const e = preserve && state.ruleDraft && !readonly ? { ...source, rules: state.ruleDraft } : source;
     const [users, catalog] = await Promise.all([
       mode === 'create' ? api('/api/users') : terminal(e) ? Promise.resolve({ users: e.teams.flatMap(team => team.players) }) : api('/api/events/' + e.id + '/eligible-users'),
-      state.user.role === 'superadmin' ? api('/api/site-settings') : Promise.resolve({ event_names: [] })
+      state.user.role === 'superadmin' ? api('/api/site-settings') : api('/api/settings/catalog')
     ]);
     state.users = users.users.filter(u => u.role !== 'superadmin');
+    const backgrounds = catalog.backgrounds || [];
     if (!preserve || readonly) state.roster = Object.fromEntries((e.teams || []).flatMap((team, i) => team.players.filter(p => p.active !== false).map(p => [p.id, i ? 'B' : 'A'])));
     const managerDefault = mode === 'create' || state.users.some(u => u.id === e.manager_id) ? 0 : e.manager_id;
     const managerField = state.user.role === 'superadmin' ? field('manager', '<select name="manager_id"><option value="' + managerDefault + '">' + t('managerDefault') + '</option>' + options(state.users, e.manager_id) + '</select>') : '';
-    const basic = mode !== 'roster' ? '<section class="panel editor-section" id="event-basics"><div class="panel-head"><h2>' + t('basicInfo') + '</h2><span>' + t('requiredBasics') + '</span></div><div class="panel-body form-grid">' + field('name', '<input name="name" list="event-names" value="' + esc(e.name || '') + '" required><datalist id="event-names">' + catalog.event_names.map(n => '<option value="' + esc(n.name) + '">').join('') + '</datalist>', true) + field('time', eventTimeInput(e.event_time || localTime())) + managerField + field('description', '<textarea name="description" rows="2">' + esc(e.description || '') + '</textarea>', true) + '</div></section>' : '';
-    const content = '<div class="page-head"><div><h1>' + t(mode === 'create' ? 'createEvent' : mode === 'roster' ? 'editRoster' : 'eventSettings') + '</h1><p class="subtitle">' + t(readonly ? 'settingsLocked' : mode === 'create' ? 'requiredHint' : 'settingsResetHint') + '</p></div>' + (mode === 'create' ? '' : '<button class="outline" id="back-board">' + t('close') + '</button>') + '</div>' + (mode === 'roster' ? '' : editorJumps()) + '<form id="event-form"><fieldset class="event-settings-fields">' + basic + rosterMarkup(state.users, state.roster) + (mode === 'roster' ? '' : rulesMarkup(e)) + '</fieldset>' + (mode === 'roster' ? '' : drawTimingMarkup(e, timingEditable, readonly && timingEditable)) + (readonly ? '' : '<div class="form-footer"><button class="primary accent">' + t(mode === 'create' ? 'createEvent' : 'save') + '</button></div>') + '</form>';
+    const createBackground = mode === 'create' ? field('background', `<select name="background_id">${backgroundOptions(backgrounds, e.background_id)}</select>`) : '';
+    const basic = mode !== 'roster' ? '<section class="panel editor-section" id="event-basics"><div class="panel-head"><h2>' + t('basicInfo') + '</h2><span>' + t('requiredBasics') + '</span></div><div class="panel-body form-grid">' + field('name', '<input name="name" list="event-names" value="' + esc(e.name || '') + '" required><datalist id="event-names">' + (catalog.event_names || []).map(n => '<option value="' + esc(n.name) + '">').join('') + '</datalist>', true) + field('time', eventTimeInput(e.event_time || localTime())) + managerField + createBackground + field('description', '<textarea name="description" rows="2">' + esc(e.description || '') + '</textarea>', true) + '</div></section>' : '';
+    const backgroundPanel = mode === 'create' || mode === 'roster' ? '' : eventBackgroundMarkup(e, backgrounds, manages(e) && !terminal(e));
+    const content = '<div class="page-head"><div><h1>' + t(mode === 'create' ? 'createEvent' : mode === 'roster' ? 'editRoster' : 'eventSettings') + '</h1><p class="subtitle">' + t(readonly ? 'settingsLocked' : mode === 'create' ? 'requiredHint' : 'settingsResetHint') + '</p></div>' + (mode === 'create' ? '' : '<button class="outline" id="back-board">' + t('close') + '</button>') + '</div>' + (mode === 'roster' ? '' : editorJumps()) + '<form id="event-form"><fieldset class="event-settings-fields">' + basic + rosterMarkup(state.users, state.roster) + (mode === 'roster' ? '' : rulesMarkup(e)) + '</fieldset>' + (mode === 'roster' ? '' : drawTimingMarkup(e, timingEditable, readonly && timingEditable)) + (readonly ? '' : '<div class="form-footer"><button class="primary accent">' + t(mode === 'create' ? 'createEvent' : 'save') + '</button></div>') + '</form>' + backgroundPanel;
     if (mode === 'create') shell(content, 'createEvent'); else {
       app.innerHTML = '<main class="event-editor-page"><div class="editor-language">' + picker() + '</div>' + content + '</main>';
       bindCommon(); $('#back-board').onclick = () => go(hasRoster(state.event) ? '/live/' + state.event.id : '/');
@@ -321,7 +332,7 @@
       const body = mode === 'roster' ? rosterValue(form) : {
         name: f.get('name'), event_time: eventTimeValue(f), description: f.get('description'),
         ...(state.user.role === 'superadmin' ? { manager_id: Number(f.get('manager_id') || 0) } : {}),
-        round1_target: Number(f.get('round1_target')), round2_target: Number(f.get('round2_target')),
+        round1_target: Number(f.get('round1_target')), round2_target: Number(f.get('round2_target')), background_id: Number(f.get('background_id') || 0),
         rules: rulesValue(form), ...rosterValue(form)
       };
       if (mode === 'create') { const created = await post('/api/events', body); toast(t('eventCreated')); go('/live/' + created.id); }
@@ -333,6 +344,7 @@
         toast(t('saved'));
       }
     });
+    $('#event-background-form')?.addEventListener('submit', action(async event => { event.preventDefault(); const backgroundID = Number(new FormData(event.target).get('background_id') || 0); await post('/api/events/' + e.id + '/background', { background_id: backgroundID }, 'PATCH'); state.event = await api('/api/public/events/' + e.id); applyEventBackground(state.event); await eventEditor('settings'); toast(t('backgroundSaved')); }));
     $('#save-draw-settings')?.addEventListener('click', action(async () => {
       const body = { random_draw_seconds: Number($('[name="random_draw_seconds"]', form).value), ace_draw_seconds: Number($('[name="ace_draw_seconds"]', form).value) };
       await post('/api/events/' + e.id + '/draw-settings', body, 'PATCH');
@@ -391,11 +403,34 @@
   function bindBoardSettings() {
     $('#board-settings')?.addEventListener('click', () => go('/live/' + state.event.id + '/setting'));
   }
+  function bindBoardBackground() {
+    $('#board-background')?.addEventListener('change', action(async event => {
+      const select = event.currentTarget;
+      const backgroundID = Number(select.value || 0);
+      await post('/api/events/' + state.event.id + '/background', { background_id: backgroundID }, 'PATCH');
+      state.event = await api('/api/public/events/' + state.event.id);
+      applyEventBackground(state.event);
+      select.value = String(state.event.background_id || 0);
+      toast(t('backgroundSaved'));
+    }));
+  }
+  function applyEventBackground(e) {
+    const board = $('.broadcast-board');
+    if (!board) return;
+    if (e?.background_url) {
+      board.dataset.hasBackground = 'true';
+      board.style.setProperty('--event-background-image', `url("${e.background_url}")`);
+    } else {
+      delete board.dataset.hasBackground;
+      board.style.removeProperty('--event-background-image');
+    }
+  }
   function boardPage() {
     const e = state.event;
     if (!canOperate(e)) state.operations = false;
-    app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div id="board-content">${boardContent(e)}</div><div id="event-operations" class="event-operations${state.operations ? '' : ' hidden'}"></div><details class="board-menu"><summary aria-label="${t('eventControls')}">☰</summary><div>${picker()}<button data-go="/">${t('homeLink')}</button>${canOperate(e) ? `<button id="toggle-operations">${t('eventControls')}</button>` : ''}${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></main>`;
-    bindCommon(); bindBoardSettings(); $('#toggle-operations')?.addEventListener('click', () => { state.operations = !state.operations; $('#event-operations').classList.toggle('hidden', !state.operations); if (state.operations) { renderOperations(); $('#event-operations').scrollIntoView({ behavior: 'smooth' }); } });
+    const backgroundControl = !terminal(e) && state.backgrounds.length ? `<label class="board-menu-field"><span>${t('background')}</span><select id="board-background">${backgroundOptions(state.backgrounds, e.background_id)}</select></label>` : '';
+    app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div id="board-content">${boardContent(e)}</div><div id="event-operations" class="event-operations${state.operations ? '' : ' hidden'}"></div><details class="board-menu"><summary aria-label="${t('eventControls')}">☰</summary><div>${picker()}${backgroundControl}<button data-go="/">${t('homeLink')}</button>${canOperate(e) ? `<button id="toggle-operations">${t('eventControls')}</button>` : ''}${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></main>`;
+    applyEventBackground(e); bindCommon(); bindBoardSettings(); bindBoardBackground(); $('#toggle-operations')?.addEventListener('click', () => { state.operations = !state.operations; $('#event-operations').classList.toggle('hidden', !state.operations); if (state.operations) { renderOperations(); $('#event-operations').scrollIntoView({ behavior: 'smooth' }); } });
     if (state.operations) renderOperations();
   }
   function currentPending(event) {
@@ -521,6 +556,7 @@
   async function openEvent(id, preserve = false, setting = false) {
     if (state.event?.id !== Number(id)) state.event = null;
     state.event = await api('/api/public/events/' + id);
+    state.backgrounds = (await api('/api/backgrounds')).backgrounds || [];
     if (!hasRoster(state.event) && !setting) {
       if (state.user && manages(state.event)) {
         history.replaceState({}, '', '/live/' + id + '/setting');
@@ -540,7 +576,13 @@
       const data = JSON.parse(message.data); const previous = state.event; const changed = JSON.stringify(state.event) !== JSON.stringify(data); const variantChanged = boardVariant(state.event) !== boardVariant(data); const settingsLocked = canEditSettings(state.event) && !canEditSettings(data); state.event = data;
       if (state.editor && settingsLocked) { eventEditor(state.editor).catch(error => toast(error.message)); }
       if (variantChanged && !state.editor) { boardPage(); }
-      if (changed && !state.editor && $('#board-content')) { $('#board-content').innerHTML = boardContent(data); bindBoardSettings(); startDrawAnimation(previous, data); if (state.operations) { const forms = captureForms(); renderOperations(); restoreForms(forms); } }
+      if (changed && state.editor) {
+        const backgroundSelect = $('#event-background-form select');
+        if (backgroundSelect) backgroundSelect.value = String(data.background_id || 0);
+        const backgroundName = $('.event-background-panel .panel-head span');
+        if (backgroundName) backgroundName.textContent = data.background_name || t('noBackground');
+      }
+      if (changed && !state.editor && $('#board-content')) { $('#board-content').innerHTML = boardContent(data); applyEventBackground(data); bindBoardSettings(); if ($('#board-background')) $('#board-background').value = String(data.background_id || 0); startDrawAnimation(previous, data); if (state.operations) { const forms = captureForms(); renderOperations(); restoreForms(forms); } }
       if (terminal(data)) { closeStream(); if (!state.editor) boardPage(); }
     };
   }
@@ -548,15 +590,16 @@
   function pastMatchRow(round = 1) { return `<div class="past-match"><select name="past_round" aria-label="${t('stage')}">${[1, 2, 3].map(r => `<option value="${r}"${r === round ? ' selected' : ''}>${t(r === 1 ? 'round1' : r === 2 ? 'round2' : 'ace')}</option>`).join('')}</select><select name="past_a" aria-label="${t('teamA')}" required>${options(state.users.filter(u => state.roster[u.id] === 'A'))}</select><span>VS</span><select name="past_b" aria-label="${t('teamB')}" required>${options(state.users.filter(u => state.roster[u.id] === 'B'))}</select><select name="past_winner" aria-label="${t('winner')}"><option value="a">${t('teamA')} · ${t('win')}</option><option value="b">${t('teamB')} · ${t('win')}</option></select><button type="button" class="link danger" data-remove-match>${t('delete')}</button></div>`; }
   function bindPastMatchRemoval() { $$('[data-remove-match]').forEach(button => button.onclick = () => button.closest('.past-match').remove()); }
   async function archivePage(preserve = false) {
-    state.users = (await api('/api/users')).users.filter(u => u.role !== 'superadmin'); if (!preserve) state.roster = {};
-    shell(`<div class="page-head"><div><h1>${t('archive')}</h1><p class="subtitle">${t('pastHint')}</p></div></div><form id="archive-form"><section class="panel"><div class="panel-body form-grid">${field('name', input('name', '', 'text', 'required'), true)}${field('time', eventTimeInput())}</div></section>${rosterMarkup(state.users, state.roster)}<section class="panel section-gap"><div class="panel-head"><h2>${t('results')}</h2></div><div class="panel-body"><div id="past-matches">${pastMatchRow()}</div><button type="button" class="outline" id="add-match">${t('addMatch')}</button></div></section><div class="form-footer"><button class="primary accent">${t('pastSave')}</button></div></form>`, 'archive');
+    const [directory, backgrounds] = await Promise.all([api('/api/users'), api('/api/backgrounds')]);
+    state.users = directory.users.filter(u => u.role !== 'superadmin'); if (!preserve) state.roster = {};
+    shell(`<div class="page-head"><div><h1>${t('archive')}</h1><p class="subtitle">${t('pastHint')}</p></div></div><form id="archive-form"><section class="panel"><div class="panel-body form-grid">${field('name', input('name', '', 'text', 'required'), true)}${field('time', eventTimeInput())}${field('background', `<select name="background_id">${backgroundOptions(backgrounds.backgrounds || [])}</select>`)}</div></section>${rosterMarkup(state.users, state.roster)}<section class="panel section-gap"><div class="panel-head"><h2>${t('results')}</h2></div><div class="panel-body"><div id="past-matches">${pastMatchRow()}</div><button type="button" class="outline" id="add-match">${t('addMatch')}</button></div></section><div class="form-footer"><button class="primary accent">${t('pastSave')}</button></div></form>`, 'archive');
     bindRoster($('#archive-form'));
     // 过去赛事直接指定两队，避免历史对局被重新随机分配。
     $$('[name^="pick_"][value="R"]').forEach(el => el.closest('label').remove()); $('#all-random').remove();
     bindPastMatchRemoval();
     $('#add-match').onclick = () => { $('#past-matches').insertAdjacentHTML('beforeend', pastMatchRow()); bindPastMatchRemoval(); };
     $$('[name^="pick_"]').forEach(el => el.addEventListener('change', () => { for (const side of ['a', 'b']) $$(`[name="past_${side}"]`).forEach(select => { const chosen = select.value; select.innerHTML = options(state.users.filter(u => state.roster[u.id] === side.toUpperCase()), chosen); }); }));
-    $('#archive-form').onsubmit = action(async event => { event.preventDefault(); const f = new FormData(event.target); const matches = $$('.past-match').map(row => ({ round: Number($('[name="past_round"]', row).value), a_id: Number($('[name="past_a"]', row).value), b_id: Number($('[name="past_b"]', row).value), who_win: $('[name="past_winner"]', row).value })); if (!confirm(t('confirmEndHint'))) return; const result = await post('/api/events/archive', { name: f.get('name'), event_time: eventTimeValue(f), ...rosterValue(event.target), matches }); go('/live/' + result.id); });
+    $('#archive-form').onsubmit = action(async event => { event.preventDefault(); const f = new FormData(event.target); const matches = $$('.past-match').map(row => ({ round: Number($('[name="past_round"]', row).value), a_id: Number($('[name="past_a"]', row).value), b_id: Number($('[name="past_b"]', row).value), who_win: $('[name="past_winner"]', row).value })); if (!confirm(t('confirmEndHint'))) return; const result = await post('/api/events/archive', { name: f.get('name'), event_time: eventTimeValue(f), background_id: Number(f.get('background_id') || 0), ...rosterValue(event.target), matches }); go('/live/' + result.id); });
   }
   async function renderRoute(preserve = false) {
     document.documentElement.lang = state.language;

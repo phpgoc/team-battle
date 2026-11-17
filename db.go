@@ -154,6 +154,15 @@ func migrate(db *sql.DB) error {
 			sort_order INTEGER NOT NULL DEFAULT 0,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS backgrounds (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			image_data BLOB NOT NULL,
+			image_mime TEXT NOT NULL,
+			sort_order INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
 		`CREATE TABLE IF NOT EXISTS kof_reservations (
 			event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
 			match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
@@ -206,6 +215,7 @@ func migrate(db *sql.DB) error {
 		{"events", "kof_initial_a", "INTEGER"},
 		{"events", "kof_initial_b", "INTEGER"},
 		{"events", "rules_json", "TEXT NOT NULL DEFAULT '{}'"},
+		{"events", "background_id", "INTEGER"},
 		{"matches", "round_no", "INTEGER"},
 		{"matches", "a_id", "INTEGER"},
 		{"matches", "b_id", "INTEGER"},

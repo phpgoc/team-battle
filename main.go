@@ -118,6 +118,7 @@ type archivedMatch struct {
 type archiveEventRequest struct {
 	Matches          []archivedMatch   `json:"matches"`
 	FixedAssignments map[string]string `json:"fixed_assignments"`
+	BackgroundID     int64             `json:"background_id"`
 	Name             string            `json:"name" binding:"required"`
 	Description      string            `json:"description"`
 	EventTime        string            `json:"event_time" binding:"required"`
@@ -150,6 +151,7 @@ type createEventRequest struct {
 	Round1Target     int               `json:"round1_target"`
 	Round2Target     int               `json:"round2_target"`
 	Rules            *EventRules       `json:"rules"`
+	BackgroundID     int64             `json:"background_id"`
 }
 
 type eventSettingsRequest struct {
@@ -164,6 +166,10 @@ type eventSettingsRequest struct {
 	Rules            *EventRules       `json:"rules"`
 	Round1NoRepeat   bool              `json:"round1_no_repeat"`
 	Round1AllFirst   bool              `json:"round1_all_first"`
+}
+
+type eventBackgroundRequest struct {
+	BackgroundID int64 `json:"background_id"`
 }
 
 type resultRequest struct {

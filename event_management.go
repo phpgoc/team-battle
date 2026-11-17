@@ -184,6 +184,10 @@ func (a *App) createEvent(c *gin.Context) {
 		fail(c, http.StatusBadRequest, err.Error())
 		return
 	}
+	if valid, err := backgroundExists(a.db, req.BackgroundID); err != nil || !valid {
+		fail(c, http.StatusBadRequest, "背景不存在")
+		return
+	}
 	for _, group := range rules.AceSpecials {
 		for _, id := range group.PlayerIDs {
 			found := false
@@ -215,7 +219,7 @@ func (a *App) createEvent(c *gin.Context) {
 		return
 	}
 	defer transaction.Rollback()
-	result, err := transaction.Exec(`INSERT INTO events(name, description, event_time, status, round1_target, round2_target, manager_id, created_by, rules_json) VALUES(?,?,?,?,?,?,?,?,?)`, strings.TrimSpace(req.Name), strings.TrimSpace(req.Description), req.EventTime, statusDraft, req.Round1Target, req.Round2Target, req.ManagerID, actor.ID, string(rulesJSON))
+	result, err := transaction.Exec(`INSERT INTO events(name, description, event_time, status, round1_target, round2_target, manager_id, created_by, rules_json, background_id) VALUES(?,?,?,?,?,?,?,?,?,?)`, strings.TrimSpace(req.Name), strings.TrimSpace(req.Description), req.EventTime, statusDraft, req.Round1Target, req.Round2Target, req.ManagerID, actor.ID, string(rulesJSON), nullableInt64(req.BackgroundID))
 	if err != nil {
 		fail(c, http.StatusBadRequest, "创建赛事失败")
 		return

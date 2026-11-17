@@ -26,6 +26,10 @@ func (a *App) archiveEvent(c *gin.Context) {
 		fail(c, 400, "过去赛事需要6到12名选手及完整对局结果")
 		return
 	}
+	if valid, err := backgroundExists(a.db, req.BackgroundID); err != nil || !valid {
+		fail(c, 400, "背景不存在")
+		return
+	}
 	scores := [3][2]int{}
 	grouped := [3][]archivedMatch{}
 	for _, m := range req.Matches {
@@ -73,7 +77,7 @@ func (a *App) archiveEvent(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback()
-	r, err := tx.Exec(`INSERT INTO events(name,description,event_time,status,round1_target,round2_target,manager_id,created_by) VALUES(?,?,?,'completed',?,?,?,?)`, strings.TrimSpace(req.Name), req.Description, eventTime, max(scores[0][0], scores[0][1]), max(scores[1][0], scores[1][1]), actor.ID, actor.ID)
+	r, err := tx.Exec(`INSERT INTO events(name,description,event_time,status,round1_target,round2_target,manager_id,created_by,background_id) VALUES(?,?,?,'completed',?,?,?,?,?)`, strings.TrimSpace(req.Name), req.Description, eventTime, max(scores[0][0], scores[0][1]), max(scores[1][0], scores[1][1]), actor.ID, actor.ID, nullableInt64(req.BackgroundID))
 	if err != nil {
 		fail(c, 400, err.Error())
 		return
