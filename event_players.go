@@ -43,7 +43,7 @@ func (a *App) addEventPlayers(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback()
-	for _, table := range []string{"matches", "captain_votes", "lineup_entries", "player_selections", "event_players"} {
+	for _, table := range []string{"kof_reservations", "matches", "captain_votes", "lineup_entries", "player_selections", "event_players"} {
 		if _, err := tx.Exec(`DELETE FROM `+table+` WHERE event_id=?`, eventID); err != nil {
 			fail(c, 500, err.Error())
 			return

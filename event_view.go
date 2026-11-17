@@ -19,7 +19,8 @@ func (a *App) eventDetail(c *gin.Context) {
 		fail(c, http.StatusForbidden, "无权查看该赛事")
 		return
 	}
-	data, err := a.buildEvent(eventID, true)
+	// 预报名审计含尚未公开的选手，完整审计仅供赛事管理员查看。
+	data, err := a.buildEvent(eventID, a.canManageEvent(user.ID, user.Role, eventID))
 	if err != nil {
 		fail(c, http.StatusNotFound, "赛事不存在")
 		return
@@ -72,7 +73,7 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 	}
 	event["rules"] = rules
 	starters := []map[string]any{}
-	selectionRows, err := a.db.Query(`SELECT team_id,player_id FROM player_selections WHERE event_id=? AND stage='round2' ORDER BY team_id`, eventID)
+	selectionRows, err := a.db.Query(`SELECT team_id,player_id FROM player_selections WHERE event_id=? AND stage='round2' AND EXISTS (SELECT 1 FROM matches WHERE event_id=? AND round_no=2) ORDER BY team_id`, eventID, eventID)
 	if err != nil {
 		return nil, err
 	}

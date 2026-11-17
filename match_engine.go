@@ -306,6 +306,18 @@ func (e *matchEngine) record(m engineMatch, winner int64, note string) error {
 	return e.log("match_result_submitted", map[string]any{"match_id": m.id, "winner_team_id": winner})
 }
 func (e *matchEngine) afterResult(m engineMatch) error {
+	// 读取败方的预排，随后清空本局两边的预约；胜方继续留场。
+	var reserved int64
+	if m.stage == stageRound2 {
+		_, loser := m.loser()
+		err := e.db.QueryRow(`SELECT player_id FROM kof_reservations WHERE match_id=? AND team_id=?`, m.id, loser).Scan(&reserved)
+		if err != nil && err != sql.ErrNoRows {
+			return err
+		}
+		if _, err := e.db.Exec(`DELETE FROM kof_reservations WHERE match_id=?`, m.id); err != nil {
+			return err
+		}
+	}
 	var a, b int
 	if err := e.db.QueryRow(`SELECT COALESCE(SUM(winner_team_id=team_a_id),0),COALESCE(SUM(winner_team_id=team_b_id),0) FROM matches WHERE round_id=? AND status='finished'`, m.roundID).Scan(&a, &b); err != nil {
 		return err
@@ -362,6 +374,19 @@ func (e *matchEngine) afterResult(m engineMatch) error {
 	}
 	if m.stage == stageRound2 {
 		_, team := m.loser()
+		if reserved != 0 {
+			lost, err := e.lost(m.roundID, team, reserved)
+			if err != nil {
+				return err
+			}
+			ids, err := e.players(team)
+			if err != nil {
+				return err
+			}
+			if !lost && containsID(ids, reserved) {
+				return e.chooseKOF(m, reserved)
+			}
+		}
 		random, err := e.kofRandom(m.roundID, team)
 		if err != nil {
 			return err
@@ -507,9 +532,8 @@ func (e *matchEngine) selectKOFStarter(teamID, playerID int64, manager bool) err
 		return errors.New("首发必须属于对应队伍")
 	}
 	if !manager {
-		var captain int
-		if err := e.db.QueryRow(`SELECT is_captain FROM event_players WHERE event_id=? AND team_id=? AND user_id=? AND active=1`, e.eventID, teamID, e.actorID).Scan(&captain); err != nil || captain != 1 {
-			return errors.New("只有本队队长或赛事管理员可以派出首发")
+		if err := e.authorizeKOFSelection(teamID, playerID, false); err != nil {
+			return err
 		}
 		var selected int
 		if err := e.db.QueryRow(`SELECT COUNT(*) FROM player_selections WHERE event_id=? AND stage='round2' AND team_id=?`, e.eventID, teamID).Scan(&selected); err != nil {
@@ -615,6 +639,10 @@ func (e *matchEngine) drawAce() error {
 func (e *matchEngine) correct(m engineMatch, winner int64, note string) error {
 	if m.status != statusFinished || (winner != m.teamA && winner != m.teamB) {
 		return errors.New("只能修正已录入对局的合法胜者")
+	}
+	// 修正历史比分时，所有依赖原结果的预报名作废。
+	if _, err := e.db.Exec(`DELETE FROM kof_reservations WHERE event_id=?`, e.eventID); err != nil {
+		return err
 	}
 	stages := []string{stageRound1, stageRound2, stageAce}
 	index := 0

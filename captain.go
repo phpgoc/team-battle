@@ -86,7 +86,7 @@ func (a *App) confirmCaptains(c *gin.Context) {
 			if err != nil {
 				return err
 			}
-			if !containsID(ids, player) {
+			if player != 0 && !containsID(ids, player) {
 				return errors.New("队长必须属于对应队伍")
 			}
 		}

@@ -146,6 +146,13 @@ func migrate(db *sql.DB) error {
 			sort_order INTEGER NOT NULL DEFAULT 0,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS kof_reservations (
+			event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+			match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+			team_id INTEGER NOT NULL REFERENCES teams(id),
+			player_id INTEGER NOT NULL REFERENCES users(id),
+			PRIMARY KEY(match_id,team_id)
+		)`,
 		`CREATE TABLE IF NOT EXISTS categories (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL UNIQUE,

@@ -340,6 +340,10 @@ func (a *App) updateEventSettings(c *gin.Context) {
 		}
 	}
 	// 尚未录分的抽签随设置一起失效，返回排阵阶段重新确认。
+	if _, err := tx.Exec(`DELETE FROM kof_reservations WHERE event_id=?`, eventID); err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
 	if _, err := tx.Exec(`DELETE FROM player_selections WHERE event_id=?`, eventID); err != nil {
 		fail(c, 500, err.Error())
 		return

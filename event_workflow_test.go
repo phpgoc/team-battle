@@ -135,8 +135,8 @@ func TestCaptainKOFStarters(t *testing.T) {
 			PlayerID int64 `json:"player_id"`
 		} `json:"kof_starters"`
 	}
-	if err := json.Unmarshal(raw, &view); err != nil || len(view.Starters) != 1 || view.Starters[0].PlayerID != 4 {
-		t.Fatalf("首发未公开同步: %s", raw)
+	if err := json.Unmarshal(raw, &view); err != nil || len(view.Starters) != 0 {
+		t.Fatalf("双方首发就绪前不应公开报名: %s", raw)
 	}
 	f.request(t, 6, "POST", path, map[string]any{"team_id": teams[1], "player_id": 6}, 200)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE event_id=? AND round_no=2 AND player_a_id=4 AND player_b_id=6 AND status='pending'`, id)

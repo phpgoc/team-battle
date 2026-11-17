@@ -130,50 +130,15 @@ func (a *App) selectKOFPlayer(c *gin.Context) {
 	}
 	var req struct {
 		MatchID  int64 `json:"match_id"`
+		TeamID   int64 `json:"team_id"`
 		PlayerID int64 `json:"player_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlayerID <= 0 {
 		fail(c, 400, "请选择出场选手")
 		return
 	}
-	err = a.runMatchMutation(id, actor.ID, func(e *matchEngine) error {
-		status, err := e.status()
-		if err != nil {
-			return err
-		}
-		if status != stageRound2 {
-			return errors.New("当前不是KOF换人阶段")
-		}
-		m, err := e.match(req.MatchID)
-		if err != nil || m.stage != stageRound2 || m.status != statusFinished {
-			return errors.New("KOF对局尚未录入结果")
-		}
-		_, team := m.loser()
-		if !a.canManageEvent(actor.ID, actor.Role, id) {
-			var captain int
-			if err := e.db.QueryRow(`SELECT is_captain FROM event_players WHERE event_id=? AND team_id=? AND user_id=?`, id, team, actor.ID).Scan(&captain); err != nil || captain != 1 {
-				return errors.New("只有败方队长或赛事管理员可以换人")
-			}
-		}
-		random, err := e.kofRandom(m.roundID, team)
-		if err != nil {
-			return err
-		}
-		if random {
-			return errors.New("全员已输过，系统将随机选择")
-		}
-		lost, err := e.lost(m.roundID, team, req.PlayerID)
-		if err != nil {
-			return err
-		}
-		if lost {
-			return errors.New("请选择本队尚未输过的选手")
-		}
-		if err := e.chooseKOF(m, req.PlayerID); err != nil {
-			return err
-		}
-		return e.log("kof_player_selected", req)
-	})
+	manager := a.canManageEvent(actor.ID, actor.Role, id)
+	err = a.runMatchMutation(id, actor.ID, func(e *matchEngine) error { return e.reserveKOF(req.MatchID, req.TeamID, req.PlayerID, manager) })
 	if err != nil {
 		fail(c, 400, err.Error())
 		return
