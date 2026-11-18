@@ -24,7 +24,10 @@
 .roster-entry>[data-remove-player]{padding:9px 0;font-size:12px}
 [data-roster-editable=false] .roster-list-heading,[data-roster-editable=false] .roster-entry{grid-template-columns:minmax(0,1fr) 150px}
 .roster-empty{padding:12px 14px}
-.special-candidates>.candidate-grid{margin-top:16px}
+.special-candidates{margin-top:16px}
+.special-player-select{display:block;width:100%;max-width:680px;min-height:180px;font-size:14px;line-height:1.6}
+.special-player-select option{padding:8px 10px;border-radius:4px}
+.special-player-select:focus{outline:2px solid #75aee2;outline-offset:2px}
 @media(max-width:620px){
   .roster-list-heading,.roster-entry{grid-template-columns:minmax(0,1fr) 94px 32px;gap:8px;padding-left:0;padding-right:0}
   [data-roster-editable=false] .roster-list-heading,[data-roster-editable=false] .roster-entry{grid-template-columns:minmax(0,1fr) 94px}

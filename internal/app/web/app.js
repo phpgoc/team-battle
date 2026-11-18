@@ -229,7 +229,7 @@
       state.roster = Object.fromEntries(entries);
       state.rosterOrder = entries.map(([id]) => id);
       $$('[data-special-candidates]', form).forEach(container => {
-        const selected = $$('input:checked', container).map(el => Number(el.value));
+        const selected = specialCandidateIDs(container);
         container.innerHTML = specialCandidatesMarkup(selected);
       });
       refreshSpecialCounts();
@@ -237,10 +237,10 @@
     } });
   }
   const defaultRules = () => ({ round1_mode: 'manual', kof_starter: 'random', no_repeat: true, random_draw_seconds: 5, ace_draw_seconds: 5, ace_most_wins: 20, ace_most_losses: 20, ace_specials: [] });
+  const specialCandidateIDs = row => [...($('[name="special_ids"]', row)?.selectedOptions || [])].map(option => Number(option.value));
   function specialCandidatesMarkup(selected = []) {
     const available = state.rosterOrder.map(id => state.users.find(user => user.id === id)).filter(Boolean);
-    if (!available.length) return `<p class="help">${t('selectPlayersFirst')}</p>`;
-    return `<div class="candidate-grid">${available.map(u => `<label class="candidate-card"><input type="checkbox" name="special_ids" value="${u.id}"${selected.includes(u.id) ? ' checked' : ''}><span class="candidate-person">${person(u)}</span></label>`).join('')}</div>`;
+    return `<select class="special-player-select" name="special_ids" multiple size="6" aria-label="${t('specialCandidates')}">${available.map(u => `<option value="${u.id}"${selected.includes(u.id) ? ' selected' : ''}>${esc(u.display_name)}${u.username && u.username !== u.display_name ? ` (${esc(u.username)})` : ''}${u.category_name ? ` · ${esc(u.category_name)}` : ''}</option>`).join('')}</select>${available.length ? '' : `<p class="help">${t('selectPlayersFirst')}</p>`}`;
   }
   function specialMarkup(group = { player_ids: [], probability: 0 }) {
     return `<section class="special-rule"><div class="special-rule-head"><h3 data-special-title></h3><span data-special-count></span><button type="button" class="link danger" data-remove-special>${t('delete')}</button></div><div class="special-probability">${field('probability', input('special_probability', group.probability, 'number', 'min="0" max="100" required'))}<p class="help">${t('candidateHint')}</p></div><div class="special-candidates" data-special-candidates>${specialCandidatesMarkup(group.player_ids)}</div></section>`;
@@ -248,7 +248,8 @@
   function refreshSpecialCounts() {
     $$('.special-rule').forEach((row, index) => {
       $('[data-special-title]', row).textContent = `${t('specialMatchGroup')}${index + 1}`;
-      $('[data-special-count]', row).textContent = `${t('selected')} ${$$('input[type=checkbox]:checked', row).length}`;
+      $('[data-special-count]', row).textContent = `${t('selected')} ${specialCandidateIDs(row).length}`;
+      $('[name="special_ids"]', row)?.setAttribute('aria-label', `${t('specialMatchGroup')}${index + 1} · ${t('specialCandidates')}`);
     });
   }
   function rulesMarkup(e = {}, roundEditable = true, aceEditable = true) {
@@ -260,7 +261,7 @@
   }
   function readRulesDraft(form) {
     const f = new FormData(form);
-    return { round1_mode: f.get('round1_mode'), kof_starter: f.get('kof_starter'), no_repeat: f.has('no_repeat'), random_draw_seconds: Number(f.get('random_draw_seconds')), ace_draw_seconds: Number(f.get('ace_draw_seconds')), ace_most_wins: Number(f.get('ace_most_wins')), ace_most_losses: Number(f.get('ace_most_losses')), ace_specials: $$('.special-rule', form).map(row => ({ probability: Number($('[name="special_probability"]', row).value), player_ids: $$('input[type=checkbox]:checked', row).map(el => Number(el.value)) })) };
+    return { round1_mode: f.get('round1_mode'), kof_starter: f.get('kof_starter'), no_repeat: f.has('no_repeat'), random_draw_seconds: Number(f.get('random_draw_seconds')), ace_draw_seconds: Number(f.get('ace_draw_seconds')), ace_most_wins: Number(f.get('ace_most_wins')), ace_most_losses: Number(f.get('ace_most_losses')), ace_specials: $$('.special-rule', form).map(row => ({ probability: Number($('[name="special_probability"]', row).value), player_ids: specialCandidateIDs(row) })) };
   }
   function rulesValue(form) {
     const rules = readRulesDraft(form);
