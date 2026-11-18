@@ -18,11 +18,12 @@
       const occupied = choice?.occupied || Boolean(choice?.player_id);
       const lost = event.status === 'round2' && row.classList.contains('is-lost');
       const vote = usable && !lost && user && ownTeam?.id === team.id && !captain && id !== user.id && player.active !== false;
-      const appoint = usable && manager && player.active !== false;
+      const appoint = usable && manager && player.active !== false && (!captain || captain.id === id);
       const send = usable && !lost && choice && choice.candidate_ids.includes(id) && (manager || captain?.id === user?.id || (!captain && id === user?.id)) && (!occupied || (manager && choice.player_id !== id));
       row.querySelector('.roster-action-area')?.remove();
       row.querySelector('.kof-player-action')?.remove();
       delete row.dataset.kofSelected; delete row.dataset.rosterVote; delete row.dataset.kofPlayer; delete row.dataset.captainPlayer;
+      delete row.dataset.actionSignature;
       if (choice?.player_id === id && id === user?.id) {
         row.dataset.kofSelected = 'true';
         row.querySelector('.board-roster-name').insertAdjacentHTML('beforeend', `<span class="kof-player-action kof-reserved-label">${t('reservedPlayer')}</span>`);
@@ -35,6 +36,8 @@
       row.onclick = null; row.onkeydown = null;
       row.removeAttribute('tabindex'); row.removeAttribute('aria-haspopup');
       if (!enabled) return;
+      const signature = JSON.stringify([event.id, event.status, user?.id, captain?.id, vote, appoint, Boolean(send), choices?.match_id, choice?.player_id]);
+      row.dataset.actionSignature = signature;
       const trigger = document.createElement('button');
       trigger.type = 'button'; trigger.className = 'roster-action-area';
       trigger.setAttribute('aria-haspopup', 'dialog');
@@ -44,6 +47,7 @@
       const open = click => {
         click.preventDefault(); click.stopPropagation();
         dialog.dataset.player = String(id);
+        dialog.dataset.actionSignature = signature;
         const votes = event.votes.find(vote => vote.player_id === id)?.count || 0;
         dialog.innerHTML = `<section class="records-modal roster-actions-modal"><header class="modal-head"><h2 id="roster-actions-title">${esc(player.display_name)}</h2><button type="button" class="ghost" data-close-roster>${t('close')}</button></header><div class="modal-body roster-action-list">${appoint ? `<button type="button" class="primary" data-set-captain>${t(player.is_captain ? 'removeCaptain' : 'electCaptain')}</button>` : vote ? `<p class="help">${t('voteThreshold').replace('{count}', Math.ceil(team.players.filter(player => player.active !== false).length / 2))} · ${votes} ${t('votes')}</p><button type="button" class="primary" data-vote-captain>${t('electCaptain')}</button>` : ''}${send ? `<button type="button" class="primary accent" data-send-kof>${t(manager || captain ? 'sendNext' : 'signUpNext')}</button>` : ''}<button type="button" class="outline" data-player-record="${id}">${t('viewPlayerRecords')}</button></div></section>`;
         dialog.querySelector('[data-set-captain]')?.addEventListener('click', action(async () => { await onCaptain(team.id, player.is_captain ? 0 : id); dialog.close(); }));
@@ -54,7 +58,11 @@
       };
       trigger.onclick = open;
     });
-    if (dialog.open && !root.querySelector(`[data-roster-player="${Number(dialog.dataset.player)}"].roster-operable`)) dialog.close();
+    // 队长确定或权限改变后关闭旧操作框，避免继续展示先前的选举按钮。
+    if (dialog.open) {
+      const row = root.querySelector(`[data-roster-player="${Number(dialog.dataset.player)}"].roster-operable`);
+      if (!row || row.dataset.actionSignature !== dialog.dataset.actionSignature) dialog.close();
+    }
   }
 
   // 双方名单就是派人入口，管理员可直接操作任一队，不再用独立切队栏限制。

@@ -47,6 +47,15 @@ func TestManagerSelectsOneTeamCaptain(t *testing.T) {
 	request(2, teams[0], 4, 200)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND team_id=? AND user_id=4 AND is_captain=1`, id, teams[0])
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND team_id=? AND user_id=6 AND is_captain=1`, id, teams[1])
+	// 指派立即取得本队排阵权；原队长及队员不能继续排阵或投票。
+	f.request(t, 4, "GET", fmt.Sprintf("/api/events/%d/lineup", id), nil, 200)
+	f.request(t, 3, "GET", fmt.Sprintf("/api/events/%d/lineup", id), nil, 403)
+	f.request(t, 3, "POST", fmt.Sprintf("/api/events/%d/lineup/submit", id), map[string]any{"team_id": teams[0], "player_ids": []int{3, 4, 5}}, 400)
+	f.request(t, 4, "POST", fmt.Sprintf("/api/events/%d/lineup/submit", id), map[string]any{"team_id": teams[0], "player_ids": []int{5, 4, 3}}, 200)
+	for _, user := range []int{3, 4, 5} {
+		f.request(t, user, "POST", fmt.Sprintf("/api/events/%d/captain-votes", id), map[string]any{"target_id": 5}, 400)
+	}
+	f.assertCount(t, 0, `SELECT COUNT(*) FROM captain_votes WHERE tournament_id=? AND team_id=?`, id, teams[0])
 	request(1, teams[0], 0, 200)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND team_id=? AND is_captain=1`, id, teams[0])
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND team_id=? AND user_id=6 AND is_captain=1`, id, teams[1])
