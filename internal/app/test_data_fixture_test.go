@@ -154,6 +154,9 @@ func seedTestData(db *sql.DB) error {
 	if err := seedWorkflowDemoTournaments(tx, managerID, adminID, ids); err != nil {
 		return err
 	}
+	if err := seedKOFRevivalDemo(tx, managerID, adminID, playerIDs[:6]); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 

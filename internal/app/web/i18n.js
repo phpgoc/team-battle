@@ -1,5 +1,7 @@
 window.TB_I18N = {
   "zh": {
+    "kofRevivalNoRepeat": "KOF复活不重复",
+    "kofRevivalNoRepeatHint": "每人复活一次后，再从全队开始下一轮随机复活。",
     "aceRuleStep": "抽中规则",
     "aceCandidateStep": "候选人抽签",
     "aceFinalStep": "抽中对阵",

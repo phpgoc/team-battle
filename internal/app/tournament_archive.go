@@ -128,8 +128,14 @@ func (a *App) archiveTournament(c *gin.Context) {
 		fail(c, 400, "偶数人数须两队相同，奇数人数须A队比B队多1人。")
 		return
 	}
-	if err := validateArchivedKOF(grouped[1], rosters, targets[1]); err != nil {
+	if err := validateArchivedKOF(grouped[1], rosters, targets[1], req.KOFRevivalNoRepeat); err != nil {
 		fail(c, 400, err.Error())
+		return
+	}
+	rules := defaultRules()
+	rules.KOFRevivalNoRepeat = req.KOFRevivalNoRepeat
+	if err := saveRules(tx, id, rules); err != nil {
+		fail(c, 500, err.Error())
 		return
 	}
 	for i, stage := range []string{stageRound1, stageRound2, stageAce} {
@@ -193,8 +199,8 @@ func (a *App) archiveTournament(c *gin.Context) {
 }
 
 // 历史KOF也须胜者留场，复活只放开全队已经输过且目标高于人数的队伍。
-func validateArchivedKOF(matches []archivedMatch, rosters [2][]int64, target int) error {
-	lost := [2]map[int64]bool{{}, {}}
+func validateArchivedKOF(matches []archivedMatch, rosters [2][]int64, target int, noRepeat bool) error {
+	lost := [2]map[int64]int{{}, {}}
 	for index, match := range matches {
 		ids := [2]int64{match.AID, match.BID}
 		for side, id := range ids {
@@ -217,15 +223,20 @@ func validateArchivedKOF(matches []archivedMatch, rosters [2][]int64, target int
 				if id != previousID {
 					return errors.New("KOF下一局必须保留上一局胜者")
 				}
-			} else if lost[side][id] && (target <= len(rosters[side]) || len(lost[side]) < len(rosters[side])) {
-				return errors.New("KOF已输过的选手尚不满足复活条件")
+			} else if lost[side][id] > 0 {
+				if target <= len(rosters[side]) || len(lost[side]) < len(rosters[side]) {
+					return errors.New("KOF已输过的选手尚不满足复活条件")
+				}
+				if noRepeat && !containsID(leastKOFEliminations(rosters[side], lost[side]), id) {
+					return errors.New("KOF本轮复活不能重复选择同一选手")
+				}
 			}
 		}
 		loser := 1
 		if match.WhoWin == "b" {
 			loser = 0
 		}
-		lost[loser][ids[loser]] = true
+		lost[loser][ids[loser]]++
 	}
 	return nil
 }

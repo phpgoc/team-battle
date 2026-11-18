@@ -16,7 +16,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-//go:embed web/index.html web/styles.css web/app.js web/i18n.js web/player-records.js web/setup-draw.js web/roster-editor.js web/roster-editor.css web/lineup-page.js web/lineup-page.css web/kof-board.js web/kof-board.css web/archive-page.js web/archive-page.css web/confirm-dialog.js web/confirm-dialog.css web/result-correction.css web/broadcast-layout.css web/match-draw.js web/match-draw.css
+//go:embed web/index.html web/styles.css web/app.js web/i18n.js web/player-records.js web/setup-draw.js web/roster-editor.js web/roster-editor.css web/lineup-page.js web/lineup-page.css web/kof-board.js web/kof-board.css web/kof-rules.js web/archive-page.js web/archive-page.css web/confirm-dialog.js web/confirm-dialog.css web/result-correction.css web/broadcast-layout.css web/match-draw.js web/match-draw.css
 var webFS embed.FS
 
 const (
@@ -115,21 +115,22 @@ type archivedMatch struct {
 }
 
 type archiveTournamentRequest struct {
-	Round1Target     int               `json:"round1_target"`
-	Round2Target     int               `json:"round2_target"`
-	Matches          []archivedMatch   `json:"matches"`
-	FixedAssignments map[string]string `json:"fixed_assignments"`
-	BackgroundID     int64             `json:"background_id"`
-	Name             string            `json:"name" binding:"required"`
-	Description      string            `json:"description"`
-	StartTime        string            `json:"start_time" binding:"required"`
-	PlayerIDs        []int64           `json:"player_ids"`
-	Round1ScoreA     int               `json:"round1_score_a"`
-	Round1ScoreB     int               `json:"round1_score_b"`
-	Round2ScoreA     int               `json:"round2_score_a"`
-	Round2ScoreB     int               `json:"round2_score_b"`
-	Winner           string            `json:"winner"`
-	AceSource        string            `json:"ace_source"`
+	KOFRevivalNoRepeat bool              `json:"kof_revival_no_repeat"`
+	Round1Target       int               `json:"round1_target"`
+	Round2Target       int               `json:"round2_target"`
+	Matches            []archivedMatch   `json:"matches"`
+	FixedAssignments   map[string]string `json:"fixed_assignments"`
+	BackgroundID       int64             `json:"background_id"`
+	Name               string            `json:"name" binding:"required"`
+	Description        string            `json:"description"`
+	StartTime          string            `json:"start_time" binding:"required"`
+	PlayerIDs          []int64           `json:"player_ids"`
+	Round1ScoreA       int               `json:"round1_score_a"`
+	Round1ScoreB       int               `json:"round1_score_b"`
+	Round2ScoreA       int               `json:"round2_score_a"`
+	Round2ScoreB       int               `json:"round2_score_b"`
+	Winner             string            `json:"winner"`
+	AceSource          string            `json:"ace_source"`
 }
 
 type passwordResetRequest struct {

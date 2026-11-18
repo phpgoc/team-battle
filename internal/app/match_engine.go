@@ -385,7 +385,7 @@ func (e *matchEngine) afterResult(m engineMatch) error {
 			return err
 		}
 		if random {
-			ids, err := e.players(team)
+			ids, err := e.kofRevivalCandidates(m.roundID, team)
 			if err != nil {
 				return err
 			}

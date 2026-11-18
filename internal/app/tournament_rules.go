@@ -45,14 +45,15 @@ func (s AceSpecial) allPlayerIDs() []int64 {
 }
 
 type TournamentRules struct {
-	Round1Mode        string       `json:"round1_mode"`
-	KOFStarter        string       `json:"kof_starter"`
-	NoRepeat          bool         `json:"no_repeat"`
-	RandomDrawSeconds int          `json:"random_draw_seconds"`
-	AceDrawSeconds    int          `json:"ace_draw_seconds"`
-	AceMostWins       int          `json:"ace_most_wins"`
-	AceMostLosses     int          `json:"ace_most_losses"`
-	AceSpecials       []AceSpecial `json:"ace_specials"`
+	Round1Mode         string       `json:"round1_mode"`
+	KOFStarter         string       `json:"kof_starter"`
+	KOFRevivalNoRepeat bool         `json:"kof_revival_no_repeat"`
+	NoRepeat           bool         `json:"no_repeat"`
+	RandomDrawSeconds  int          `json:"random_draw_seconds"`
+	AceDrawSeconds     int          `json:"ace_draw_seconds"`
+	AceMostWins        int          `json:"ace_most_wins"`
+	AceMostLosses      int          `json:"ace_most_losses"`
+	AceSpecials        []AceSpecial `json:"ace_specials"`
 }
 
 func defaultRules() TournamentRules {
