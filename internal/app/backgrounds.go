@@ -38,9 +38,10 @@ func (a *App) loadBackgrounds() ([]map[string]any, error) {
 
 func backgroundItem(id int64, name, updatedAt string) map[string]any {
 	return gin.H{
-		"id":        id,
-		"name":      name,
-		"image_url": "/api/backgrounds/" + strconv.FormatInt(id, 10) + "/image?v=" + url.QueryEscape(updatedAt),
+		"id":            id,
+		"name":          name,
+		"image_url":     "/api/backgrounds/" + strconv.FormatInt(id, 10) + "/image?v=" + url.QueryEscape(updatedAt),
+		"thumbnail_url": "/api/backgrounds/" + strconv.FormatInt(id, 10) + "/thumbnail?v=" + url.QueryEscape(updatedAt),
 	}
 }
 
@@ -66,8 +67,12 @@ func (a *App) backgroundImage(c *gin.Context) {
 		return
 	}
 	if filePath != "" {
-		if stored, err := os.ReadFile(filepath.Join(a.backgroundDir(), filepath.Base(filePath))); err == nil {
-			data = stored
+		stored := filepath.Join(a.backgroundDir(), filepath.Base(filePath))
+		if info, err := os.Stat(stored); err == nil && info.Mode().IsRegular() {
+			c.Header("Cache-Control", "public, max-age=31536000, immutable")
+			c.Header("Content-Type", mimeType)
+			c.File(stored)
+			return
 		}
 	}
 	if len(data) == 0 {
@@ -91,7 +96,12 @@ func (a *App) createBackground(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "背景名称不能为空")
 		return
 	}
-	result, err := a.db.Exec(`INSERT INTO backgrounds(name,image_data,image_mime,file_path,image_size,sort_order) VALUES(?,?,?,?,?,COALESCE((SELECT MAX(sort_order)+1 FROM backgrounds),0))`, name, []byte{}, mimeType, "", len(data))
+	thumbnail, err := makeBackgroundThumbnail(data)
+	if err != nil {
+		fail(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	result, err := a.db.Exec(`INSERT INTO backgrounds(name,image_data,image_mime,file_path,image_size,thumbnail_data,sort_order) VALUES(?,?,?,?,?,?,COALESCE((SELECT MAX(sort_order)+1 FROM backgrounds),0))`, name, []byte{}, mimeType, "", len(data), thumbnail)
 	if err != nil {
 		fail(c, http.StatusBadRequest, "背景名称已存在或无法创建")
 		return
@@ -137,6 +147,11 @@ func (a *App) updateBackground(c *gin.Context) {
 	_ = a.db.QueryRow(`SELECT file_path FROM backgrounds WHERE id=?`, id).Scan(&oldPath)
 	newPath := ""
 	if len(data) > 0 {
+		thumbnail, err := makeBackgroundThumbnail(data)
+		if err != nil {
+			fail(c, http.StatusBadRequest, err.Error())
+			return
+		}
 		filePath := backgroundFileNameVersion(id, mimeType)
 		newPath = filePath
 		if err := os.MkdirAll(a.backgroundDir(), 0755); err != nil {
@@ -144,7 +159,7 @@ func (a *App) updateBackground(c *gin.Context) {
 		} else if err := os.WriteFile(filepath.Join(a.backgroundDir(), filePath), data, 0644); err != nil {
 			resultErr = err
 		} else {
-			result, resultErr = a.db.Exec(`UPDATE backgrounds SET name=?,image_data=?,image_mime=?,file_path=?,image_size=?,updated_at=? WHERE id=?`, name, []byte{}, mimeType, filePath, len(data), updatedAt, id)
+			result, resultErr = a.db.Exec(`UPDATE backgrounds SET name=?,image_data=?,image_mime=?,file_path=?,image_size=?,thumbnail_data=?,updated_at=? WHERE id=?`, name, []byte{}, mimeType, filePath, len(data), thumbnail, updatedAt, id)
 		}
 	} else {
 		result, resultErr = a.db.Exec(`UPDATE backgrounds SET name=?,updated_at=? WHERE id=?`, name, updatedAt, id)
@@ -163,7 +178,7 @@ func (a *App) updateBackground(c *gin.Context) {
 		fail(c, http.StatusNotFound, "背景不存在")
 		return
 	}
-	if oldPath != "" && oldPath != newPath {
+	if newPath != "" && oldPath != "" && oldPath != newPath {
 		_ = os.Remove(filepath.Join(a.backgroundDir(), filepath.Base(oldPath)))
 	}
 	ok(c, gin.H{"ok": true})

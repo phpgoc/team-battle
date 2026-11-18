@@ -250,6 +250,7 @@ func migrate(db *sql.DB) error {
 		{"events", "background_id", "INTEGER"},
 		{"backgrounds", "file_path", "TEXT NOT NULL DEFAULT ''"},
 		{"backgrounds", "image_size", "INTEGER NOT NULL DEFAULT 0"},
+		{"backgrounds", "thumbnail_data", "BLOB"},
 		{"matches", "round_no", "INTEGER"},
 		{"matches", "a_id", "INTEGER"},
 		{"matches", "b_id", "INTEGER"},

@@ -48,13 +48,14 @@ func isNonSuperAdmin(role string) bool {
 }
 
 type App struct {
-	db         *sql.DB
-	writeMu    sync.Mutex
-	rng        *mathrand.Rand
-	drawSleep  func(time.Duration)
-	storageDir string
-	history    historyCache
-	directory  categoryDirectoryCache
+	db          *sql.DB
+	writeMu     sync.Mutex
+	thumbnailMu sync.Mutex
+	rng         *mathrand.Rand
+	drawSleep   func(time.Duration)
+	storageDir  string
+	history     historyCache
+	directory   categoryDirectoryCache
 }
 
 type historyCache struct {

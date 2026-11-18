@@ -89,6 +89,7 @@ func (a *App) router() *gin.Engine {
 	api.GET("/settings/catalog", a.settingsCatalog)
 	api.GET("/backgrounds", a.listBackgrounds)
 	api.GET("/backgrounds/:id/image", a.backgroundImage)
+	api.GET("/backgrounds/:id/thumbnail", a.backgroundThumbnail)
 	api.GET("/categories/:id/icon", a.categoryIcon)
 	api.GET("/users/:id/avatar", a.avatar)
 	api.GET("/public/events", a.publicEvents)
