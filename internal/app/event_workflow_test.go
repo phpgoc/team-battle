@@ -212,7 +212,7 @@ func TestEventHourAndFixedNames(t *testing.T) {
 	}
 	f := newWorkflowFixture(t)
 	id := f.create(t, "captain")
-	f.request(t, 2, "PATCH", fmt.Sprintf("/api/events/%d/settings", id), map[string]any{"name": "整点比赛", "event_time": "2026-11-18T21", "round1_target": 4, "round2_target": 5, "team_a_name": "任意队名", "team_b_name": "任意队名2", "rules": map[string]any{"kof_starter": "captain"}}, 200)
+	f.request(t, 2, "PATCH", fmt.Sprintf("/api/events/%d/settings", id), map[string]any{"name": "整点比赛", "event_time": "2026-11-18T21", "round1_target": 1, "round2_target": 1, "team_a_name": "任意队名", "team_b_name": "任意队名2"}, 200)
 	f.assertCount(t, 2, `SELECT COUNT(*) FROM teams WHERE event_id=? AND name IN ('A 队','B 队')`, id)
 	if _, err := f.app.db.Exec(`UPDATE teams SET name='旧队名' WHERE event_id=?`, id); err != nil {
 		t.Fatal(err)
