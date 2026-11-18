@@ -1,8 +1,8 @@
-/* 点击选手位置打开队长投票或KOF操作，观众和淘汰选手不出现操作标记。 */
+/* 透明操作层只覆盖右侧三分之一，不占用头像、姓名和种族图标的布局宽度。 */
 .broadcast-board .board-roster-profile{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
-.broadcast-board .board-roster-player.roster-operable{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:0}
-.roster-action-area{height:100%;min-height:48px;width:100%;padding:0 4px;background:transparent;color:#a6c8ef;font-size:22px;border-left:1px solid #ffffff12;border-radius:0 6px 6px 0}
-.roster-action-area:hover,.roster-action-area:focus-visible{background:#284462;outline:1px solid #6388b7;outline-offset:-1px}
+.broadcast-board .board-roster-player.roster-operable{position:relative}
+.roster-action-area{position:absolute;inset:0 0 0 auto;z-index:1;width:33.333333%;height:100%;min-height:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;cursor:pointer}
+.roster-action-area:hover{background:transparent}.roster-action-area:focus-visible{background:transparent;outline:1px solid #6388b7;outline-offset:-1px}
 #roster-actions{width:min(420px,calc(100vw - 32px))}
 .roster-action-list{display:grid;gap:12px}
 .roster-action-list .help{margin:0 0 4px}

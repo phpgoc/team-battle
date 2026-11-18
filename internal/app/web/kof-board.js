@@ -39,7 +39,7 @@
       trigger.type = 'button'; trigger.className = 'roster-action-area';
       trigger.setAttribute('aria-haspopup', 'dialog');
       trigger.setAttribute('aria-label', `${t('playerActions')} · ${player.display_name}`);
-      trigger.textContent = '⋯';
+      trigger.title = `${t('playerActions')} · ${player.display_name}`;
       row.append(trigger);
       const open = click => {
         click.preventDefault(); click.stopPropagation();
