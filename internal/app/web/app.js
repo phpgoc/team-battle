@@ -15,6 +15,8 @@
   const editable = e => manages(e) && !terminal(e);
   const noScore = e => !(e.matches || []).some(m => m.status === 'finished');
   const canEditSettings = e => editable(e) && preMatch(e) && noScore(e);
+  const lineupTeams = e => e.teams.filter(team => manages(e) || team.players.some(player => player.id === state.user?.id && player.active !== false && player.is_captain));
+  const canArrangeLineup = e => hasRoster(e) && preMatch(e) && e.rules.round1_mode === 'manual' && lineupTeams(e).length > 0;
   const teamName = (event, team) => t(event.teams[0].id === team.id ? 'teamA' : 'teamB');
   const person = u => `<span class="person">${avatar(u)}<span><strong>${esc(u.display_name)}</strong><small>${esc(u.username || '')}</small></span>${categoryIcon(u)}</span>`;
   const avatar = u => u.avatar_url ? `<img class="board-avatar" src="${esc(u.avatar_url)}" alt="">` : `<span class="board-avatar board-avatar-fallback">${esc((u.display_name || '?').slice(0, 1))}</span>`;
@@ -40,7 +42,7 @@
   async function api(url, options = {}) { const headers = { ...options.headers }; if (options.body !== undefined && !(options.body instanceof FormData)) headers['Content-Type'] = 'application/json'; const res = await fetch(url, { ...options, headers }); const data = await res.json().catch(() => ({})); if (!res.ok) { if (res.status === 401 && state.user) { sessionEnded(); throw new Error(t('sessionReplaced')); } const errorKey = Object.keys(window.TB_I18N.zh).find(key => window.TB_I18N.zh[key] === data.error); throw new Error(errorKey ? t(errorKey) : data.error || t('requestFailed')); } return data; }
   function sessionEnded() {
     state.user = null; state.editor = null; state.operations = false;
-    if (location.pathname === '/workspace' || location.pathname.endsWith('/setting')) go('/login');
+    if (location.pathname === '/workspace' || location.pathname.endsWith('/setting') || location.pathname.endsWith('/lineup')) go('/login');
     else renderRoute().catch(error => toast(error.message));
     toast(t('sessionReplaced'));
   }
@@ -451,9 +453,20 @@
     const score = `<div class="board-score"><div><span>${t('teamA')}</span><strong>${rounds.filter(round => round.winner_team_id === teams[0].id).length}</strong></div><b>VS</b><div><span>${t('teamB')}</span><strong>${rounds.filter(round => round.winner_team_id === teams[1].id).length}</strong></div></div>`;
     return `<header class="board-top${pending ? ' has-current' : ''}">
       <div class="board-overview"><div class="board-title"><span class="board-live-mark">TEAM BATTLE</span><h1>${esc(e.name)}</h1><p><time>${esc(displayTime(e.event_time))}</time><span class="board-manager">${t('manager')}: <b>${esc(e.manager_name || '')}</b></span></p></div>
-        <div class="board-overview-bottom">${score}<div class="board-heading-actions"><span class="board-status">${t(e.status)}</span>${manages(e) && !terminal(e) ? `<button class="board-settings-button" id="board-settings">${t('eventSettings')}</button>` : ''}</div></div>
+        <div class="board-overview-bottom">${score}<div class="board-heading-actions"><span class="board-status">${t(e.status)}</span>${canArrangeLineup(e) ? '<button class="board-settings-button" id="board-lineup">' + t('round1Lineup') + '</button>' : ''}${manages(e) && !terminal(e) ? `<button class="board-settings-button" id="board-settings">${t('eventSettings')}</button>` : ''}</div></div>
       </div>${pending ? currentMatchMarkup(e, pending, people) : ''}
-    </header><div class="board-arena"><div class="board-center"><div class="board-records"><div class="board-columns"><div class="board-left">${panel('round1')}${panel('round2')}</div><div class="board-right">${panel('ace')}<div class="board-rosters">${roster(teams[0], 'a')}${roster(teams[1], 'b')}</div></div></div>${rulesSummary(e)}</div></div></div>`;
+    </header><div class="board-arena"><div class="board-center"><div class="board-records"><div class="board-columns"><div class="board-left">${panel('round1')}${panel('round2')}</div><div class="board-right">${panel('ace')}<div class="board-rosters">${e.status === 'round2' && canOperate(e) && !setup ? '<div id="board-kof-controls"></div>' : ''}${roster(teams[0], 'a')}${roster(teams[1], 'b')}</div></div></div>${rulesSummary(e)}</div></div></div>`;
+  }
+  function renderLineupPage(preserve = false) {
+    const e = state.event;
+    if (!canArrangeLineup(e)) { go('/live/' + e.id); return; }
+    if (!preserve || state.lineupEvent !== e.id) { state.lineupDrafts = {}; state.lineupTeam = 0; state.lineupEvent = e.id; }
+    const teams = lineupTeams(e);
+    window.TBLineupPage.render({ root: app, event: e, teams, selectedTeam: state.lineupTeam, drafts: state.lineupDrafts, t, esc, person, picker, action, bindCommon,
+      onTeam: id => { state.lineupTeam = id; renderLineupPage(true); },
+      onBack: () => go('/live/' + e.id),
+      onSave: async (team, ids) => { await post('/api/events/' + e.id + '/lineup/submit', { team_id: team, player_ids: ids }); toast(t('saved')); go('/live/' + e.id); }
+    });
   }
   function boardVariant(e) {
     if (!state.user || terminal(e)) return 'spectator';
@@ -466,6 +479,8 @@
   function canOperate(e) { return boardVariant(e) !== 'spectator'; }
   function bindBoardSettings() {
     $('#board-settings')?.addEventListener('click', () => go('/live/' + state.event.id + '/setting'));
+    $('#board-lineup')?.addEventListener('click', () => go('/live/' + state.event.id + '/lineup'));
+    if (state.event.status === 'round2' && canOperate(state.event) && !state.setupDraw) renderKOFSelection(state.event, manages(state.event)).catch(error => toast(error.message));
     if (state.setupDraw) $('#board-content')?.setAttribute('data-setup-drawing', 'true');
   }
   function applyEventBackground(e) {
@@ -558,34 +573,20 @@
   async function refreshEvent() { const previous = state.event; state.event = await api('/api/public/events/' + state.event.id); if (!state.editor) { boardPage(); startDrawAnimation(previous, state.event); } }
   async function eventAction(path, body = {}, method = 'POST') { await post('/api/events/' + state.event.id + path, body, method); await refreshEvent(); }
   async function renderKOFSelection(e, manager) {
-    const target = $('#kof-selection');
-    if (!target) return;
+    const target = $('#board-kof-controls');
+    if (!target || !canOperate(e) || e.status !== 'round2') return;
     const choices = await api('/api/events/' + e.id + '/kof/options');
-    if (!target.isConnected || state.event.id !== e.id) return;
-    if (!choices.match_id && e.rules.kof_starter !== 'captain') return;
-    const snapshot = JSON.stringify(choices);
+    if (!target.isConnected || state.event?.id !== e.id || state.event.status !== 'round2') return;
+    const paint = () => window.TBKOFBoard.render({ root: $('#board-content'), event: state.event, choices, user: state.user, manager, selectedTeam: state.kofTeam, t, action,
+      onTeam: id => { state.kofTeam = id; paint(); },
+      onSend: async body => {
+        try { await eventAction(choices.match_id ? '/kof/next-player' : '/kof/starter', body); toast(t('reservationSaved')); }
+        catch (error) { await renderKOFSelection(state.event, manages(state.event)); throw error; }
+      }
+    });
+    const snapshot = JSON.stringify(choices) + ':' + state.language + ':' + (state.kofTeam || 0);
     if (target.dataset.options === snapshot) return;
-    target.dataset.options = snapshot;
-    target.innerHTML = `<section class="panel section-gap"><div class="panel-head"><h2>${t(choices.match_id ? 'nextSlot' : 'kofStarter')}</h2></div><div class="panel-body"><p class="help">${t('reservationHint')}</p><div class="team-lineups">${choices.teams.map(choice => {
-      const team = e.teams.find(team => team.id === choice.team_id);
-      const selected = team.players.find(p => p.id === choice.player_id);
-      const candidates = team.players.filter(p => choice.candidate_ids.includes(p.id));
-      const captain = choice.captain_id === state.user.id, selfService = !choice.captain_id;
-      const canSend = manager || captain || selfService;
-      const ownEligible = choice.candidate_ids.includes(state.user.id);
-      const status = selected ? `<div class="starter-selection">${person(selected)}<span class="tag done">${t('slotOccupied')}</span></div>` : `<p class="help">${t(candidates.length ? 'slotEmpty' : 'noEligible')}</p>`;
-      const form = canSend && candidates.length && (manager || !selected) ? `<form data-kof-reserve="${team.id}" class="inline-form">${manager || captain ? `<select name="player_id">${options(candidates)}</select><button class="primary">${t('sendNext')}</button>` : ownEligible ? `<input type="hidden" name="player_id" value="${state.user.id}"><button class="primary">${t('signUpNext')}</button>` : `<p class="help">${t('cannotSignUp')}</p>`}</form>` : '';
-      return `<section><h3>${esc(teamName(e, team))}</h3>${status}${!canSend ? `<p class="help">${t('captainWillSend')}</p>` : ''}${form}</section>`;
-    }).join('')}</div></div></section>`;
-    $$('[data-kof-reserve]', target).forEach(form => form.onsubmit = action(async event => {
-      event.preventDefault();
-      const button = $('button', form); button.disabled = true;
-      try {
-        await eventAction(choices.match_id ? '/kof/next-player' : '/kof/starter', { match_id: choices.match_id || 0, team_id: Number(form.dataset.kofReserve), player_id: Number(new FormData(form).get('player_id')) });
-        toast(t('reservationSaved'));
-      } catch (error) { await renderKOFSelection(state.event, manages(state.event)); throw error; }
-      finally { button.disabled = false; }
-    }));
+    target.dataset.options = snapshot; paint();
   }
   function renderOperations() {
     const e = state.event, target = $('#event-operations'); if (!target) return;
@@ -597,23 +598,19 @@
       content += `<section class="panel"><div class="panel-body"><p class="help">${t('voteThreshold').replace('{count}', Math.ceil(candidates.length / 2))}</p><form id="vote-form" class="inline-form">${field('vote', `<select name="target_id">${candidates.map(player => `<option value="${player.id}">${esc(player.display_name)} · ${e.votes.find(vote => vote.player_id === player.id)?.count || 0} ${t('votes')}</option>`).join('')}</select>`)}<button class="primary">${t('vote')}</button></form></div></section>`;
     }
     if (manager && e.teams.every(team => team.players.length)) content += `<section class="panel section-gap"><form id="captains-form" class="panel-body form-grid">${e.teams.map((team, i) => { return field(i ? 'teamB' : 'teamA', `<select name="team_${i ? 'b' : 'a'}_player_id"><option value="0">${t('noCaptain')}</option>${team.players.map(p => `<option value="${p.id}"${p.is_captain ? ' selected' : ''}>${esc(p.display_name)} · ${e.votes.find(v => v.player_id === p.id)?.count || 0} ${t('votes')}</option>`).join('')}</select>`); }).join('')}<button class="primary">${t('confirmCaptains')}</button></form></section>`;
-    if (preMatch(e) && (manager || boardVariant(e) === 'captain')) {
-      content += `<section class="panel section-gap"><div class="panel-head"><h2>${t('lineup')}</h2><span>${t(e.rules.round1_mode === 'random' ? 'random' : 'manual')}</span></div><div class="panel-body"><p class="help">${t('lineupHint')}</p><div class="team-lineups">${e.teams.filter(team => manager || team.players.some(p => p.id === state.user.id && p.is_captain)).map(team => `<form id="lineup-${team.id}" data-lineup="${team.id}" class="field"><h3>${esc(teamName(e, team))}</h3>${Array.from({ length: Math.min(team.players.length, Math.floor(people.length / 2)) }, (_, i) => field('matchNo', `<span>${i + 1}</span><select name="player_${i}"${e.rules.round1_mode === 'random' ? ' disabled' : ''}>${options(team.players, (e.lineups.find(l => l.team_id === team.id && l.position === i + 1)?.player_id || 0), 'randomSlot')}</select>`)).join('')}<button class="outline">${t('saveLineup')}</button></form>`).join('')}</div>${manager ? `<div class="form-footer"><button class="outline" id="random-lineup">${t('randomLineup')}</button><button class="primary accent" id="start-event">${t('start')}</button></div>` : ''}</div></section>`;
-    }
+    if (canArrangeLineup(e)) content += `<section class="panel section-gap"><div class="panel-body"><a class="primary" href="/live/${e.id}/lineup" id="operations-lineup">${t('round1Lineup')}</a></div></section>`;
+    if (manager && preMatch(e)) content += `<div class="form-footer"><button class="primary accent" id="start-event">${t('start')}</button></div>`;
     const pending = e.matches.find(m => m.status === 'pending' && m.stage === e.status);
     if (manager && pending) content += `<section class="panel section-gap"><div class="panel-head"><h2>${t(e.status)} · #${pending.seq}</h2></div><div class="panel-body"><div class="fighters"><div class="fighter">${person(people.find(p => p.id === pending.player_a_id))}</div><span class="vs">VS</span><div class="fighter">${person(people.find(p => p.id === pending.player_b_id))}</div></div><div class="result-actions"><button class="win-a" data-winner="${pending.team_a_id}" data-match="${pending.id}">${esc(pending.player_a_name)} · ${t('win')}</button><button class="win-b" data-winner="${pending.team_b_id}" data-match="${pending.id}">${esc(pending.player_b_name)} · ${t('win')}</button></div></div></section>`;
-    if (e.status === 'round2') content += '<div id="kof-selection"></div>';
     if (manager && e.status === 'ace' && pending) content += `<section class="panel section-gap"><form id="ace-form" class="panel-body form-grid">${field('teamA', `<select name="player_a_id">${options(e.teams[0].players, pending.player_a_id)}</select>`)}${field('teamB', `<select name="player_b_id">${options(e.teams[1].players, pending.player_b_id)}</select>`)}<button class="outline">${t('overrideAce')}</button></form></section>`;
     if (manager && e.status === 'final_confirm') content += `<section class="panel section-gap"><div class="panel-body"><p>${t('confirmEndHint')}</p><button class="primary accent" id="confirm-end">${t('confirmEnd')}</button></div></section>`;
     if (manager && e.matches.some(m => m.status === 'finished')) content += `<section class="panel section-gap"><div class="panel-head"><h2>${t('correct')}</h2></div><form id="correct-form" class="panel-body form-grid"><p class="notice full">${t('correctHint')}</p>${field('matchNo', `<select name="match_id">${e.matches.filter(m => m.status === 'finished').map(m => `<option value="${m.id}">${t(m.stage)} #${m.seq} · ${esc(m.player_a_name)} / ${esc(m.player_b_name)}</option>`).join('')}</select>`)}${field('winner', `<select name="winner_team_id">${e.teams.map(team => `<option value="${team.id}">${esc(teamName(e, team))}</option>`).join('')}</select>`)}<button class="outline">${t('correct')}</button></form></section>`;
     target.innerHTML = content;
-    if (e.lineups.some(entry => entry.source === 'setup_draw')) $('#random-lineup')?.remove();
     $('#close-operations')?.addEventListener('click', () => { state.operations = false; $('#event-operations').classList.add('hidden'); });
-    if (e.status === 'round2') renderKOFSelection(e, manager).catch(error => toast(error.message));
     $('#vote-form')?.addEventListener('submit', action(async event => { event.preventDefault(); await eventAction('/captain-votes', { target_id: Number(new FormData(event.target).get('target_id')) }); toast(t('voteSaved')); }));
     $('#captains-form')?.addEventListener('submit', action(async event => { event.preventDefault(); const f = new FormData(event.target); await eventAction('/captains/confirm', { team_a_player_id: Number(f.get('team_a_player_id')), team_b_player_id: Number(f.get('team_b_player_id')) }); }));
-    $$('[data-lineup]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); const ids = [...new FormData(form).values()].map(Number); const manual = []; let randomSeen = false; for (const id of ids) { if (!id) randomSeen = true; else { if (randomSeen) throw Error(t('lineupHint')); manual.push(id); } } await eventAction('/lineup/submit', { team_id: Number(form.dataset.lineup), player_ids: manual }); toast(t('saved')); }));
-    $('#random-lineup')?.addEventListener('click', action(() => eventAction('/lineup/generate'))); $('#start-event')?.addEventListener('click', action(() => eventAction('/start')));
+    $('#operations-lineup')?.addEventListener('click', event => { event.preventDefault(); go('/live/' + e.id + '/lineup'); });
+    $('#start-event')?.addEventListener('click', action(() => eventAction('/start')));
     $$('[data-winner]').forEach(button => button.onclick = action(() => eventAction('/matches/' + button.dataset.match + '/result', { winner_team_id: Number(button.dataset.winner) })));
     $('#ace-form')?.addEventListener('submit', action(async event => { event.preventDefault(); const f = new FormData(event.target); await eventAction('/ace/confirm', { player_a_id: Number(f.get('player_a_id')), player_b_id: Number(f.get('player_b_id')) }); }));
     $('#correct-form')?.addEventListener('submit', action(async event => { event.preventDefault(); if (!confirm(t('correctHint'))) return; const f = new FormData(event.target); await eventAction('/matches/' + f.get('match_id') + '/result', { winner_team_id: Number(f.get('winner_team_id')) }, 'PATCH'); }));
@@ -631,7 +628,8 @@
       throw new Error(t('eventRosterRequired'));
     }
     if (setting) state.editor = 'settings';
-    if (state.editor) await eventEditor(state.editor, preserve); else boardPage();
+    if (state.editor === 'lineup') renderLineupPage(preserve);
+    else if (state.editor) await eventEditor(state.editor, preserve); else boardPage();
     if (terminal(state.event)) { closeStream(); return; }
     if (!hasRoster(state.event)) return;
     if (state.stream) return;
@@ -640,7 +638,8 @@
     stream.onerror = () => { state.connection = 'reconnecting'; if ($('#connection-state')) $('#connection-state').textContent = t('reconnecting'); };
     stream.onmessage = message => {
       const data = JSON.parse(message.data); const previous = state.event; const changed = JSON.stringify(state.event) !== JSON.stringify(data); const variantChanged = boardVariant(state.event) !== boardVariant(data); const settingsLocked = canEditSettings(state.event) && !canEditSettings(data); state.event = data;
-      if (state.editor && (settingsLocked || (!hasGrouping(previous) && hasGrouping(data)))) { eventEditor(state.editor).catch(error => toast(error.message)); }
+      if (state.editor === 'lineup') { if (!canArrangeLineup(data)) go('/live/' + id); }
+      else if (state.editor && (settingsLocked || (!hasGrouping(previous) && hasGrouping(data)))) { eventEditor(state.editor).catch(error => toast(error.message)); }
       if (variantChanged && !state.editor) { boardPage(); }
       if (changed && !state.editor) applyEventBackground(data);
       if (changed && state.editor) {
@@ -675,6 +674,7 @@
     const path = location.pathname;
     if (path.startsWith('/live/')) {
       const parts = path.split('/').filter(Boolean);
+      if (parts[2] === 'lineup') state.editor = 'lineup';
       return openEvent(parts[1], preserve, parts[2] === 'setting');
     }
     closeStream(); state.event = null;
@@ -712,10 +712,10 @@
       if (state.drawToken === token && state.event?.id === id && state.editor && hasRoster(event)) await openEvent(id, false, true);
     } catch (_) {} finally { checkingGrouping = false; }
   }, 3000);
-  // 预报名不进入公开推送，操作面板单独刷新本队报名状态。
+  // 预报名不进入公开推送，赛事页名单旁单独刷新本队报名状态。
   let pollingKOF = false;
   setInterval(async () => {
-    if (pollingKOF || document.hidden || state.editor || !state.operations || state.event?.status !== 'round2' || !$('#kof-selection')) return;
+    if (pollingKOF || document.hidden || state.editor || state.event?.status !== 'round2' || !$('#board-kof-controls')) return;
     pollingKOF = true;
     try { await renderKOFSelection(state.event, manages(state.event)); } catch (_) {} finally { pollingKOF = false; }
   }, 3000);

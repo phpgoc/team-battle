@@ -1,0 +1,12 @@
+/* 首轮排阵使用独立页面，按出场位置逐项安排。 */
+.lineup-page #lineup-team{min-width:140px}
+.lineup-slots{display:grid;gap:12px;margin-top:20px}
+.lineup-slot{display:grid;grid-template-columns:40px minmax(0,1fr) minmax(180px,300px);gap:18px;align-items:center;padding:16px;border:1px solid var(--line);border-radius:9px;background:#fbfcfe}
+.lineup-position{font-size:22px;font-weight:700;color:#8292a8;text-align:center}
+.lineup-slot-person{min-width:0}
+.lineup-slot-person .board-avatar{width:48px;height:48px;flex-basis:48px;object-fit:cover}
+.lineup-slot-person .board-category-icon{width:24px;height:24px;flex-basis:24px;object-fit:contain}
+.lineup-slot-person .person .board-category-icon{margin-left:0}
+.lineup-slot>label{display:grid;gap:8px;min-width:0}
+.lineup-slot select{width:100%}
+@media(max-width:620px){.lineup-slot{grid-template-columns:24px minmax(0,1fr);gap:12px;padding:12px}.lineup-slot>label{grid-column:2}.lineup-position{font-size:18px}}

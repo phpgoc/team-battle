@@ -13,6 +13,7 @@ func (a *App) router() *gin.Engine {
 	r.Use(gin.Recovery())
 	r.GET("/", a.serveIndex)
 	r.GET("/live/:id/setting", func(c *gin.Context) { a.serveLiveEntry(c, true) })
+	r.GET("/live/:id/lineup", a.serveLineupEntry)
 	r.GET("/live/:id", func(c *gin.Context) { a.serveLiveEntry(c, false) })
 	r.GET("/history", a.serveIndex)
 	r.GET("/login", a.serveIndex)
@@ -20,6 +21,17 @@ func (a *App) router() *gin.Engine {
 	r.GET("/workspace", a.serveIndex)
 	r.GET("/assets/styles.css", a.serveStyles)
 	r.GET("/assets/app.js", a.serveAppScript)
+	for _, asset := range []struct{ path, contentType string }{{"lineup-page.js", "application/javascript"}, {"lineup-page.css", "text/css"}, {"kof-board.js", "application/javascript"}, {"kof-board.css", "text/css"}} {
+		path, contentType := asset.path, asset.contentType
+		r.GET("/assets/"+path, func(c *gin.Context) {
+			data, err := webFS.ReadFile("web/" + path)
+			if err != nil {
+				c.Status(http.StatusInternalServerError)
+				return
+			}
+			c.Data(http.StatusOK, contentType+"; charset=utf-8", data)
+		})
+	}
 	r.GET("/assets/roster-editor.css", func(c *gin.Context) {
 		data, err := webFS.ReadFile("web/roster-editor.css")
 		if err != nil {

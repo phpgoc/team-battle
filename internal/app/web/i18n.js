@@ -1,5 +1,11 @@
 window.TB_I18N = {
   "zh": {
+    "round1Lineup": "第一轮排阵",
+    "reservedPlayer": "已安排出场",
+    "lineupTeam": "操作队伍",
+    "lineupDuplicate": "同一名选手不能重复排阵",
+    "kofClickPlayer": "在下方选手旁点击安排出场或报名",
+    "kofNoSlotNeeded": "本队暂不需要补选，胜者继续留场",
     "rosterChoosePlayer": "选择选手",
     "addPlayer": "添加",
     "rosterEntries": "已录入选手",
@@ -267,6 +273,12 @@ window.TB_I18N = {
     "categoryIconFormat": "分类图标只支持 JPG、PNG、GIF 或 WebP"
   },
   "en": {
+    "round1Lineup": "Round 1 lineup",
+    "reservedPlayer": "Selected to play",
+    "lineupTeam": "Team to manage",
+    "lineupDuplicate": "A player cannot appear twice in the lineup",
+    "kofClickPlayer": "Choose or sign up beside a player below",
+    "kofNoSlotNeeded": "No replacement needed; the winner stays on",
     "rosterChoosePlayer": "Choose a player",
     "addPlayer": "Add",
     "rosterEntries": "Entered players",
@@ -534,6 +546,12 @@ window.TB_I18N = {
     "categoryIconFormat": "Category icons must be JPG, PNG, GIF or WebP."
   },
   "ko": {
+    "round1Lineup": "1라운드 라인업",
+    "reservedPlayer": "출전 예약됨",
+    "lineupTeam": "운영할 팀",
+    "lineupDuplicate": "같은 선수를 중복 배치할 수 없습니다",
+    "kofClickPlayer": "아래 선수 옆에서 출전 지정 또는 신청하세요",
+    "kofNoSlotNeeded": "교체할 필요가 없습니다. 승자가 계속 출전합니다",
     "rosterChoosePlayer": "선수 선택",
     "addPlayer": "추가",
     "rosterEntries": "등록 선수",
