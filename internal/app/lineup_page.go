@@ -77,7 +77,7 @@ func (a *App) serveLineupEntry(c *gin.Context) {
 		return
 	}
 	var stage, raw string
-	if err := a.db.QueryRow(`SELECT status,rules_json FROM events WHERE id=?`, id).Scan(&stage, &raw); err != nil {
+	if err := a.db.QueryRow(`SELECT status,rules_json FROM tournaments WHERE id=?`, id).Scan(&stage, &raw); err != nil {
 		c.Status(http.StatusInternalServerError)
 		return
 	}

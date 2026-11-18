@@ -13,7 +13,7 @@ func (a *App) publicEventSummaries(history bool) ([]map[string]any, error) {
 		(SELECT COUNT(DISTINCT p.team_id) FROM event_players p WHERE p.event_id=e.id AND p.active=1),
 		(SELECT COUNT(*) FROM rounds r WHERE r.event_id=e.id AND r.winner_team_id=(SELECT MIN(id) FROM teams WHERE event_id=e.id)),
 		(SELECT COUNT(*) FROM rounds r WHERE r.event_id=e.id AND r.winner_team_id=(SELECT MAX(id) FROM teams WHERE event_id=e.id))
-		FROM events e WHERE ` + where + ` ORDER BY ` + order)
+		FROM tournaments e WHERE ` + where + ` ORDER BY ` + order)
 	if err != nil {
 		return nil, err
 	}

@@ -70,7 +70,7 @@ func TestSetupDrawCombinationsAndOddRemainder(t *testing.T) {
 							}
 						case "round2":
 							kofCount++
-							f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE id=? AND kof_initial_a=? AND kof_initial_b=?`, id, step.A, step.B)
+							f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND kof_initial_a=? AND kof_initial_b=?`, id, step.A, step.B)
 						}
 					}
 					if groupCount != count/2 || len(seen) != count {
@@ -94,7 +94,7 @@ func TestSetupDrawCombinationsAndOddRemainder(t *testing.T) {
 					match := f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=1`, id)
 					f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[0]}, 200)
 					if kof == "random" {
-						f.assertCount(t, 1, `SELECT COUNT(*) FROM matches m JOIN events e ON e.id=m.event_id WHERE m.event_id=? AND m.round_no=2 AND m.player_a_id=e.kof_initial_a AND m.player_b_id=e.kof_initial_b`, id)
+						f.assertCount(t, 1, `SELECT COUNT(*) FROM matches m JOIN tournaments e ON e.id=m.event_id WHERE m.event_id=? AND m.round_no=2 AND m.player_a_id=e.kof_initial_a AND m.player_b_id=e.kof_initial_b`, id)
 					} else {
 						f.assertCount(t, 0, `SELECT COUNT(*) FROM matches WHERE event_id=? AND round_no=2`, id)
 					}

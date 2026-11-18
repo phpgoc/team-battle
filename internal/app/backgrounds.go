@@ -19,7 +19,7 @@ const maxBackgroundSize = 64 * 1024 * 1024
 
 // loadBackgrounds 返回背景目录的公开字段，图片本体仍通过独立地址读取。
 func (a *App) loadBackgrounds() ([]map[string]any, error) {
-	rows, err := a.db.Query(`SELECT b.id,b.name,b.updated_at,EXISTS(SELECT 1 FROM events e WHERE e.background_id=b.id) FROM backgrounds b ORDER BY b.sort_order,b.id`)
+	rows, err := a.db.Query(`SELECT b.id,b.name,b.updated_at,EXISTS(SELECT 1 FROM tournaments e WHERE e.background_id=b.id) FROM backgrounds b ORDER BY b.sort_order,b.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +204,7 @@ func (a *App) deleteBackground(c *gin.Context) {
 	defer tx.Rollback()
 	// 实时和历史赛事的背景绑定都必须保留，禁止通过删除背景清空引用。
 	var inUse bool
-	if err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM events WHERE background_id=?)`, id).Scan(&inUse); err != nil {
+	if err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM tournaments WHERE background_id=?)`, id).Scan(&inUse); err != nil {
 		fail(c, http.StatusInternalServerError, "读取赛事背景引用失败")
 		return
 	}

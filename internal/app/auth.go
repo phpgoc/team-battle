@@ -226,7 +226,7 @@ func (a *App) managerEvent(c *gin.Context) (User, int64, bool) {
 		return User{}, 0, false
 	}
 	var status string
-	if err := a.db.QueryRow(`SELECT status FROM events WHERE id=?`, eventID).Scan(&status); err != nil {
+	if err := a.db.QueryRow(`SELECT status FROM tournaments WHERE id=?`, eventID).Scan(&status); err != nil {
 		fail(c, http.StatusNotFound, "赛事不存在")
 		return User{}, 0, false
 	}
@@ -242,7 +242,7 @@ func (a *App) canManageEvent(userID int64, role string, eventID int64) bool {
 		return true
 	}
 	var exists int
-	return isNonSuperAdmin(role) && a.db.QueryRow(`SELECT COUNT(*) FROM events WHERE id=? AND manager_id=?`, eventID, userID).Scan(&exists) == nil && exists == 1
+	return isNonSuperAdmin(role) && a.db.QueryRow(`SELECT COUNT(*) FROM tournaments WHERE id=? AND manager_id=?`, eventID, userID).Scan(&exists) == nil && exists == 1
 }
 
 func (a *App) canViewEvent(userID int64, role string, eventID int64) bool {
@@ -262,7 +262,7 @@ func (a *App) canViewEvent(userID int64, role string, eventID int64) bool {
 
 func (a *App) eventExists(eventID int64) bool {
 	var count int
-	return a.db.QueryRow(`SELECT COUNT(*) FROM events WHERE id=?`, eventID).Scan(&count) == nil && count == 1
+	return a.db.QueryRow(`SELECT COUNT(*) FROM tournaments WHERE id=?`, eventID).Scan(&count) == nil && count == 1
 }
 
 func (a *App) isEventPlayer(eventID, teamID, userID int64) bool {

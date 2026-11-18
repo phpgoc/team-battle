@@ -56,7 +56,7 @@ func TestSettingsCorrectionDeletesUnneededRound1Matches(t *testing.T) {
 			f.assertCount(t, 5, `SELECT COUNT(*) FROM matches WHERE event_id=? AND round_no=1`, id)
 			f.assertCount(t, 0, `SELECT COUNT(*) FROM matches WHERE event_id=? AND round_no=1 AND seq>=6`, id)
 			f.assertCount(t, 0, `SELECT COUNT(*) FROM matches WHERE id=?`, sixth)
-			f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE id=? AND status='round2'`, id)
+			f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND status='round2'`, id)
 			f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE event_id=? AND round_no=2 AND seq=1 AND status='pending'`, id)
 			f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE id=? AND who_win='a' AND winner_team_id=?`, fifth, teams[0])
 			if rules := mustEventRules(f.app.db, id); rules.RandomDrawSeconds != 2 || rules.AceDrawSeconds != 3 {
@@ -117,7 +117,7 @@ func TestKOFFinalCorrectionReturnsToKOFWithoutDrawingAce(t *testing.T) {
 	last := f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=2 AND seq=2`, id)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, last), map[string]any{"winner_team_id": teams[1]}, 200)
 	f.request(t, 2, "PATCH", fmt.Sprintf("/api/events/%d/settings", id), map[string]any{"correction": map[string]any{"match_id": last, "winner_team_id": teams[0]}}, 200)
-	f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE id=? AND status='round2'`, id)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND status='round2'`, id)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM rounds WHERE event_id=? AND stage='round2' AND score_a=1 AND score_b=1 AND status='active'`, id)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM matches WHERE event_id=? AND round_no=3`, id)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM event_actions WHERE event_id=? AND action='ace_drawn'`, id)

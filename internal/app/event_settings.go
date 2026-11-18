@@ -13,7 +13,7 @@ import (
 func requireEditableSettings(db sqlRunner, eventID int64) error {
 	var stage string
 	var scored int
-	if err := db.QueryRow(`SELECT status,(SELECT COUNT(*) FROM matches WHERE event_id=events.id AND status='finished') FROM events WHERE id=?`, eventID).Scan(&stage, &scored); err != nil {
+	if err := db.QueryRow(`SELECT status,(SELECT COUNT(*) FROM matches WHERE event_id=tournaments.id AND status='finished') FROM tournaments WHERE id=?`, eventID).Scan(&stage, &scored); err != nil {
 		return err
 	}
 	if !preMatch(stage) || scored != 0 {
@@ -62,7 +62,7 @@ func (a *App) updateEventSettings(c *gin.Context) {
 			if err != nil || *req.BackgroundID < 0 || !valid {
 				return errors.New("背景不存在")
 			}
-			if _, err := tx.Exec(`UPDATE events SET background_id=? WHERE id=?`, nullableInt64(*req.BackgroundID), eventID); err != nil {
+			if _, err := tx.Exec(`UPDATE tournaments SET background_id=? WHERE id=?`, nullableInt64(*req.BackgroundID), eventID); err != nil {
 				return err
 			}
 		}
@@ -98,7 +98,7 @@ func (a *App) updateEventSettings(c *gin.Context) {
 			return errors.New("只能修正已录入对局的合法胜者")
 		}
 		var beforeRound1Target, beforeRound2Target int
-		if err := tx.QueryRow(`SELECT round1_target,round2_target FROM events WHERE id=?`, eventID).Scan(&beforeRound1Target, &beforeRound2Target); err != nil {
+		if err := tx.QueryRow(`SELECT round1_target,round2_target FROM tournaments WHERE id=?`, eventID).Scan(&beforeRound1Target, &beforeRound2Target); err != nil {
 			return err
 		}
 		grouped, err := eventHasGrouping(tx, eventID)
@@ -172,7 +172,7 @@ func (a *App) updateEventSettings(c *gin.Context) {
 			if err := tx.QueryRow(`SELECT COUNT(*) FROM users WHERE id=? AND status='active' AND is_deleted=0`, manager).Scan(&valid); err != nil || valid != 1 {
 				return errors.New("赛事管理员账号无效")
 			}
-			if _, err := tx.Exec(`UPDATE events SET manager_id=? WHERE id=?`, manager, eventID); err != nil {
+			if _, err := tx.Exec(`UPDATE tournaments SET manager_id=? WHERE id=?`, manager, eventID); err != nil {
 				return err
 			}
 		}
@@ -181,7 +181,7 @@ func (a *App) updateEventSettings(c *gin.Context) {
 			if err != nil || strings.TrimSpace(req.Name) == "" || round1Target < 1 || round2Target < 1 || round1Target > 99 || round2Target > 99 {
 				return errors.New("赛事名称、开始时间或抢分目标无效")
 			}
-			if _, err := tx.Exec(`UPDATE events SET name=?,description=?,event_time=?,round1_target=?,round2_target=? WHERE id=?`, strings.TrimSpace(req.Name), req.Description, eventTime, round1Target, round2Target, eventID); err != nil {
+			if _, err := tx.Exec(`UPDATE tournaments SET name=?,description=?,event_time=?,round1_target=?,round2_target=? WHERE id=?`, strings.TrimSpace(req.Name), req.Description, eventTime, round1Target, round2Target, eventID); err != nil {
 				return err
 			}
 			if _, err := tx.Exec(`UPDATE rounds SET target_score=CASE stage WHEN 'round1' THEN ? WHEN 'round2' THEN ? ELSE 1 END WHERE event_id=?`, round1Target, round2Target, eventID); err != nil {
@@ -205,7 +205,7 @@ func (a *App) updateEventSettings(c *gin.Context) {
 			if _, err := tx.Exec(`UPDATE rounds SET status='pending' WHERE event_id=?`, eventID); err != nil {
 				return err
 			}
-			if _, err := tx.Exec(`UPDATE events SET status='draft',round1_no_repeat=?,kof_initial_a=NULL,kof_initial_b=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`, boolInt(rules.NoRepeat), eventID); err != nil {
+			if _, err := tx.Exec(`UPDATE tournaments SET status='draft',round1_no_repeat=?,kof_initial_a=NULL,kof_initial_b=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`, boolInt(rules.NoRepeat), eventID); err != nil {
 				return err
 			}
 		}

@@ -33,6 +33,19 @@ func openDatabase(path string) (*sql.DB, error) {
 }
 
 func migrate(db *sql.DB) error {
+	// 开发期表名调整沿用启动初始化；版本化迁移机制在1.0前补齐。
+	var oldTable, newTable int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='events'`).Scan(&oldTable); err != nil {
+		return err
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='tournaments'`).Scan(&newTable); err != nil {
+		return err
+	}
+	if oldTable != 0 && newTable == 0 {
+		if _, err := db.Exec(`ALTER TABLE events RENAME TO tournaments`); err != nil {
+			return err
+		}
+	}
 	statements := []string{
 		`PRAGMA foreign_keys = ON`,
 		`CREATE TABLE IF NOT EXISTS users (
@@ -44,7 +57,7 @@ func migrate(db *sql.DB) error {
 			status TEXT NOT NULL DEFAULT 'active',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
-		`CREATE TABLE IF NOT EXISTS events (
+		`CREATE TABLE IF NOT EXISTS tournaments (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL,
 			description TEXT NOT NULL DEFAULT '',
@@ -64,7 +77,7 @@ func migrate(db *sql.DB) error {
 			event_id INTEGER NOT NULL,
 			name TEXT NOT NULL,
 			color TEXT NOT NULL DEFAULT '#2b6de5',
-			FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
+			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE
 		)`,
 		`CREATE TABLE IF NOT EXISTS event_players (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,7 +87,7 @@ func migrate(db *sql.DB) error {
 			is_captain INTEGER NOT NULL DEFAULT 0,
 			active INTEGER NOT NULL DEFAULT 1,
 			UNIQUE(event_id, user_id),
-			FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
+			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE,
 			FOREIGN KEY(user_id) REFERENCES users(id),
 			FOREIGN KEY(team_id) REFERENCES teams(id)
 		)`,
@@ -86,7 +99,7 @@ func migrate(db *sql.DB) error {
 			target_id INTEGER NOT NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(event_id, voter_id),
-			FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
+			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE,
 			FOREIGN KEY(team_id) REFERENCES teams(id),
 			FOREIGN KEY(voter_id) REFERENCES users(id),
 			FOREIGN KEY(target_id) REFERENCES users(id)
@@ -99,7 +112,7 @@ func migrate(db *sql.DB) error {
 			player_id INTEGER NOT NULL,
 			source TEXT NOT NULL DEFAULT 'manual',
 			UNIQUE(event_id, team_id, position),
-			FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
+			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE,
 			FOREIGN KEY(team_id) REFERENCES teams(id),
 			FOREIGN KEY(player_id) REFERENCES users(id)
 		)`,
@@ -115,7 +128,7 @@ func migrate(db *sql.DB) error {
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(event_id, stage),
-			FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
+			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE,
 			FOREIGN KEY(winner_team_id) REFERENCES teams(id)
 		)`,
 		`CREATE TABLE IF NOT EXISTS matches (
@@ -135,7 +148,7 @@ func migrate(db *sql.DB) error {
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			finished_at DATETIME,
 			UNIQUE(round_id, seq),
-			FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
+			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE,
 			FOREIGN KEY(round_id) REFERENCES rounds(id) ON DELETE CASCADE,
 			FOREIGN KEY(team_a_id) REFERENCES teams(id),
 			FOREIGN KEY(team_b_id) REFERENCES teams(id),
@@ -152,7 +165,7 @@ func migrate(db *sql.DB) error {
 			action TEXT NOT NULL,
 			payload TEXT NOT NULL DEFAULT '{}',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
+			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE,
 			FOREIGN KEY(actor_id) REFERENCES users(id)
 		)`,
 		`CREATE INDEX IF NOT EXISTS matches_player_a_records ON matches(player_a_id) WHERE status='finished'`,
@@ -170,7 +183,7 @@ func migrate(db *sql.DB) error {
 		)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS sessions_one_per_user ON sessions(user_id)`,
 		`CREATE TABLE IF NOT EXISTS player_selections (
-			event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+			event_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
 			stage TEXT NOT NULL,
 			team_id INTEGER NOT NULL REFERENCES teams(id),
 			player_id INTEGER NOT NULL REFERENCES users(id),
@@ -192,7 +205,7 @@ func migrate(db *sql.DB) error {
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE IF NOT EXISTS kof_reservations (
-			event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+			event_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
 			match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
 			team_id INTEGER NOT NULL REFERENCES teams(id),
 			player_id INTEGER NOT NULL REFERENCES users(id),
@@ -224,7 +237,7 @@ func migrate(db *sql.DB) error {
 			return err
 		}
 	}
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS event_setup_roster(event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,user_id INTEGER NOT NULL REFERENCES users(id),fixed_team TEXT NOT NULL DEFAULT '',position INTEGER NOT NULL,PRIMARY KEY(event_id,user_id))`); err != nil {
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS event_setup_roster(event_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,user_id INTEGER NOT NULL REFERENCES users(id),fixed_team TEXT NOT NULL DEFAULT '',position INTEGER NOT NULL,PRIMARY KEY(event_id,user_id))`); err != nil {
 		return err
 	}
 	if err := ensureColumn(db, "users", "avatar_data", "BLOB"); err != nil {
@@ -242,13 +255,13 @@ func migrate(db *sql.DB) error {
 		{"users", "category_id", "INTEGER"},
 		{"categories", "icon_data", "BLOB"},
 		{"categories", "icon_mime", "TEXT NOT NULL DEFAULT ''"},
-		{"events", "round1_no_repeat", "INTEGER NOT NULL DEFAULT 1"},
-		{"events", "round1_all_first", "INTEGER NOT NULL DEFAULT 1"},
-		{"events", "kof_initial_a", "INTEGER"},
-		{"events", "kof_initial_b", "INTEGER"},
-		{"events", "rules_json", "TEXT NOT NULL DEFAULT '{}'"},
+		{"tournaments", "round1_no_repeat", "INTEGER NOT NULL DEFAULT 1"},
+		{"tournaments", "round1_all_first", "INTEGER NOT NULL DEFAULT 1"},
+		{"tournaments", "kof_initial_a", "INTEGER"},
+		{"tournaments", "kof_initial_b", "INTEGER"},
+		{"tournaments", "rules_json", "TEXT NOT NULL DEFAULT '{}'"},
 		{"teams", "lineup_submitted", "INTEGER NOT NULL DEFAULT 0"},
-		{"events", "background_id", "INTEGER"},
+		{"tournaments", "background_id", "INTEGER"},
 		{"backgrounds", "file_path", "TEXT NOT NULL DEFAULT ''"},
 		{"backgrounds", "image_size", "INTEGER NOT NULL DEFAULT 0"},
 		{"backgrounds", "thumbnail_data", "BLOB"},

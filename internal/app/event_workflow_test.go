@@ -217,7 +217,7 @@ func TestEventHourAndFixedNames(t *testing.T) {
 	if _, err := f.app.db.Exec(`UPDATE teams SET name='旧队名' WHERE event_id=?`, id); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.app.db.Exec(`UPDATE events SET event_time='2026-11-17T08:35:59' WHERE id=?`, id); err != nil {
+	if _, err := f.app.db.Exec(`UPDATE tournaments SET event_time='2026-11-17T08:35:59' WHERE id=?`, id); err != nil {
 		t.Fatal(err)
 	}
 	for i := 0; i < 2; i++ {
@@ -226,7 +226,7 @@ func TestEventHourAndFixedNames(t *testing.T) {
 		}
 	}
 	f.assertCount(t, 2, `SELECT COUNT(*) FROM teams WHERE event_id=? AND name IN ('A 队','B 队')`, id)
-	f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE id=? AND event_time='2026-11-17T08:00:00'`, id)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND event_time='2026-11-17T08:00:00'`, id)
 	if rules, err := decodeRules(`{"round1_mode":"random"}`); err != nil || rules.KOFStarter != "random" {
 		t.Fatal("旧规则未兼容默认随机首发")
 	}

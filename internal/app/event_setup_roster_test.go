@@ -64,7 +64,7 @@ func TestArchivePreservesOriginalRoster(t *testing.T) {
 		"fixed_assignments": map[string]string{"3": "A", "4": "A", "5": "A", "6": "B", "7": "B", "8": "B"},
 		"matches":           []archivedMatch{{1, 3, 6, "a"}, {2, 4, 7, "a"}},
 	}, 200)
-	id := f.scalar(t, `SELECT id FROM events WHERE name='历史原始录入'`)
+	id := f.scalar(t, `SELECT id FROM tournaments WHERE name='历史原始录入'`)
 	want := []rosterEntryView{{8, "B", "选手8"}, {3, "A", "选手3"}, {6, "B", "选手6"}, {4, "A", "选手4"}, {7, "B", "选手7"}, {5, "A", "选手5"}}
 	if got := setupRosterView(t, f, id); !reflect.DeepEqual(got, want) {
 		t.Fatalf("历史录入没有保留顺序和选择: %+v", got)

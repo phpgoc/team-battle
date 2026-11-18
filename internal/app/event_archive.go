@@ -99,7 +99,7 @@ func (a *App) archiveEvent(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback()
-	r, err := tx.Exec(`INSERT INTO events(name,description,event_time,status,round1_target,round2_target,manager_id,created_by,background_id) VALUES(?,?,?,'completed',?,?,?,?,?)`, strings.TrimSpace(req.Name), req.Description, eventTime, targets[0], targets[1], actor.ID, actor.ID, nullableInt64(req.BackgroundID))
+	r, err := tx.Exec(`INSERT INTO tournaments(name,description,event_time,status,round1_target,round2_target,manager_id,created_by,background_id) VALUES(?,?,?,'completed',?,?,?,?,?)`, strings.TrimSpace(req.Name), req.Description, eventTime, targets[0], targets[1], actor.ID, actor.ID, nullableInt64(req.BackgroundID))
 	if err != nil {
 		fail(c, 400, err.Error())
 		return

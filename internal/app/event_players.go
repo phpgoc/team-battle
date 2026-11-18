@@ -51,7 +51,7 @@ func (a *App) addEventPlayers(c *gin.Context) {
 		fail(c, 400, err.Error())
 		return
 	}
-	if _, err := tx.Exec(`UPDATE events SET status='draft',kof_initial_a=NULL,kof_initial_b=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`, eventID); err != nil {
+	if _, err := tx.Exec(`UPDATE tournaments SET status='draft',kof_initial_a=NULL,kof_initial_b=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`, eventID); err != nil {
 		fail(c, 500, err.Error())
 		return
 	}
@@ -60,7 +60,7 @@ func (a *App) addEventPlayers(c *gin.Context) {
 		return
 	}
 	var raw string
-	if err := tx.QueryRow(`SELECT rules_json FROM events WHERE id=?`, eventID).Scan(&raw); err != nil {
+	if err := tx.QueryRow(`SELECT rules_json FROM tournaments WHERE id=?`, eventID).Scan(&raw); err != nil {
 		fail(c, 500, err.Error())
 		return
 	}

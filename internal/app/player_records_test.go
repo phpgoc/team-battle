@@ -158,7 +158,7 @@ func TestTeamBattleRecordsWaitForConfirmation(t *testing.T) {
 		}
 	}
 	// 取消赛事即使保留了对局与阶段胜者也不计入。
-	if _, err := f.app.db.Exec(`UPDATE events SET status='cancelled' WHERE id=?`, id); err != nil {
+	if _, err := f.app.db.Exec(`UPDATE tournaments SET status='cancelled' WHERE id=?`, id); err != nil {
 		t.Fatal(err)
 	}
 	if got := f.records(t, 0, 3); got.TeamBattle != (recordScore{}) {

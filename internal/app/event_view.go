@@ -49,7 +49,7 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 	var name, description, eventTime, status, createdAt string
 	var round1Target, round2Target, managerID int64
 	var backgroundID sql.NullInt64
-	if err := a.db.QueryRow(`SELECT e.name,e.description,e.event_time,e.status,e.round1_target,e.round2_target,e.manager_id,e.created_at,e.background_id FROM events e WHERE e.id=?`, eventID).Scan(&name, &description, &eventTime, &status, &round1Target, &round2Target, &managerID, &createdAt, &backgroundID); err != nil {
+	if err := a.db.QueryRow(`SELECT e.name,e.description,e.event_time,e.status,e.round1_target,e.round2_target,e.manager_id,e.created_at,e.background_id FROM tournaments e WHERE e.id=?`, eventID).Scan(&name, &description, &eventTime, &status, &round1Target, &round2Target, &managerID, &createdAt, &backgroundID); err != nil {
 		return nil, err
 	}
 	event["id"] = eventID
@@ -105,7 +105,7 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 	setupRows.Close()
 	event["setup_roster"] = setup
 	var raw string
-	if err := a.db.QueryRow(`SELECT rules_json FROM events WHERE id=?`, eventID).Scan(&raw); err != nil {
+	if err := a.db.QueryRow(`SELECT rules_json FROM tournaments WHERE id=?`, eventID).Scan(&raw); err != nil {
 		return nil, err
 	}
 	rules, err := decodeRules(raw)
@@ -134,7 +134,7 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 	event["kof_starters"] = starters
 	if rules.KOFStarter == "random" {
 		var aID, bID sql.NullInt64
-		if err := a.db.QueryRow(`SELECT kof_initial_a,kof_initial_b FROM events WHERE id=?`, eventID).Scan(&aID, &bID); err != nil {
+		if err := a.db.QueryRow(`SELECT kof_initial_a,kof_initial_b FROM tournaments WHERE id=?`, eventID).Scan(&aID, &bID); err != nil {
 			return nil, err
 		}
 		if aID.Valid && bID.Valid && len(teams) == 2 {

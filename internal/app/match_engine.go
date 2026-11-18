@@ -87,7 +87,7 @@ func (e *matchEngine) match(id int64) (engineMatch, error) {
 }
 func (e *matchEngine) rules() (EventRules, error) {
 	var raw string
-	err := e.db.QueryRow(`SELECT rules_json FROM events WHERE id=?`, e.eventID).Scan(&raw)
+	err := e.db.QueryRow(`SELECT rules_json FROM tournaments WHERE id=?`, e.eventID).Scan(&raw)
 	if err != nil {
 		return EventRules{}, err
 	}
@@ -95,11 +95,11 @@ func (e *matchEngine) rules() (EventRules, error) {
 }
 func (e *matchEngine) status() (string, error) {
 	var s string
-	err := e.db.QueryRow(`SELECT status FROM events WHERE id=?`, e.eventID).Scan(&s)
+	err := e.db.QueryRow(`SELECT status FROM tournaments WHERE id=?`, e.eventID).Scan(&s)
 	return s, err
 }
 func (e *matchEngine) setStage(stage string) error {
-	_, err := e.db.Exec(`UPDATE events SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, stage, e.eventID)
+	_, err := e.db.Exec(`UPDATE tournaments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, stage, e.eventID)
 	return err
 }
 func (e *matchEngine) log(action string, payload any) error {
@@ -494,7 +494,7 @@ func (e *matchEngine) initialKOF() error {
 		return nil
 	}
 	var initialA, initialB sql.NullInt64
-	if err := e.db.QueryRow(`SELECT kof_initial_a,kof_initial_b FROM events WHERE id=?`, e.eventID).Scan(&initialA, &initialB); err != nil {
+	if err := e.db.QueryRow(`SELECT kof_initial_a,kof_initial_b FROM tournaments WHERE id=?`, e.eventID).Scan(&initialA, &initialB); err != nil {
 		return err
 	}
 	if initialA.Valid && initialB.Valid {

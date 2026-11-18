@@ -10,7 +10,7 @@ func TestOngoingSummariesKeepUnconfirmedEvents(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "random")
 	for _, status := range []string{statusDraft, statusCaptainVote, statusLineup, statusRound1, statusRound2, statusAce, statusFinalConfirm, statusCompleted, statusCancelled} {
-		if _, err := f.app.db.Exec(`UPDATE events SET status=? WHERE id=?`, status, id); err != nil {
+		if _, err := f.app.db.Exec(`UPDATE tournaments SET status=? WHERE id=?`, status, id); err != nil {
 			t.Fatal(err)
 		}
 		var result struct {
@@ -31,7 +31,7 @@ func TestOngoingSummariesKeepUnconfirmedEvents(t *testing.T) {
 		}
 	}
 	// 尚未分组可在首页列出，但访客仍然不能打开对战页。
-	if _, err := f.app.db.Exec(`UPDATE events SET status='draft' WHERE id=?`, id); err != nil {
+	if _, err := f.app.db.Exec(`UPDATE tournaments SET status='draft' WHERE id=?`, id); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.app.db.Exec(`DELETE FROM event_players WHERE event_id=?`, id); err != nil {

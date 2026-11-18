@@ -19,7 +19,7 @@ func TestCaptainElectionAutoConfirmsAtHalf(t *testing.T) {
 	f.request(t, 8, "POST", vote, map[string]any{"target_id": 6}, 200)
 	f.request(t, 7, "POST", vote, map[string]any{"target_id": 6}, 200)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=6 AND is_captain=1`, id)
-	f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE id=? AND status='lineup_confirm'`, id)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND status='lineup_confirm'`, id)
 
 	// 赛事管理员可以直接指定或更换队长，超级管理员同样使用该接口。
 	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/captains/confirm", id), map[string]any{"team_a_player_id": 4, "team_b_player_id": 7}, 200)
@@ -52,9 +52,9 @@ func TestManagerSelectsOneTeamCaptain(t *testing.T) {
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM event_players WHERE event_id=? AND team_id=? AND user_id=6 AND is_captain=1`, id, teams[1])
 	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/start", id), nil, 200)
 	request(2, teams[1], 7, 200)
-	f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE id=? AND status='round1'`, id)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND status='round1'`, id)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=7 AND is_captain=1`, id)
-	if _, err := f.app.db.Exec(`UPDATE events SET status='completed' WHERE id=?`, id); err != nil {
+	if _, err := f.app.db.Exec(`UPDATE tournaments SET status='completed' WHERE id=?`, id); err != nil {
 		t.Fatal(err)
 	}
 	request(1, teams[0], 5, 400)

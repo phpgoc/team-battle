@@ -128,7 +128,7 @@ func saveRules(tx *sql.Tx, eventID int64, rules EventRules) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(`UPDATE events SET rules_json=? WHERE id=?`, string(raw), eventID)
+	_, err = tx.Exec(`UPDATE tournaments SET rules_json=? WHERE id=?`, string(raw), eventID)
 	return err
 }
 
@@ -142,7 +142,7 @@ func normalizeEventMetadata(db *sql.DB) error {
 	if _, err := tx.Exec(`UPDATE teams SET name=CASE WHEN id=(SELECT MIN(t.id) FROM teams t WHERE t.event_id=teams.event_id) THEN 'A 队' ELSE 'B 队' END WHERE name<>CASE WHEN id=(SELECT MIN(t.id) FROM teams t WHERE t.event_id=teams.event_id) THEN 'A 队' ELSE 'B 队' END`); err != nil {
 		return err
 	}
-	rows, err := tx.Query(`SELECT id,event_time FROM events`)
+	rows, err := tx.Query(`SELECT id,event_time FROM tournaments`)
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func normalizeEventMetadata(db *sql.DB) error {
 	}
 	rows.Close()
 	for _, item := range times {
-		if _, err := tx.Exec(`UPDATE events SET event_time=? WHERE id=?`, item.value, item.id); err != nil {
+		if _, err := tx.Exec(`UPDATE tournaments SET event_time=? WHERE id=?`, item.value, item.id); err != nil {
 			return err
 		}
 	}

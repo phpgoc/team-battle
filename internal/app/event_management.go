@@ -26,7 +26,7 @@ func (a *App) listEvents(c *gin.Context) {
 		(SELECT COUNT(*) FROM event_players ep WHERE ep.event_id=e.id) AS player_count,
 		(SELECT COALESCE(SUM(r.score_a),0) FROM rounds r WHERE r.event_id=e.id) AS score_a,
 		(SELECT COALESCE(SUM(r.score_b),0) FROM rounds r WHERE r.event_id=e.id) AS score_b
-		FROM events e LEFT JOIN users u ON u.id=e.manager_id`
+		FROM tournaments e LEFT JOIN users u ON u.id=e.manager_id`
 	args := []any{}
 	if user.Role != roleSuperAdmin {
 		query += ` WHERE e.manager_id = ? OR EXISTS (SELECT 1 FROM event_players ep2 WHERE ep2.event_id=e.id AND ep2.user_id=?)`
@@ -175,7 +175,7 @@ func (a *App) historyItems() ([]map[string]any, error) {
 		return nil, err
 	}
 	// 批量读取历史参赛ID并随摘要缓存，筛选时无需逐场查询或关联账号表。
-	rows, err := a.db.Query(`SELECT p.event_id,p.user_id FROM event_players p JOIN events e ON e.id=p.event_id WHERE e.status='completed' AND p.active=1 ORDER BY p.event_id,p.user_id`)
+	rows, err := a.db.Query(`SELECT p.event_id,p.user_id FROM event_players p JOIN tournaments e ON e.id=p.event_id WHERE e.status='completed' AND p.active=1 ORDER BY p.event_id,p.user_id`)
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +288,7 @@ func (a *App) createEvent(c *gin.Context) {
 		return
 	}
 	defer transaction.Rollback()
-	result, err := transaction.Exec(`INSERT INTO events(name, description, event_time, status, round1_target, round2_target, manager_id, created_by, rules_json, background_id) VALUES(?,?,?,?,?,?,?,?,?,?)`, strings.TrimSpace(req.Name), strings.TrimSpace(req.Description), req.EventTime, statusDraft, req.Round1Target, req.Round2Target, req.ManagerID, actor.ID, string(rulesJSON), nullableInt64(req.BackgroundID))
+	result, err := transaction.Exec(`INSERT INTO tournaments(name, description, event_time, status, round1_target, round2_target, manager_id, created_by, rules_json, background_id) VALUES(?,?,?,?,?,?,?,?,?,?)`, strings.TrimSpace(req.Name), strings.TrimSpace(req.Description), req.EventTime, statusDraft, req.Round1Target, req.Round2Target, req.ManagerID, actor.ID, string(rulesJSON), nullableInt64(req.BackgroundID))
 	if err != nil {
 		fail(c, http.StatusBadRequest, "创建赛事失败")
 		return
@@ -333,7 +333,7 @@ func (a *App) confirmEvent(c *gin.Context) {
 		return
 	}
 	var status string
-	if err := a.db.QueryRow(`SELECT status FROM events WHERE id=?`, eventID).Scan(&status); err != nil {
+	if err := a.db.QueryRow(`SELECT status FROM tournaments WHERE id=?`, eventID).Scan(&status); err != nil {
 		fail(c, http.StatusNotFound, "赛事不存在")
 		return
 	}
@@ -341,7 +341,7 @@ func (a *App) confirmEvent(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "当前赛事还不能确认结束")
 		return
 	}
-	if _, err := a.db.Exec(`UPDATE events SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, statusCompleted, eventID); err != nil {
+	if _, err := a.db.Exec(`UPDATE tournaments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, statusCompleted, eventID); err != nil {
 		fail(c, http.StatusInternalServerError, "确认赛事结束失败")
 		return
 	}

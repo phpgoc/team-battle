@@ -12,7 +12,7 @@ func TestPublicEventIncludesManagerDisplayName(t *testing.T) {
 	path := fmt.Sprintf("/api/public/events/%d", id)
 	// 管理员不在两队名单中，公开详情仍然需要显示其名称。
 	for _, status := range []string{statusDraft, statusCompleted} {
-		if _, err := f.app.db.Exec(`UPDATE events SET status=? WHERE id=?`, status, id); err != nil {
+		if _, err := f.app.db.Exec(`UPDATE tournaments SET status=? WHERE id=?`, status, id); err != nil {
 			t.Fatal(err)
 		}
 		raw := f.request(t, 0, "GET", path, nil, 200)
@@ -33,7 +33,7 @@ func TestPublicEventIncludesManagerDisplayName(t *testing.T) {
 		t.Fatalf("空管理员名称未保留: %s", raw)
 	}
 	// 未单独指定赛事管理员时，权限回落到超级管理员，公开姓名留空。
-	if _, err := f.app.db.Exec(`UPDATE events SET manager_id=1 WHERE id=?`, id); err != nil {
+	if _, err := f.app.db.Exec(`UPDATE tournaments SET manager_id=1 WHERE id=?`, id); err != nil {
 		t.Fatal(err)
 	}
 	raw = f.request(t, 0, "GET", path, nil, 200)

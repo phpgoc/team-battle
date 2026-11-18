@@ -111,14 +111,14 @@ func TestAceSideCandidatesValidationAndRosterCleanup(t *testing.T) {
 			body := base()
 			body["rules"].(map[string]any)["ace_specials"] = []map[string]any{{"team_a_ids": test.a, "team_b_ids": test.b, "probability": 20}}
 			f.request(t, 1, "POST", "/api/events", body, 400)
-			f.assertCount(t, 0, `SELECT COUNT(*) FROM events WHERE name='双侧特殊对战'`)
+			f.assertCount(t, 0, `SELECT COUNT(*) FROM tournaments WHERE name='双侧特殊对战'`)
 		})
 	}
 	body := base()
 	// 未分组的同一选手可分别列为两侧候选，不能当作同侧重复。
 	body["rules"].(map[string]any)["ace_specials"] = []map[string]any{{"team_a_ids": []int64{3, 4}, "team_b_ids": []int64{3, 6}, "probability": 20}}
 	f.request(t, 1, "POST", "/api/events", body, 200)
-	id := f.scalar(t, `SELECT id FROM events WHERE name='双侧特殊对战'`)
+	id := f.scalar(t, `SELECT id FROM tournaments WHERE name='双侧特殊对战'`)
 	path := fmt.Sprintf("/api/events/%d", id)
 	f.request(t, 3, "PATCH", path+"/settings", map[string]any{"rules": body["rules"]}, 403)
 	f.request(t, 2, "PATCH", path+"/settings", map[string]any{"rules": map[string]any{"ace_specials": []map[string]any{{"team_a_ids": []int64{9}, "team_b_ids": []int64{6}, "probability": 20}}}}, 400)

@@ -31,7 +31,7 @@ func TestOpeningResultStartsAndRecordsAtomically(t *testing.T) {
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM rounds WHERE event_id=? AND stage='round1' AND score_a=1 AND score_b=0`, id)
 	f.request(t, 1, "POST", path, body, 400)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM event_actions WHERE event_id=? AND action='match_result_submitted'`, id)
-	if _, err := f.app.db.Exec(`UPDATE events SET status='completed' WHERE id=?`, id); err != nil {
+	if _, err := f.app.db.Exec(`UPDATE tournaments SET status='completed' WHERE id=?`, id); err != nil {
 		t.Fatal(err)
 	}
 	f.request(t, 1, "POST", path, body, 400)

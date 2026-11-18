@@ -55,7 +55,7 @@ func (a *App) updateDrawSettings(c *gin.Context) {
 
 func mustEventRules(db *sql.DB, eventID int64) EventRules {
 	var raw string
-	if err := db.QueryRow(`SELECT rules_json FROM events WHERE id=?`, eventID).Scan(&raw); err != nil {
+	if err := db.QueryRow(`SELECT rules_json FROM tournaments WHERE id=?`, eventID).Scan(&raw); err != nil {
 		return defaultRules()
 	}
 	rules, err := decodeRules(raw)

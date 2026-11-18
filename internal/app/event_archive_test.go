@@ -35,14 +35,14 @@ func TestArchiveValidatesTargetsAndKOFBeforeSaving(t *testing.T) {
 			body := base()
 			test.change(body)
 			f.request(t, 1, "POST", "/api/events/archive", body, 400)
-			f.assertCount(t, 0, `SELECT COUNT(*) FROM events WHERE name='分轮历史录入'`)
+			f.assertCount(t, 0, `SELECT COUNT(*) FROM tournaments WHERE name='分轮历史录入'`)
 		})
 	}
 	f.request(t, 0, "POST", "/api/events/archive", base(), 403)
 	f.request(t, 3, "POST", "/api/events/archive", base(), 403)
 	// 最后一局B队全员已败，目标4高于3人，可选择真实复活选手6。
 	f.request(t, 1, "POST", "/api/events/archive", base(), 200)
-	f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE name='分轮历史录入' AND status='completed' AND round1_target=2 AND round2_target=4`)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE name='分轮历史录入' AND status='completed' AND round1_target=2 AND round2_target=4`)
 	f.assertCount(t, 7, `SELECT COUNT(*) FROM matches`)
 }
 

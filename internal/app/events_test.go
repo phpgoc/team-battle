@@ -19,7 +19,7 @@ func TestPublicSSEMatchesAcrossIdentitiesAndPushesResults(t *testing.T) {
 		t.Fatal(err)
 	}
 	backgroundID := f.scalar(t, `SELECT id FROM backgrounds WHERE name='SSE 背景'`)
-	if _, err := f.app.db.Exec(`UPDATE events SET background_id=? WHERE id=?`, backgroundID, id); err != nil {
+	if _, err := f.app.db.Exec(`UPDATE tournaments SET background_id=? WHERE id=?`, backgroundID, id); err != nil {
 		t.Fatal(err)
 	}
 	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/start", id), nil, 200)

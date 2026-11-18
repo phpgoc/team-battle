@@ -175,7 +175,7 @@ func (a *App) drawEventSetup(c *gin.Context) {
 		}
 		if rules.KOFStarter == "random" {
 			step := setupDrawStep{Kind: "round2", Position: 1, A: groups[0][e.rng.Intn(len(groups[0]))], B: groups[1][e.rng.Intn(len(groups[1]))], PoolA: groups[0], PoolB: groups[1]}
-			if _, err := e.db.Exec(`UPDATE events SET kof_initial_a=?,kof_initial_b=? WHERE id=?`, step.A, step.B, id); err != nil {
+			if _, err := e.db.Exec(`UPDATE tournaments SET kof_initial_a=?,kof_initial_b=? WHERE id=?`, step.A, step.B, id); err != nil {
 				return err
 			}
 			steps = append(steps, step)

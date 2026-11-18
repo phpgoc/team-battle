@@ -33,7 +33,7 @@ func (a *App) updateEventBackground(c *gin.Context) {
 	}
 	defer tx.Rollback()
 	var status string
-	if err := tx.QueryRow(`SELECT status FROM events WHERE id=?`, eventID).Scan(&status); err != nil {
+	if err := tx.QueryRow(`SELECT status FROM tournaments WHERE id=?`, eventID).Scan(&status); err != nil {
 		fail(c, 404, "赛事不存在")
 		return
 	}
@@ -50,7 +50,7 @@ func (a *App) updateEventBackground(c *gin.Context) {
 		fail(c, 400, "背景不存在")
 		return
 	}
-	if _, err := tx.Exec(`UPDATE events SET background_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, nullableInt64(req.BackgroundID), eventID); err != nil {
+	if _, err := tx.Exec(`UPDATE tournaments SET background_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, nullableInt64(req.BackgroundID), eventID); err != nil {
 		fail(c, 500, "保存赛事背景失败")
 		return
 	}

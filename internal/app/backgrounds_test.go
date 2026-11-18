@@ -79,7 +79,7 @@ func TestBackgroundManagementAndPublicEventSelection(t *testing.T) {
 	for _, user := range []int{0, 3, 4, 9} {
 		f.request(t, user, http.MethodPatch, path, map[string]any{"background_id": backgroundID}, http.StatusForbidden)
 	}
-	f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE id=? AND background_id IS NULL`, id)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND background_id IS NULL`, id)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM event_actions WHERE event_id=? AND action='event_background_updated'`, id)
 	f.request(t, 2, http.MethodPatch, path, map[string]any{"background_id": backgroundID}, http.StatusOK)
 	f.request(t, 1, http.MethodPatch, path, map[string]any{"background_id": 0}, http.StatusOK)
@@ -101,7 +101,7 @@ func TestBackgroundManagementAndPublicEventSelection(t *testing.T) {
 			{"round": 3, "a_id": 5, "b_id": 8, "who_win": "a"},
 		},
 	}, http.StatusOK)
-	archivedID := f.scalar(t, `SELECT id FROM events WHERE name='带背景历史赛事'`)
+	archivedID := f.scalar(t, `SELECT id FROM tournaments WHERE name='带背景历史赛事'`)
 	archived := f.request(t, 0, http.MethodGet, fmt.Sprintf("/api/public/events/%d", archivedID), nil, http.StatusOK)
 	if !bytes.Contains(archived, []byte(fmt.Sprintf(`"background_id":%d`, backgroundID))) {
 		t.Fatalf("历史赛事没有保留录入时选择的背景: %s", archived)
@@ -119,12 +119,12 @@ func TestBackgroundManagementAndPublicEventSelection(t *testing.T) {
 	}
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM backgrounds WHERE id=? AND name='替换背景'`, backgroundID)
 	f.backgroundForm(t, 1, http.MethodDelete, fmt.Sprintf("/api/site-settings/backgrounds/%d", backgroundID), "", nil, http.StatusConflict)
-	f.assertCount(t, 2, `SELECT COUNT(*) FROM events WHERE background_id=?`, backgroundID)
+	f.assertCount(t, 2, `SELECT COUNT(*) FROM tournaments WHERE background_id=?`, backgroundID)
 	if got := f.request(t, 0, http.MethodGet, imageURL, nil, http.StatusOK); !bytes.Equal(got, replacement) {
 		t.Fatal("拒绝删除已绑定背景后，图片必须保持可用")
 	}
 
-	if _, err := f.app.db.Exec(`UPDATE events SET status=? WHERE id=?`, statusCompleted, id); err != nil {
+	if _, err := f.app.db.Exec(`UPDATE tournaments SET status=? WHERE id=?`, statusCompleted, id); err != nil {
 		t.Fatal(err)
 	}
 	f.request(t, 2, http.MethodPatch, path, map[string]any{"background_id": 0}, http.StatusBadRequest)
@@ -142,14 +142,14 @@ func TestBackgroundDeletionProtectsEveryBoundEvent(t *testing.T) {
 	backgroundID := f.scalar(t, `SELECT id FROM backgrounds WHERE name='删除保护'`)
 	path := fmt.Sprintf("/api/site-settings/backgrounds/%d", backgroundID)
 	for _, status := range []string{statusDraft, statusRound1, statusRound2, statusAce, statusFinalConfirm, statusCompleted, statusCancelled} {
-		if _, err := f.app.db.Exec(`UPDATE events SET status=?,background_id=? WHERE id=?`, status, backgroundID, id); err != nil {
+		if _, err := f.app.db.Exec(`UPDATE tournaments SET status=?,background_id=? WHERE id=?`, status, backgroundID, id); err != nil {
 			t.Fatal(err)
 		}
 		response := f.backgroundForm(t, 1, http.MethodDelete, path, "", nil, http.StatusConflict)
 		if !strings.Contains(response.Body.String(), "背景已绑定赛事，不能删除") {
 			t.Fatalf("已绑定背景应说明原因: %s", response.Body.String())
 		}
-		f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE id=? AND background_id=?`, id, backgroundID)
+		f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND background_id=?`, id, backgroundID)
 		f.assertCount(t, 1, `SELECT COUNT(*) FROM backgrounds WHERE id=?`, backgroundID)
 	}
 	list := f.request(t, 0, http.MethodGet, "/api/backgrounds", nil, http.StatusOK)
@@ -157,7 +157,7 @@ func TestBackgroundDeletionProtectsEveryBoundEvent(t *testing.T) {
 		t.Fatalf("背景目录应标识已绑定: %s", list)
 	}
 	// 无引用的背景仍可删除，且清理原图；重复删除返回404。
-	if _, err := f.app.db.Exec(`UPDATE events SET background_id=NULL WHERE id=?`, id); err != nil {
+	if _, err := f.app.db.Exec(`UPDATE tournaments SET background_id=NULL WHERE id=?`, id); err != nil {
 		t.Fatal(err)
 	}
 	var filePath string
