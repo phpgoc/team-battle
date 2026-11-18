@@ -72,13 +72,6 @@ func migrate(db *sql.DB) error {
 			FOREIGN KEY(manager_id) REFERENCES users(id),
 			FOREIGN KEY(created_by) REFERENCES users(id)
 		)`,
-		`CREATE TABLE IF NOT EXISTS teams (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			event_id INTEGER NOT NULL,
-			name TEXT NOT NULL,
-			color TEXT NOT NULL DEFAULT '#2b6de5',
-			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE
-		)`,
 		`CREATE TABLE IF NOT EXISTS event_players (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			event_id INTEGER NOT NULL,
@@ -88,8 +81,7 @@ func migrate(db *sql.DB) error {
 			active INTEGER NOT NULL DEFAULT 1,
 			UNIQUE(event_id, user_id),
 			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE,
-			FOREIGN KEY(user_id) REFERENCES users(id),
-			FOREIGN KEY(team_id) REFERENCES teams(id)
+			FOREIGN KEY(user_id) REFERENCES users(id)
 		)`,
 		`CREATE TABLE IF NOT EXISTS captain_votes (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,7 +92,6 @@ func migrate(db *sql.DB) error {
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(event_id, voter_id),
 			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE,
-			FOREIGN KEY(team_id) REFERENCES teams(id),
 			FOREIGN KEY(voter_id) REFERENCES users(id),
 			FOREIGN KEY(target_id) REFERENCES users(id)
 		)`,
@@ -113,7 +104,6 @@ func migrate(db *sql.DB) error {
 			source TEXT NOT NULL DEFAULT 'manual',
 			UNIQUE(event_id, team_id, position),
 			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE,
-			FOREIGN KEY(team_id) REFERENCES teams(id),
 			FOREIGN KEY(player_id) REFERENCES users(id)
 		)`,
 		`CREATE TABLE IF NOT EXISTS rounds (
@@ -128,8 +118,7 @@ func migrate(db *sql.DB) error {
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(event_id, stage),
-			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE,
-			FOREIGN KEY(winner_team_id) REFERENCES teams(id)
+			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE
 		)`,
 		`CREATE TABLE IF NOT EXISTS matches (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -150,11 +139,8 @@ func migrate(db *sql.DB) error {
 			UNIQUE(round_id, seq),
 			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE,
 			FOREIGN KEY(round_id) REFERENCES rounds(id) ON DELETE CASCADE,
-			FOREIGN KEY(team_a_id) REFERENCES teams(id),
-			FOREIGN KEY(team_b_id) REFERENCES teams(id),
 			FOREIGN KEY(player_a_id) REFERENCES users(id),
 			FOREIGN KEY(player_b_id) REFERENCES users(id),
-			FOREIGN KEY(winner_team_id) REFERENCES teams(id),
 			FOREIGN KEY(next_player_id) REFERENCES users(id),
 			FOREIGN KEY(created_by) REFERENCES users(id)
 		)`,
@@ -173,7 +159,7 @@ func migrate(db *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS player_selections (
 			event_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
 			stage TEXT NOT NULL,
-			team_id INTEGER NOT NULL REFERENCES teams(id),
+			team_id INTEGER NOT NULL,
 			player_id INTEGER NOT NULL REFERENCES users(id),
 			PRIMARY KEY(event_id, stage, team_id)
 		)`,
@@ -195,7 +181,7 @@ func migrate(db *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS kof_reservations (
 			event_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
 			match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-			team_id INTEGER NOT NULL REFERENCES teams(id),
+			team_id INTEGER NOT NULL,
 			player_id INTEGER NOT NULL REFERENCES users(id),
 			PRIMARY KEY(match_id,team_id)
 		)`,
@@ -249,7 +235,8 @@ func migrate(db *sql.DB) error {
 		{"tournaments", "kof_initial_a", "INTEGER"},
 		{"tournaments", "kof_initial_b", "INTEGER"},
 		{"tournaments", "rules_json", "TEXT NOT NULL DEFAULT '{}'"},
-		{"teams", "lineup_submitted", "INTEGER NOT NULL DEFAULT 0"},
+		{"tournaments", "lineup_a_submitted", "INTEGER NOT NULL DEFAULT 0"},
+		{"tournaments", "lineup_b_submitted", "INTEGER NOT NULL DEFAULT 0"},
 		{"tournaments", "background_id", "INTEGER"},
 		{"backgrounds", "file_path", "TEXT NOT NULL DEFAULT ''"},
 		{"backgrounds", "image_size", "INTEGER NOT NULL DEFAULT 0"},
@@ -274,6 +261,9 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 	if _, err := db.Exec(`UPDATE users SET role='user' WHERE role IN ('manager','player')`); err != nil {
+		return err
+	}
+	if err := initializeFixedTeams(db); err != nil {
 		return err
 	}
 	return normalizeEventMetadata(db)

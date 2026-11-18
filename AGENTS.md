@@ -29,6 +29,7 @@
 
 ## 赛事业务规则
 
+- 不建立`teams`表；每场固定A、B两队，内部队伍编号分别为`赛事ID*2-1`、`赛事ID*2`，只通过统一辅助函数计算。赛事表保存双方排阵提交标记；对局、参赛者、投票及KOF报名继续按同一编号关联。旧结构转换保留数据、自增上限、索引和触发器并校验外键，演示数据库也应用相同结构。
 - 每场赛事固定两支队伍，总参赛人数为 6–12 人，两队人数允许不同。
 - 创建赛事时允许固定部分选手队伍，其他选手随机分配。
 - 创建与保存只写入 `event_setup_roster` 的参赛意向，不提前随机分队。管理员通过 `POST /api/events/:id/setup-draw` 在同一事务内完成正式分队、随机首轮排阵及随机KOF首发，重复请求、越权及非法阶段须拒绝；旧有正式阵容继续视为已抽签。分组后锁定阵容和前两轮规则。
@@ -42,7 +43,7 @@
 - 两个抢分目标可设置为 1–99；创建赛事可先不添加选手，正式开始时再验证 6–12 人及双方均有选手。
 - 首轮人工排阵槽位为 `min(team_size, floor(total_players / 2))`，剩余顺序由随机调度生成。
 - 首轮手动排阵使用 `/live/:id/lineup` 独立页面，仅分队后的赛前手动模式显示入口；队长仅操作本队，管理员可切换双方队伍。随机模式及已开赛阶段不显示入口，服务端路由也校验身份、模式和阶段。
-- 手动排阵赛前只公开双方提交状态，双方提交前公开详情及SSE不得包含单方具体排阵。`teams.lineup_submitted`记录包括全随机补位的有效提交，兼容旧排阵记录；编辑页通过私有接口读取本队排阵，管理员可读双方。阵容重置时清空提交状态。
+- 手动排阵赛前只公开双方提交状态，双方提交前公开详情及SSE不得包含单方具体排阵。`tournaments.lineup_a_submitted/lineup_b_submitted`记录包括全随机补位的有效提交，兼容旧排阵记录；编辑页通过私有接口读取本队排阵，管理员可读双方。阵容重置时清空提交状态。
 - 首轮随机调度应避免同一选手连续出场，并尽量保证所有选手先出场后再重复。
 - KOF 采用胜者留场、败者换人；仅目标分大于队伍人数且全队均已输过时，系统自动随机复活一人。其他情况等待合法派人或报名。
 - 两轮分别产生阶段胜者；阶段胜者不同时进入待抽大将状态（`tournaments.status='ace'`、第三轮仍为 `pending` 且没有对局）。KOF最后录分和纠错均不得自动抽大将；管理员在实时页通过 `POST /api/events/:id/ace/draw` 手动抽取，须验证两轮结束且各胜一轮，拒绝重复抽取和越权。未抽取前不能通过覆盖大将接口创建对局。
@@ -63,7 +64,7 @@
 
 ## 推荐数据边界
 
-核心表包括：`users`、`tournaments`、`teams`、`event_players`、`captain_votes`、`lineup_entries`、`rounds`、`matches`、`event_actions`、`categories` 和 `site_event_names`。
+核心表包括：`users`、`tournaments`、`event_players`、`captain_votes`、`lineup_entries`、`rounds`、`matches`、`event_actions`、`categories` 和 `site_event_names`。
 
 历史录入和实时推进都写入 `rounds` 与 `matches`；`matches.round_no`、`a_id`、`b_id`、`who_win` 保持与规范字段同步，其中 `who_win` 使用 `0`、`a`、`b`。
 

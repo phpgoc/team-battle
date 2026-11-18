@@ -105,16 +105,7 @@ func (a *App) archiveEvent(c *gin.Context) {
 		return
 	}
 	id, _ := r.LastInsertId()
-	teams := []int64{}
-	for _, name := range []string{"A 队", "B 队"} {
-		result, err := tx.Exec(`INSERT INTO teams(event_id,name) VALUES(?,?)`, id, name)
-		if err != nil {
-			fail(c, 500, err.Error())
-			return
-		}
-		team, _ := result.LastInsertId()
-		teams = append(teams, team)
-	}
+	teams := fixedTeamIDs(id)
 	if err := saveSetupRoster(tx, id, req.PlayerIDs, req.FixedAssignments); err != nil {
 		fail(c, 400, err.Error())
 		return

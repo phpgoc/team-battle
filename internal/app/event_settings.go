@@ -194,7 +194,7 @@ func (a *App) updateEventSettings(c *gin.Context) {
 		// 仅修改大将战规则、赛事资料或管理员时保留当前的队长和排阵阶段。
 		// 未分队或重新分队时仍清空依赖旧阵容的流程数据。
 		if !grouped || rosterChanged {
-			if _, err := tx.Exec(`UPDATE teams SET lineup_submitted=0 WHERE event_id=?`, eventID); err != nil {
+			if _, err := tx.Exec(`UPDATE tournaments SET lineup_a_submitted=0,lineup_b_submitted=0 WHERE id=?`, eventID); err != nil {
 				return err
 			}
 			for _, table := range []string{"kof_reservations", "player_selections", "matches", "lineup_entries"} {
@@ -223,7 +223,7 @@ func eventRosterChanged(db sqlRunner, eventID int64, ids []int64, fixed map[stri
 	if len(ids) > 12 {
 		return false, errors.New("参赛列表最多12人")
 	}
-	rows, err := db.Query(`SELECT ep.user_id,CASE WHEN ep.team_id=(SELECT MIN(id) FROM teams WHERE event_id=?) THEN 'A' ELSE 'B' END FROM event_players ep WHERE ep.event_id=? AND ep.active=1`, eventID, eventID)
+	rows, err := db.Query(`SELECT ep.user_id,CASE WHEN ep.team_id=(?*2-1) THEN 'A' ELSE 'B' END FROM event_players ep WHERE ep.event_id=? AND ep.active=1`, eventID, eventID)
 	if err != nil {
 		return false, err
 	}

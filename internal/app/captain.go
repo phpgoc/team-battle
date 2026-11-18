@@ -286,15 +286,15 @@ func (a *App) submitLineup(c *gin.Context) {
 			}
 		}
 		// 全部留给随机补位也是一次有效提交，不能用排阵人数判断是否已提交。
-		if _, err := e.db.Exec(`UPDATE teams SET lineup_submitted=1 WHERE event_id=? AND id=?`, id, req.TeamID); err != nil {
+		if _, err := e.db.Exec(`UPDATE tournaments SET lineup_a_submitted=CASE WHEN id*2-1=? THEN 1 ELSE lineup_a_submitted END,lineup_b_submitted=CASE WHEN id*2=? THEN 1 ELSE lineup_b_submitted END WHERE id=?`, req.TeamID, req.TeamID, id); err != nil {
 			return err
 		}
 		// 双方提交后补齐随机空位并公开，首局可直接录分，无需额外的开赛按钮。
-		var submitted int
-		if err := e.db.QueryRow(`SELECT COUNT(*) FROM teams WHERE event_id=? AND (lineup_submitted=1 OR EXISTS(SELECT 1 FROM lineup_entries l WHERE l.event_id=teams.event_id AND l.team_id=teams.id))`, id).Scan(&submitted); err != nil {
+		ready, err := lineupReadiness(e.db, id)
+		if err != nil {
 			return err
 		}
-		if submitted == 2 {
+		if ready[0] && ready[1] {
 			if err := e.fillLineups(false); err != nil {
 				return err
 			}

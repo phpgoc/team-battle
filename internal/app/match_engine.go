@@ -37,25 +37,7 @@ func (e *matchEngine) round(stage string) (engineRound, error) {
 	err := e.db.QueryRow(`SELECT id,target_score,score_a,score_b,COALESCE(winner_team_id,0),status FROM rounds WHERE event_id=? AND stage=?`, e.eventID, stage).Scan(&r.id, &r.target, &r.a, &r.b, &r.winner, &r.status)
 	return r, err
 }
-func (e *matchEngine) teams() ([]int64, error) {
-	rows, err := e.db.Query(`SELECT id FROM teams WHERE event_id=? ORDER BY id`, e.eventID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	ids := []int64{}
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	if len(ids) != 2 {
-		return nil, errors.New("赛事需要两支队伍")
-	}
-	return ids, rows.Err()
-}
+func (e *matchEngine) teams() ([]int64, error) { return loadFixedTeamIDs(e.db, e.eventID) }
 func (e *matchEngine) players(team int64) ([]int64, error) {
 	rows, err := e.db.Query(`SELECT user_id FROM event_players WHERE event_id=? AND team_id=? AND active=1 ORDER BY user_id`, e.eventID, team)
 	if err != nil {

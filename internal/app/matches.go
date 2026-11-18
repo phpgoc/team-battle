@@ -72,11 +72,11 @@ func (a *App) submitOpeningResult(c *gin.Context) {
 			return err
 		}
 		if rules.Round1Mode == "manual" {
-			var submitted int
-			if err := e.db.QueryRow(`SELECT COUNT(*) FROM teams WHERE event_id=? AND (lineup_submitted=1 OR EXISTS(SELECT 1 FROM lineup_entries l WHERE l.event_id=teams.event_id AND l.team_id=teams.id))`, id).Scan(&submitted); err != nil {
+			ready, err := lineupReadiness(e.db, id)
+			if err != nil {
 				return err
 			}
-			if submitted != 2 {
+			if !ready[0] || !ready[1] {
 				return errors.New("请等待双方提交第一轮排阵")
 			}
 		}

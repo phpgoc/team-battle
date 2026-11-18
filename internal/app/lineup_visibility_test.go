@@ -68,7 +68,7 @@ func TestManualLineupsRevealAfterBothSubmissions(t *testing.T) {
 		t.Fatalf("双方提交后未公开排阵: %+v", data)
 	}
 	// 兼容旧数据库中已有排阵但没有提交标记的赛事。
-	if _, err := f.app.db.Exec(`UPDATE teams SET lineup_submitted=0 WHERE event_id=?`, id); err != nil {
+	if _, err := f.app.db.Exec(`UPDATE tournaments SET lineup_a_submitted=0,lineup_b_submitted=0 WHERE id=?`, id); err != nil {
 		t.Fatal(err)
 	}
 	f.request(t, 6, "POST", fmt.Sprintf("/api/events/%d/lineup/submit", id), map[string]any{"team_id": teams[1], "player_ids": []int{8, 6}}, 200)

@@ -43,7 +43,7 @@ func (a *App) addEventPlayers(c *gin.Context) {
 			return
 		}
 	}
-	if _, err := tx.Exec(`UPDATE teams SET lineup_submitted=0 WHERE event_id=?`, eventID); err != nil {
+	if _, err := tx.Exec(`UPDATE tournaments SET lineup_a_submitted=0,lineup_b_submitted=0 WHERE id=?`, eventID); err != nil {
 		fail(c, 500, err.Error())
 		return
 	}

@@ -11,8 +11,8 @@ func (a *App) publicEventSummaries(history bool) ([]map[string]any, error) {
 	rows, err := a.db.Query(`SELECT e.id,e.name,e.description,e.event_time,e.status,e.round1_target,e.round2_target,e.created_at,COALESCE(e.manager_id,0),
 		(SELECT COUNT(*) FROM event_players p WHERE p.event_id=e.id AND p.active=1),
 		(SELECT COUNT(DISTINCT p.team_id) FROM event_players p WHERE p.event_id=e.id AND p.active=1),
-		(SELECT COUNT(*) FROM rounds r WHERE r.event_id=e.id AND r.winner_team_id=(SELECT MIN(id) FROM teams WHERE event_id=e.id)),
-		(SELECT COUNT(*) FROM rounds r WHERE r.event_id=e.id AND r.winner_team_id=(SELECT MAX(id) FROM teams WHERE event_id=e.id))
+		(SELECT COUNT(*) FROM rounds r WHERE r.event_id=e.id AND r.winner_team_id=(e.id*2-1)),
+		(SELECT COUNT(*) FROM rounds r WHERE r.event_id=e.id AND r.winner_team_id=(e.id*2))
 		FROM tournaments e WHERE ` + where + ` ORDER BY ` + order)
 	if err != nil {
 		return nil, err

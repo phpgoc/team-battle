@@ -12,7 +12,7 @@ func TestCaptainElectionAutoConfirmsAtHalf(t *testing.T) {
 	vote := fmt.Sprintf("/api/events/%d/captain-votes", id)
 	f.request(t, 3, "POST", vote, map[string]any{"target_id": 3}, 400)
 	f.request(t, 4, "POST", vote, map[string]any{"target_id": 3}, 200)
-	f.assertCount(t, 0, `SELECT COUNT(*) FROM event_players WHERE event_id=? AND team_id=(SELECT MIN(id) FROM teams WHERE event_id=?) AND is_captain=1`, id, id)
+	f.assertCount(t, 0, `SELECT COUNT(*) FROM event_players WHERE event_id=? AND team_id=(?*2-1) AND is_captain=1`, id, id)
 	f.request(t, 5, "POST", vote, map[string]any{"target_id": 3}, 200)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=3 AND is_captain=1`, id)
 	f.request(t, 5, "POST", vote, map[string]any{"target_id": 4}, 400)

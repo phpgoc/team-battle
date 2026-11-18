@@ -294,16 +294,6 @@ func (a *App) createEvent(c *gin.Context) {
 		return
 	}
 	eventID, _ := result.LastInsertId()
-	_, err = transaction.Exec(`INSERT INTO teams(event_id,name,color) VALUES(?,?,?)`, eventID, "A 队", "#ef8354")
-	if err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
-		return
-	}
-	_, err = transaction.Exec(`INSERT INTO teams(event_id,name,color) VALUES(?,?,?)`, eventID, "B 队", "#3578e5")
-	if err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
-		return
-	}
 	if len(req.PlayerIDs) > 0 {
 		if err := saveSetupRoster(transaction, eventID, req.PlayerIDs, req.FixedAssignments); err != nil {
 			fail(c, http.StatusBadRequest, err.Error())

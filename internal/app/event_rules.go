@@ -132,16 +132,13 @@ func saveRules(tx *sql.Tx, eventID int64, rules EventRules) error {
 	return err
 }
 
-// 将旧版本的队名和分钟精度统一为固定队名、整点时间。
+// 将旧版本的分钟精度统一为整点时间。
 func normalizeEventMetadata(db *sql.DB) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec(`UPDATE teams SET name=CASE WHEN id=(SELECT MIN(t.id) FROM teams t WHERE t.event_id=teams.event_id) THEN 'A 队' ELSE 'B 队' END WHERE name<>CASE WHEN id=(SELECT MIN(t.id) FROM teams t WHERE t.event_id=teams.event_id) THEN 'A 队' ELSE 'B 队' END`); err != nil {
-		return err
-	}
 	rows, err := tx.Query(`SELECT id,event_time FROM tournaments`)
 	if err != nil {
 		return err

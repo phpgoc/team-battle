@@ -213,9 +213,9 @@ func TestEventHourAndFixedNames(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "captain")
 	f.request(t, 2, "PATCH", fmt.Sprintf("/api/events/%d/settings", id), map[string]any{"name": "整点比赛", "event_time": "2026-11-18T21", "round1_target": 1, "round2_target": 1, "team_a_name": "任意队名", "team_b_name": "任意队名2"}, 200)
-	f.assertCount(t, 2, `SELECT COUNT(*) FROM teams WHERE event_id=? AND name IN ('A 队','B 队')`, id)
-	if _, err := f.app.db.Exec(`UPDATE teams SET name='旧队名' WHERE event_id=?`, id); err != nil {
-		t.Fatal(err)
+	view, err := f.app.loadTeams(id)
+	if err != nil || len(view) != 2 || view[0]["name"] != "A 队" || view[1]["name"] != "B 队" {
+		t.Fatalf("队名必须固定: %+v %v", view, err)
 	}
 	if _, err := f.app.db.Exec(`UPDATE tournaments SET event_time='2026-11-17T08:35:59' WHERE id=?`, id); err != nil {
 		t.Fatal(err)
@@ -225,7 +225,7 @@ func TestEventHourAndFixedNames(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	f.assertCount(t, 2, `SELECT COUNT(*) FROM teams WHERE event_id=? AND name IN ('A 队','B 队')`, id)
+	f.assertCount(t, 0, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='teams'`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND event_time='2026-11-17T08:00:00'`, id)
 	if rules, err := decodeRules(`{"round1_mode":"random"}`); err != nil || rules.KOFStarter != "random" {
 		t.Fatal("旧规则未兼容默认随机首发")

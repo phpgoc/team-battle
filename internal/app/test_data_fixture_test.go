@@ -643,17 +643,7 @@ func seedEventShell(tx *sql.Tx, managerID, creatorID int64, name, eventTime, sta
 		return 0, 0, 0, err
 	}
 	eventID, _ := result.LastInsertId()
-	a, err := tx.Exec(`INSERT INTO teams(event_id,name,color) VALUES(?,?,?)`, eventID, "A 队", "#ef8354")
-	if err != nil {
-		return 0, 0, 0, err
-	}
-	teamA, _ := a.LastInsertId()
-	b, err := tx.Exec(`INSERT INTO teams(event_id,name,color) VALUES(?,?,?)`, eventID, "B 队", "#3578e5")
-	if err != nil {
-		return 0, 0, 0, err
-	}
-	teamB, _ := b.LastInsertId()
-	return eventID, teamA, teamB, nil
+	return eventID, eventID*2 - 1, eventID * 2, nil
 }
 
 func seedPlayers(tx *sql.Tx, eventID, teamA, teamB int64, players []int64) error {

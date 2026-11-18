@@ -209,35 +209,17 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 }
 
 func (a *App) loadTeams(eventID int64) ([]map[string]any, error) {
-	rows, err := a.db.Query(`SELECT id,name,color,lineup_submitted OR EXISTS(SELECT 1 FROM lineup_entries l WHERE l.event_id=teams.event_id AND l.team_id=teams.id) FROM teams WHERE event_id=? ORDER BY id`, eventID)
+	ready, err := lineupReadiness(a.db, eventID)
 	if err != nil {
 		return nil, err
 	}
-	type teamRow struct {
-		id        int64
-		name      string
-		color     string
-		submitted bool
-	}
-	teamRows := []teamRow{}
-	for rows.Next() {
-		var id int64
-		var name, color string
-		var submitted bool
-		if err := rows.Scan(&id, &name, &color, &submitted); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		teamRows = append(teamRows, teamRow{id: id, name: name, color: color, submitted: submitted})
-	}
-	rows.Close()
 	teams := []map[string]any{}
-	for _, team := range teamRows {
-		players, err := a.loadPlayers(eventID, team.id)
+	for side, id := range fixedTeamIDs(eventID) {
+		players, err := a.loadPlayers(eventID, id)
 		if err != nil {
 			return nil, err
 		}
-		teams = append(teams, gin.H{"id": team.id, "name": team.name, "color": team.color, "players": players, "lineup_submitted": team.submitted})
+		teams = append(teams, gin.H{"id": id, "name": []string{"A 队", "B 队"}[side], "color": []string{"#ef8354", "#3578e5"}[side], "players": players, "lineup_submitted": ready[side]})
 	}
 	return teams, nil
 }
@@ -308,7 +290,7 @@ func (a *App) loadMatches(eventID int64) ([]map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	rows, err := a.db.Query(`SELECT m.id,m.round_id,r.stage,m.seq,m.team_a_id,ta.name,m.team_b_id,tb.name,m.player_a_id,m.player_b_id,m.winner_team_id,m.next_player_id,m.status,m.note,m.created_at,m.finished_at FROM matches m JOIN rounds r ON r.id=m.round_id JOIN teams ta ON ta.id=m.team_a_id JOIN teams tb ON tb.id=m.team_b_id WHERE m.event_id=? ORDER BY m.round_id,m.seq`, eventID)
+	rows, err := a.db.Query(`SELECT m.id,m.round_id,r.stage,m.seq,m.team_a_id,'A 队',m.team_b_id,'B 队',m.player_a_id,m.player_b_id,m.winner_team_id,m.next_player_id,m.status,m.note,m.created_at,m.finished_at FROM matches m JOIN rounds r ON r.id=m.round_id WHERE m.event_id=? ORDER BY m.round_id,m.seq`, eventID)
 	if err != nil {
 		return nil, err
 	}
@@ -384,22 +366,4 @@ func (a *App) roundInfo(eventID int64, stage string) (int64, int, int, int, stri
 	return roundID, target, scoreA, scoreB, status, err
 }
 
-func (a *App) teamIDs(eventID int64) ([]int64, error) {
-	rows, err := a.db.Query(`SELECT id FROM teams WHERE event_id=? ORDER BY id`, eventID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	ids := []int64{}
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	if len(ids) != 2 {
-		return nil, errors.New("赛事队伍配置不完整")
-	}
-	return ids, nil
-}
+func (a *App) teamIDs(eventID int64) ([]int64, error) { return loadFixedTeamIDs(a.db, eventID) }
