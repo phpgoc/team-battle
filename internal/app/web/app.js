@@ -786,7 +786,8 @@
       for (const side of ['a', 'b']) $$(`[name="past_${side}"]`).forEach(select => {
         const chosen = select.value;
         select.innerHTML = options(state.users.filter(u => state.roster[u.id] === side.toUpperCase()), chosen);
-        select.value = chosen;
+        // 名单新增或换队后，保留有效人选，否则使用本队首位，避免空值阻止表单提交。
+        if ([...select.options].some(option => option.value === chosen)) select.value = chosen;
       });
     });
     $('#archive-form').onsubmit = action(async event => { event.preventDefault(); const f = new FormData(event.target); const matches = $$('.past-match').map(row => ({ round: Number($('[name="past_round"]', row).value), a_id: Number($('[name="past_a"]', row).value), b_id: Number($('[name="past_b"]', row).value), who_win: $('[name="past_winner"]', row).value })); if (!confirm(t('confirmEndHint'))) return; const result = await post('/api/events/archive', { name: f.get('name'), event_time: eventTimeValue(f), background_id: Number(f.get('background_id') || 0), ace_source: f.get('ace_source'), ...rosterValue(event.target), matches }); go('/live/' + result.id); });
