@@ -91,12 +91,14 @@ func TestKOFReservationsAdvanceOnlyAfterResult(t *testing.T) {
 	second := f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=2 AND seq=2`, id)
 	f.request(t, 6, "POST", path, map[string]any{"match_id": second, "team_id": teams[1], "player_id": 6}, 400)
 	f.request(t, 8, "POST", path, map[string]any{"match_id": second, "team_id": teams[1], "player_id": 8}, 200)
-	f.request(t, 2, "PATCH", result, map[string]any{"winner_team_id": teams[0]}, 200)
+	f.request(t, 2, "PATCH", result, map[string]any{"winner_team_id": teams[0]}, 400)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM kof_reservations WHERE event_id=?`, id)
+	f.request(t, 2, "PATCH", result, map[string]any{"winner_team_id": teams[1]}, 200)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM kof_reservations WHERE event_id=?`, id)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM matches WHERE event_id=? AND round_no=2 AND status='pending'`, id)
 	// 未提前报名时，上一局结束后可由本人补报名并公开对阵。
-	reserve(7, teams[1], 7, 200)
-	reserve(8, teams[1], 8, 400)
+	reserve(4, teams[0], 4, 200)
+	reserve(5, teams[0], 5, 400)
 }
 
 func TestCaptainSelectionAndAutomaticRevival(t *testing.T) {

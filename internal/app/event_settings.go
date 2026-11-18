@@ -56,7 +56,7 @@ func (a *App) updateEventSettings(c *gin.Context) {
 		if err != nil {
 			return err
 		}
-		// 所有设置共用一个事务，进行中仅接受抽签时长和赛事背景。
+		// 设置与比分纠错共用事务，非法修正不能留下部分设置变更。
 		if req.BackgroundID != nil {
 			valid, err := backgroundExists(tx, *req.BackgroundID)
 			if err != nil || *req.BackgroundID < 0 || !valid {
@@ -83,7 +83,19 @@ func (a *App) updateEventSettings(c *gin.Context) {
 			if err := saveRules(tx, eventID, rules); err != nil {
 				return err
 			}
+			if req.Correction != nil {
+				m, err := e.match(req.Correction.MatchID)
+				if err != nil {
+					return errors.New("对局不存在")
+				}
+				if err := e.correct(m, req.Correction.WinnerTeamID, req.Correction.Note); err != nil {
+					return err
+				}
+			}
 			return e.log("event_settings_updated", req)
+		}
+		if req.Correction != nil {
+			return errors.New("只能修正已录入对局的合法胜者")
 		}
 		var beforeRound1Target, beforeRound2Target int
 		if err := tx.QueryRow(`SELECT round1_target,round2_target FROM events WHERE id=?`, eventID).Scan(&beforeRound1Target, &beforeRound2Target); err != nil {

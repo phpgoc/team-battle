@@ -153,18 +153,25 @@ type createEventRequest struct {
 }
 
 type eventSettingsRequest struct {
-	BackgroundID      *int64            `json:"background_id"`
-	RandomDrawSeconds *int              `json:"random_draw_seconds"`
-	AceDrawSeconds    *int              `json:"ace_draw_seconds"`
-	ManagerID         *int64            `json:"manager_id"`
-	PlayerIDs         *[]int64          `json:"player_ids"`
-	FixedAssignments  map[string]string `json:"fixed_assignments"`
-	Name              string            `json:"name"`
-	EventTime         string            `json:"event_time"`
-	Description       string            `json:"description"`
-	Round1Target      int               `json:"round1_target"`
-	Round2Target      int               `json:"round2_target"`
-	Rules             *EventRules       `json:"rules"`
+	Correction        *eventResultCorrection `json:"correction"`
+	BackgroundID      *int64                 `json:"background_id"`
+	RandomDrawSeconds *int                   `json:"random_draw_seconds"`
+	AceDrawSeconds    *int                   `json:"ace_draw_seconds"`
+	ManagerID         *int64                 `json:"manager_id"`
+	PlayerIDs         *[]int64               `json:"player_ids"`
+	FixedAssignments  map[string]string      `json:"fixed_assignments"`
+	Name              string                 `json:"name"`
+	EventTime         string                 `json:"event_time"`
+	Description       string                 `json:"description"`
+	Round1Target      int                    `json:"round1_target"`
+	Round2Target      int                    `json:"round2_target"`
+	Rules             *EventRules            `json:"rules"`
+}
+
+type eventResultCorrection struct {
+	MatchID      int64  `json:"match_id"`
+	WinnerTeamID int64  `json:"winner_team_id"`
+	Note         string `json:"note"`
 }
 
 type eventBackgroundRequest struct {

@@ -772,6 +772,9 @@ func (e *matchEngine) correct(m engineMatch, winner int64, note string) error {
 	if m.status != statusFinished || (winner != m.teamA && winner != m.teamB) {
 		return errors.New("只能修正已录入对局的合法胜者")
 	}
+	if winner == m.winner {
+		return errors.New("胜负未变化，无需修正")
+	}
 	// 修正历史比分时，所有依赖原结果的预报名作废。
 	if _, err := e.db.Exec(`DELETE FROM kof_reservations WHERE event_id=?`, e.eventID); err != nil {
 		return err

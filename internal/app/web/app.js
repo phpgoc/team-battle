@@ -290,8 +290,9 @@
     const rules = { ...defaultRules(), ...e.rules };
     return `<section class="panel section-gap draw-timing-panel editor-section" id="event-timing"><div class="panel-head"><h2>${t('drawTiming')}</h2><span>${t('drawTimingMutable')}</span></div><div class="panel-body form-grid">${field('randomDrawSeconds', input('random_draw_seconds', rules.random_draw_seconds, 'number', 'min="0" step="1" required' + (editableTiming ? '' : ' disabled')))}${field('aceDrawSeconds', input('ace_draw_seconds', rules.ace_draw_seconds, 'number', 'min="0" step="1" required' + (editableTiming ? '' : ' disabled')))}<p class="help full">${t('drawTimingHint')}</p></div></section>`;
   }
-  function editorJumps() {
+  function editorJumps(correction = false) {
     const sections = [['basics', 'basicInfo'], ['roster', 'players'], ['round1', 'round1'], ['round2', 'round2'], ['ace', 'ace'], ['timing', 'drawTiming']];
+    if (correction) sections.push(['correction', 'correct']);
     return `<nav class="editor-jumps" aria-label="${t('eventSections')}">${sections.map(([id, title], index) => `<a href="#event-${id}"><span>${index + 1}</span>${t(title)}</a>`).join('')}</nav>`;
   }
   function backgroundOptions(backgrounds, selected = 0) {
@@ -299,6 +300,12 @@
   }
   function eventBackgroundMarkup(e, backgrounds, editable) {
     return `<section class="panel section-gap event-background-panel"><div class="panel-head"><h2>${t('background')}</h2><span>${esc(e.background_name || t('noBackground'))}</span></div><div class="panel-body"><div class="inline-form"><select name="background_id"${editable ? '' : ' disabled'}>${backgroundOptions(backgrounds, e.background_id)}</select></div><p class="help">${t('eventBackgroundHint')}</p></div></section>`;
+  }
+  function resultCorrectionMarkup(e) {
+    if (!editable(e)) return '';
+    const matches = e.matches.filter(match => match.status === 'finished');
+    if (!matches.length) return '';
+    return `<section class="panel section-gap editor-section" id="event-correction"><div class="panel-head"><h2>${t('correct')}</h2></div><div class="panel-body form-grid"><p class="notice full">${t('correctHint')} ${t('correctionSaveHint')}</p>${field('matchNo', `<select name="correction_match_id"><option value="0">${t('keepResults')}</option>${matches.map(match => `<option value="${match.id}">${t(match.stage)} #${match.seq} · ${esc(match.player_a_name)} / ${esc(match.player_b_name)}</option>`).join('')}</select>`)}${field('winner', `<select name="correction_winner_team_id" disabled>${e.teams.map(team => `<option value="${team.id}">${esc(teamName(e, team))}</option>`).join('')}</select>`)}</div></section>`;
   }
   async function eventEditor(mode = 'create', preserve = false) {
     const source = mode === 'create' ? {} : state.event;
@@ -330,13 +337,24 @@
     const createBackground = mode === 'create' ? field('background', `<select name="background_id">${backgroundOptions(backgrounds, e.background_id)}</select>`) : '';
     const basic = mode !== 'roster' ? '<section class="panel editor-section" id="event-basics"><div class="panel-head"><h2>' + t('basicInfo') + '</h2><span>' + t('requiredBasics') + '</span></div><div class="panel-body form-grid">' + field('name', '<input name="name" list="event-names" value="' + esc(e.name || '') + '" required><datalist id="event-names">' + (catalog.event_names || []).map(n => '<option value="' + esc(n.name) + '">').join('') + '</datalist>', true) + field('time', eventTimeInput(e.event_time || localTime())) + managerField + createBackground + field('description', '<textarea name="description" rows="2">' + esc(e.description || '') + '</textarea>', true) + '</div></section>' : '';
     const backgroundPanel = mode === 'create' || mode === 'roster' ? '' : eventBackgroundMarkup(e, backgrounds, manages(e) && !terminal(e));
-    const settingsHint = readonly ? 'settingsLocked' : mode === 'create' ? 'requiredHint' : roundSetupEditable ? 'settingsResetHint' : 'roundSetupLocked';
-    const content = '<div class="page-head"><div><h1>' + t(mode === 'create' ? 'createEvent' : mode === 'roster' ? 'editRoster' : 'eventSettings') + '</h1><p class="subtitle">' + t(settingsHint) + '</p></div></div>' + (mode === 'roster' ? '' : editorJumps()) + '<form id="event-form"><fieldset class="event-settings-fields">' + basic + rosterMarkup(state.users, state.roster, roundSetupEditable) + (mode === 'roster' ? '' : rulesMarkup(e, roundSetupEditable, aceSettingsEditable)) + '</fieldset>' + (mode === 'roster' ? '' : drawTimingMarkup(e, timingEditable)) + backgroundPanel + '<div class="event-editor-actions">' + (mode === 'create' ? '' : '<button type="button" class="outline" id="back-board">' + t('backToMatch') + '</button>') + (!terminal(e) ? '<button type="submit" class="primary accent">' + t(mode === 'create' ? 'createEvent' : 'save') + '</button>' : '') + '</div></form>';
+    const correctionPanel = mode === 'settings' ? resultCorrectionMarkup(e) : '';
+    const settingsHint = terminal(e) ? 'readOnly' : readonly ? 'settingsLocked' : mode === 'create' ? 'requiredHint' : roundSetupEditable ? 'settingsResetHint' : 'roundSetupLocked';
+    const content = '<div class="page-head"><div><h1>' + t(mode === 'create' ? 'createEvent' : mode === 'roster' ? 'editRoster' : 'eventSettings') + '</h1><p class="subtitle">' + t(settingsHint) + '</p></div></div>' + (mode === 'roster' ? '' : editorJumps(!!correctionPanel)) + '<form id="event-form"><fieldset class="event-settings-fields">' + basic + rosterMarkup(state.users, state.roster, roundSetupEditable) + (mode === 'roster' ? '' : rulesMarkup(e, roundSetupEditable, aceSettingsEditable)) + '</fieldset>' + (mode === 'roster' ? '' : drawTimingMarkup(e, timingEditable)) + backgroundPanel + correctionPanel + '<div class="event-editor-actions">' + (mode === 'create' ? '' : '<button type="button" class="outline" id="back-board">' + t('backToMatch') + '</button>') + (!terminal(e) ? '<button type="submit" class="primary accent">' + t(mode === 'create' ? 'createEvent' : 'save') + '</button>' : '') + '</div></form>';
     if (mode === 'create') shell(content, 'createEvent'); else {
       app.innerHTML = '<main class="event-editor-page"><div class="editor-language">' + picker() + '</div>' + content + '</main>';
       bindCommon(); $('#back-board').onclick = () => go(hasRoster(state.event) ? '/live/' + state.event.id : '/');
     }
     const form = $('#event-form');
+    const syncCorrection = (resetWinner = false) => {
+      const selection = $('[name="correction_match_id"]', form);
+      if (!selection) return;
+      const match = e.matches.find(match => match.id === Number(selection.value));
+      const winner = $('[name="correction_winner_team_id"]', form);
+      winner.disabled = !match;
+      if (match && resetWinner) winner.value = String(match.winner_team_id);
+    };
+    $('[name="correction_match_id"]', form)?.addEventListener('change', () => syncCorrection(true));
+    form.addEventListener('formrestored', () => syncCorrection());
     if (mode !== 'create' && mode !== 'roster' && roundSetupEditable) $('#event-ace').insertAdjacentHTML('beforebegin', `<div class="setup-draw-action"><button type="button" class="primary accent" id="start-setup-draw">${t('startSetupDraw')}</button><span class="help">${t('setupDrawHint')}</span></div>`);
     $('#start-setup-draw')?.addEventListener('click', () => {
       if (form.dataset.busy || !form.reportValidity()) return;
@@ -357,6 +375,11 @@
         round1_target: Number(f.get('round1_target')), round2_target: Number(f.get('round2_target')), background_id: Number(f.get('background_id') || 0),
         rules: rulesValue(form), ...(!hasGrouping(e) ? rosterValue(form) : {})
       };
+      const correctionMatch = e.matches?.find(match => match.id === Number(f.get('correction_match_id')));
+      if (correctionMatch && correctionMatch.winner_team_id !== Number(f.get('correction_winner_team_id'))) {
+        if (!confirm(t('correctHint'))) return;
+        body.correction = { match_id: correctionMatch.id, winner_team_id: Number(f.get('correction_winner_team_id')) };
+      }
       if (mode === 'create') { const created = await post('/api/events', body); toast(t('eventCreated')); go('/live/' + created.id); }
       else {
         await post('/api/events/' + e.id + (mode === 'roster' ? '/players' : '/settings'), body, mode === 'roster' ? 'POST' : 'PATCH');
@@ -516,7 +539,7 @@
     })));
     const tools = $('#board-tools');
     if (tools) {
-      tools.hidden = !manager || !(e.matches.some(match => match.status === 'finished') || ['ace', 'final_confirm'].includes(e.status));
+      tools.hidden = !manager || !(e.status === 'final_confirm' || (e.status === 'ace' && e.matches.some(match => match.stage === 'ace' && match.status === 'pending')));
       tools.onclick = () => {
         $('.board-menu').open = false;
         state.operations = true;
@@ -709,12 +732,10 @@
     const pending = e.matches.find(m => m.status === 'pending' && m.stage === e.status);
     if (manager && e.status === 'ace' && pending) content += `<section class="panel section-gap"><form id="ace-form" class="panel-body form-grid">${field('teamA', `<select name="player_a_id">${options(e.teams[0].players, pending.player_a_id)}</select>`)}${field('teamB', `<select name="player_b_id">${options(e.teams[1].players, pending.player_b_id)}</select>`)}<button class="outline">${t('overrideAce')}</button></form></section>`;
     if (manager && e.status === 'final_confirm') content += `<section class="panel section-gap"><div class="panel-body"><p>${t('confirmEndHint')}</p><button class="primary accent" id="confirm-end">${t('confirmEnd')}</button></div></section>`;
-    if (manager && e.matches.some(m => m.status === 'finished')) content += `<section class="panel section-gap"><div class="panel-head"><h2>${t('correct')}</h2></div><form id="correct-form" class="panel-body form-grid"><p class="notice full">${t('correctHint')}</p>${field('matchNo', `<select name="match_id">${e.matches.filter(m => m.status === 'finished').map(m => `<option value="${m.id}">${t(m.stage)} #${m.seq} · ${esc(m.player_a_name)} / ${esc(m.player_b_name)}</option>`).join('')}</select>`)}${field('winner', `<select name="winner_team_id">${e.teams.map(team => `<option value="${team.id}">${esc(teamName(e, team))}</option>`).join('')}</select>`)}<button class="outline">${t('correct')}</button></form></section>`;
     target.innerHTML = content;
     $('#close-operations')?.addEventListener('click', () => { state.operations = false; $('#event-operations').classList.add('hidden'); });
     $('#operations-lineup')?.addEventListener('click', event => { event.preventDefault(); go('/live/' + e.id + '/lineup'); });
     $('#ace-form')?.addEventListener('submit', action(async event => { event.preventDefault(); const f = new FormData(event.target); await eventAction('/ace/confirm', { player_a_id: Number(f.get('player_a_id')), player_b_id: Number(f.get('player_b_id')) }); }));
-    $('#correct-form')?.addEventListener('submit', action(async event => { event.preventDefault(); if (!confirm(t('correctHint'))) return; const f = new FormData(event.target); await eventAction('/matches/' + f.get('match_id') + '/result', { winner_team_id: Number(f.get('winner_team_id')) }, 'PATCH'); }));
     $('#confirm-end')?.addEventListener('click', action(async () => { if (confirm(t('confirmEndHint'))) await eventAction('/confirm'); }));
   }
   async function openEvent(id, preserve = false, setting = false) {
