@@ -246,6 +246,7 @@ func migrate(db *sql.DB) error {
 		{"events", "kof_initial_a", "INTEGER"},
 		{"events", "kof_initial_b", "INTEGER"},
 		{"events", "rules_json", "TEXT NOT NULL DEFAULT '{}'"},
+		{"teams", "lineup_submitted", "INTEGER NOT NULL DEFAULT 0"},
 		{"events", "background_id", "INTEGER"},
 		{"backgrounds", "file_path", "TEXT NOT NULL DEFAULT ''"},
 		{"backgrounds", "image_size", "INTEGER NOT NULL DEFAULT 0"},

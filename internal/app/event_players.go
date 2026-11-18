@@ -43,6 +43,10 @@ func (a *App) addEventPlayers(c *gin.Context) {
 			return
 		}
 	}
+	if _, err := tx.Exec(`UPDATE teams SET lineup_submitted=0 WHERE event_id=?`, eventID); err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
 	if err := saveSetupRoster(tx, eventID, req.PlayerIDs, req.FixedAssignments); err != nil {
 		fail(c, 400, err.Error())
 		return

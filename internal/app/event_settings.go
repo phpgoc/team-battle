@@ -182,6 +182,9 @@ func (a *App) updateEventSettings(c *gin.Context) {
 		// 仅修改大将战规则、赛事资料或管理员时保留当前的队长和排阵阶段。
 		// 未分队或重新分队时仍清空依赖旧阵容的流程数据。
 		if !grouped || rosterChanged {
+			if _, err := tx.Exec(`UPDATE teams SET lineup_submitted=0 WHERE event_id=?`, eventID); err != nil {
+				return err
+			}
 			for _, table := range []string{"kof_reservations", "player_selections", "matches", "lineup_entries"} {
 				if _, err := tx.Exec(`DELETE FROM `+table+` WHERE event_id=?`, eventID); err != nil {
 					return err

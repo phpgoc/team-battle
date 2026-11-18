@@ -2,6 +2,8 @@ window.TB_I18N = {
   "zh": {
     "eventRules": "赛事规则",
     "round1Lineup": "第一轮排阵",
+    "lineupSubmitted": "已排阵",
+    "lineupWaiting": "待排阵",
     "reservedPlayer": "已安排出场",
     "lineupTeam": "操作队伍",
     "lineupDuplicate": "同一名选手不能重复排阵",
@@ -276,6 +278,8 @@ window.TB_I18N = {
   "en": {
     "eventRules": "Event rules",
     "round1Lineup": "Round 1 lineup",
+    "lineupSubmitted": "Lineup submitted",
+    "lineupWaiting": "Awaiting lineup",
     "reservedPlayer": "Selected to play",
     "lineupTeam": "Team to manage",
     "lineupDuplicate": "A player cannot appear twice in the lineup",
@@ -550,6 +554,8 @@ window.TB_I18N = {
   "ko": {
     "eventRules": "대회 규칙",
     "round1Lineup": "1라운드 라인업",
+    "lineupSubmitted": "출전 순서 제출 완료",
+    "lineupWaiting": "출전 순서 대기",
     "reservedPlayer": "출전 예약됨",
     "lineupTeam": "운영할 팀",
     "lineupDuplicate": "같은 선수를 중복 배치할 수 없습니다",

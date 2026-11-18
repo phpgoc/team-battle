@@ -159,6 +159,16 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 		lineups = append(lineups, map[string]any{"team_id": team, "position": pos, "player_id": player, "source": source})
 	}
 	lineupRows.Close()
+	// 双方都确认前只公开提交状态，避免另一队通过详情或SSE提前看到排阵。
+	if rules.Round1Mode == "manual" && preMatch(status) && !includePrivate {
+		ready := len(teams) == 2
+		for _, team := range teams {
+			ready = ready && team["lineup_submitted"] == true
+		}
+		if !ready {
+			lineups = []map[string]any{}
+		}
+	}
 	event["lineups"] = lineups
 	votes := []map[string]any{}
 	voteRows, err := a.db.Query(`SELECT target_id,COUNT(*) FROM captain_votes WHERE event_id=? GROUP BY target_id`, eventID)
@@ -239,24 +249,26 @@ func (a *App) loadAceDrawSource(eventID int64) (string, int, error) {
 }
 
 func (a *App) loadTeams(eventID int64) ([]map[string]any, error) {
-	rows, err := a.db.Query(`SELECT id,name,color FROM teams WHERE event_id=? ORDER BY id`, eventID)
+	rows, err := a.db.Query(`SELECT id,name,color,lineup_submitted OR EXISTS(SELECT 1 FROM lineup_entries l WHERE l.event_id=teams.event_id AND l.team_id=teams.id) FROM teams WHERE event_id=? ORDER BY id`, eventID)
 	if err != nil {
 		return nil, err
 	}
 	type teamRow struct {
-		id    int64
-		name  string
-		color string
+		id        int64
+		name      string
+		color     string
+		submitted bool
 	}
 	teamRows := []teamRow{}
 	for rows.Next() {
 		var id int64
 		var name, color string
-		if err := rows.Scan(&id, &name, &color); err != nil {
+		var submitted bool
+		if err := rows.Scan(&id, &name, &color, &submitted); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		teamRows = append(teamRows, teamRow{id: id, name: name, color: color})
+		teamRows = append(teamRows, teamRow{id: id, name: name, color: color, submitted: submitted})
 	}
 	rows.Close()
 	teams := []map[string]any{}
@@ -265,7 +277,7 @@ func (a *App) loadTeams(eventID int64) ([]map[string]any, error) {
 		if err != nil {
 			return nil, err
 		}
-		teams = append(teams, gin.H{"id": team.id, "name": team.name, "color": team.color, "players": players})
+		teams = append(teams, gin.H{"id": team.id, "name": team.name, "color": team.color, "players": players, "lineup_submitted": team.submitted})
 	}
 	return teams, nil
 }

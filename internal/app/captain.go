@@ -232,6 +232,10 @@ func (a *App) submitLineup(c *gin.Context) {
 				return err
 			}
 		}
+		// 全部留给随机补位也是一次有效提交，不能用排阵人数判断是否已提交。
+		if _, err := e.db.Exec(`UPDATE teams SET lineup_submitted=1 WHERE event_id=? AND id=?`, id, req.TeamID); err != nil {
+			return err
+		}
 		return e.log("lineup_submitted", req)
 	})
 	if err != nil {

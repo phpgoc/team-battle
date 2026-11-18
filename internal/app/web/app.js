@@ -403,6 +403,7 @@
   // 预抽对阵只用于展示，正式开赛后由比赛引擎按同一份排阵生成真实对局。
   function plannedMatches(e, stage) {
     if (!['round1', 'round2'].includes(stage) || terminal(e) || e.rounds.find(round => round.stage === stage)?.status === 'finished') return [];
+    if (stage === 'round1' && preMatch(e) && e.rules.round1_mode === 'manual' && !e.teams.every(team => team.lineup_submitted)) return [];
     const existing = e.matches.filter(match => match.stage === stage);
     const positions = stage === 'round1' ? [...new Set(e.lineups.map(entry => entry.position))].sort((a, b) => a - b) : (e.kof_starters?.length === 2 ? [1] : []);
     return positions.filter(position => !existing.some(match => match.seq === position)).map(position => {
@@ -438,6 +439,10 @@
       matches.push(...previews);
       const waiting = stage === 'round2' ? waitingKOFMatch(e) : null;
       if (waiting && !matches.some(match => match.seq === waiting.seq)) matches.push(waiting);
+      if (stage === 'round1' && preMatch(e) && e.rules.round1_mode === 'manual' && !e.teams.every(team => team.lineup_submitted)) {
+        const round = rounds.find(round => round.stage === stage);
+        return `<section class="board-round"><div class="board-round-head"><div><span class="board-round-no">${t(stage)}</span><h2>${round.score_a} : ${round.score_b}</h2></div></div><div class="board-matches board-lineup-readiness">${teams.map(team => `<div class="board-empty" data-lineup-status="${team.id}">${teamName(e, team)} · ${t(team.lineup_submitted ? 'lineupSubmitted' : 'lineupWaiting')}</div>`).join('')}</div></section>`;
+      }
       return roundMarkup(rounds.find(round => round.stage === stage), matches, people, e);
     };
     const pending = setup?.step ? { stage: setup.step.kind === 'group' ? 'setupGrouping' : setup.step.kind, player_a_id: setup.step.a, player_b_id: setup.step.b, player_a_name: t('toConfirm'), player_b_name: t('toConfirm') } : !terminal(e) ? (e.matches.find(match => match.status === 'pending' && match.stage === e.status) || waitingKOFMatch(e) || (preMatch(e) && e.rules.round1_mode === 'random' ? plannedMatches(e, 'round1')[0] : null)) : null;
@@ -455,13 +460,15 @@
       </div>${pending ? currentMatchMarkup(e, pending, people) : ''}
     </header><div class="board-arena"><div class="board-center"><div class="board-records"><div class="board-columns"><div class="board-left">${panel('round1')}${panel('round2')}</div><div class="board-right">${panel('ace')}<div class="board-rosters">${e.status === 'round2' && canOperate(e) && !setup ? '<div id="board-kof-controls"></div>' : ''}${roster(teams[0], 'a')}${roster(teams[1], 'b')}</div></div></div>${rulesSummary(e)}</div></div></div>`;
   }
-  function renderLineupPage(preserve = false) {
+  async function renderLineupPage(preserve = false) {
     const e = state.event;
     if (!canArrangeLineup(e)) { go('/live/' + e.id); return; }
+    const privateLineup = await api('/api/events/' + e.id + '/lineup');
+    if (state.event?.id !== e.id || state.editor !== 'lineup') return;
     if (!preserve || state.lineupEvent !== e.id) { state.lineupDrafts = {}; state.lineupTeam = 0; state.lineupEvent = e.id; }
     const teams = lineupTeams(e);
-    window.TBLineupPage.render({ root: app, event: e, teams, selectedTeam: state.lineupTeam, drafts: state.lineupDrafts, t, esc, person, picker, action, bindCommon,
-      onTeam: id => { state.lineupTeam = id; renderLineupPage(true); },
+    window.TBLineupPage.render({ root: app, event: { ...e, lineups: privateLineup.lineups }, teams, selectedTeam: state.lineupTeam, drafts: state.lineupDrafts, t, esc, person, picker, action, bindCommon,
+      onTeam: id => { state.lineupTeam = id; renderLineupPage(true).catch(error => toast(error.message)); },
       onBack: () => go('/live/' + e.id),
       onSave: async (team, ids) => { await post('/api/events/' + e.id + '/lineup/submit', { team_id: team, player_ids: ids }); toast(t('saved')); go('/live/' + e.id); }
     });
@@ -626,7 +633,7 @@
       throw new Error(t('eventRosterRequired'));
     }
     if (setting) state.editor = 'settings';
-    if (state.editor === 'lineup') renderLineupPage(preserve);
+    if (state.editor === 'lineup') await renderLineupPage(preserve);
     else if (state.editor) await eventEditor(state.editor, preserve); else boardPage();
     if (terminal(state.event)) { closeStream(); return; }
     if (!hasRoster(state.event)) return;
