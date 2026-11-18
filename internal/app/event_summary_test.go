@@ -30,7 +30,7 @@ func TestHomeSummariesAndCachedHistoryFilters(t *testing.T) {
 		}
 		return result
 	}
-	// 进行中的赛事包含不同工作阶段示例；直播赛首轮已有小分，但尚未产生阶段胜场。
+	// 进行中的赛事包含不同工作阶段示例；直播赛已经进入KOF，等待管理员安排下一位。
 	live := read("/api/public/events")
 	if len(live.Events) != 4 {
 		t.Fatalf("实时赛事摘要有误: %+v", live)
@@ -38,7 +38,7 @@ func TestHomeSummariesAndCachedHistoryFilters(t *testing.T) {
 	var foundLive bool
 	for _, event := range live.Events {
 		if event.Name == "GSL 直播赛" {
-			foundLive = event.PlayerCount == 9 && event.WinsA == 0 && event.WinsB == 0
+			foundLive = event.PlayerCount == 9 && event.WinsA == 1 && event.WinsB == 0
 		}
 	}
 	if !foundLive {

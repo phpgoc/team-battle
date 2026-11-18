@@ -415,7 +415,8 @@ func seedLiveTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64) 
 	if err := engine.start(); err != nil {
 		return err
 	}
-	for n := 0; n < 3; n++ {
+	// 直播演示直接停在KOF阶段，管理员登录后可以为下一位置报名或派人。
+	for n := 0; n < 4; n++ {
 		var id int64
 		if err := tx.QueryRow("SELECT id FROM matches WHERE event_id=? AND status='pending'", eventID).Scan(&id); err != nil {
 			return err
@@ -425,9 +426,6 @@ func seedLiveTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64) 
 			return err
 		}
 		winner := teamA
-		if n == 1 {
-			winner = teamB
-		}
 		if err := engine.record(match, winner, ""); err != nil {
 			return err
 		}
@@ -452,7 +450,8 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 			return err
 		}
 	}
-	players := []int64{ids["2"], ids["3"], ids["4"], ids["5"], ids["6"], ids["7"]}
+	// 工作流示例统一使用4v4，避免用3v3抢1分展示不合理的赛事配置。
+	players := []int64{ids["2"], ids["3"], ids["4"], ids["5"], ids["6"], ids["7"], ids["8"], ids["9"]}
 	newEvent := func(name, status string) (int64, int64, int64, error) {
 		eventID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, name, time.Now().Format("2006-01-02T15"), status)
 		if err != nil {
@@ -539,14 +538,13 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`UPDATE events SET round1_target=1 WHERE id=?`, eventID); err != nil {
+	if _, err := tx.Exec(`UPDATE rounds SET target_score=4,score_a=4,winner_team_id=?,status='finished' WHERE id=?`, teamA, r1); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`UPDATE rounds SET target_score=1,score_a=1,winner_team_id=?,status='finished' WHERE id=?`, teamA, r1); err != nil {
-		return err
-	}
-	if err := addMatch(eventID, r1, teamA, teamB, players[0], players[1], 1, teamA, statusFinished); err != nil {
-		return err
+	for seq := 1; seq <= 4; seq++ {
+		if err := addMatch(eventID, r1, teamA, teamB, players[(seq-1)*2], players[(seq-1)*2+1], seq, teamA, statusFinished); err != nil {
+			return err
+		}
 	}
 	if _, err := tx.Exec(`UPDATE rounds SET status='active' WHERE id=?`, r2); err != nil {
 		return err
@@ -574,20 +572,22 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`UPDATE events SET round1_target=1,round2_target=1 WHERE id=?`, eventID); err != nil {
+	if _, err := tx.Exec(`UPDATE rounds SET target_score=4,score_a=4,winner_team_id=?,status='finished' WHERE id=?`, teamA, r1); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`UPDATE rounds SET target_score=1,score_a=1,winner_team_id=?,status='finished' WHERE id=?`, teamA, r1); err != nil {
+	for seq := 1; seq <= 4; seq++ {
+		if err := addMatch(eventID, r1, teamA, teamB, players[(seq-1)*2], players[(seq-1)*2+1], seq, teamA, statusFinished); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`UPDATE rounds SET target_score=5,score_b=5,winner_team_id=?,status='finished' WHERE id=?`, teamB, r2); err != nil {
 		return err
 	}
-	if err := addMatch(eventID, r1, teamA, teamB, players[0], players[1], 1, teamA, statusFinished); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(`UPDATE rounds SET target_score=1,score_b=1,winner_team_id=?,status='finished' WHERE id=?`, teamB, r2); err != nil {
-		return err
-	}
-	if err := addMatch(eventID, r2, teamA, teamB, players[2], players[3], 1, teamB, statusFinished); err != nil {
-		return err
+	for seq := 1; seq <= 5; seq++ {
+		index := ((seq - 1) % 4) * 2
+		if err := addMatch(eventID, r2, teamA, teamB, players[index], players[1], seq, teamB, statusFinished); err != nil {
+			return err
+		}
 	}
 	if _, err := tx.Exec(`UPDATE rounds SET status='active' WHERE id=?`, r3); err != nil {
 		return err
@@ -611,20 +611,22 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`UPDATE events SET round1_target=1,round2_target=1 WHERE id=?`, eventID); err != nil {
+	if _, err := tx.Exec(`UPDATE rounds SET target_score=4,score_a=4,winner_team_id=?,status='finished' WHERE id=?`, teamA, r1); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`UPDATE rounds SET target_score=1,score_a=1,winner_team_id=?,status='finished' WHERE id=?`, teamA, r1); err != nil {
+	for seq := 1; seq <= 4; seq++ {
+		if err := addMatch(eventID, r1, teamA, teamB, players[(seq-1)*2], players[(seq-1)*2+1], seq, teamA, statusFinished); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`UPDATE rounds SET target_score=5,score_a=5,winner_team_id=?,status='finished' WHERE id=?`, teamA, r2); err != nil {
 		return err
 	}
-	if err := addMatch(eventID, r1, teamA, teamB, players[0], players[1], 1, teamA, statusFinished); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(`UPDATE rounds SET target_score=1,score_a=1,winner_team_id=?,status='finished' WHERE id=?`, teamA, r2); err != nil {
-		return err
-	}
-	if err := addMatch(eventID, r2, teamA, teamB, players[2], players[3], 1, teamA, statusFinished); err != nil {
-		return err
+	for seq := 1; seq <= 5; seq++ {
+		index := ((seq - 1) % 4) * 2
+		if err := addMatch(eventID, r2, teamA, teamB, players[0], players[index+1], seq, teamA, statusFinished); err != nil {
+			return err
+		}
 	}
 	return nil
 }

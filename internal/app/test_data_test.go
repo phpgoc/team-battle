@@ -34,7 +34,7 @@ func TestDemoDataHasConsistentCompleteMatches(t *testing.T) {
 		t.Fatalf("历史大将战没有显示特殊抽选来源: %s", detail)
 	}
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM (SELECT m.player_a_id FROM matches m JOIN rounds r ON r.id=m.round_id WHERE m.event_id=? AND r.stage='round1' GROUP BY m.player_a_id HAVING COUNT(*)>1)`, specialID)
-	f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE status='round1'`)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE name='GSL 直播赛' AND status='round2'`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE name='队长投票示例' AND status='captain_vote'`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM events e WHERE e.name='待分队示例' AND e.status='draft' AND NOT EXISTS (SELECT 1 FROM event_players p WHERE p.event_id=e.id)`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE name='第一轮排阵示例' AND status='lineup_confirm'`)

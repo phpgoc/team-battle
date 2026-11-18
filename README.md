@@ -83,18 +83,4 @@ go build -o team-battle .
 
 普通账号的显示名和头像分别每 7 天可修改一次，超级管理员修改资料不受此限制。已有对战成绩的账号不能删除，也不能删除自己的账号。
 
-首次使用前先初始化超级管理员。命令会生成随机密码并在终端显示一次：
-
-```text
-./team-battle init
-```
-
-默认账号名是 `admin`。可以使用 `--user` 指定账号名，也可以指定数据库：
-
-```text
-./team-battle init --user admin-root --db ./data/battle.sqlite
-```
-
-`init` 也支持使用 `--sql` 指定数据库文件，例如 `./team-battle init --user admin-root --sql ./data/battle.sqlite`。
-
-每次使用不同账号名都可以创建新的超级管理员；如果账号名已经存在，命令会拒绝创建，也不会覆盖原密码。
+全新数据库第一次启动时会自动创建超级管理员账号 `admin`，初始密码是 `test1234`。登录后请在账号设置中修改密码。

@@ -7,7 +7,6 @@ import (
 	"log"
 	mathrand "math/rand"
 	"net"
-	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -191,12 +190,6 @@ type aceRequest struct {
 
 // Main 启动正式服务，根目录和 cmd/team-battle 都通过它保持相同的启动行为。
 func Main() {
-	if len(os.Args) > 1 && os.Args[1] == "init" {
-		if err := runInit(os.Args[2:]); err != nil {
-			log.Fatal(err)
-		}
-		return
-	}
 	host := flag.String("host", "localhost", "HTTP listen host")
 	port := flag.Int("port", 9527, "HTTP listen port")
 	dbPath := flag.String("db", "", "SQLite database path")
@@ -222,6 +215,9 @@ func Main() {
 		log.Fatal(err)
 	}
 	if err := migrate(db); err != nil {
+		log.Fatal(err)
+	}
+	if err := ensureDefaultAdmin(db); err != nil {
 		log.Fatal(err)
 	}
 	if err := migrateBackgroundFiles(db, filepath.Dir(*dbPath)); err != nil {
