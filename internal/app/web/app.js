@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const app = document.getElementById('app');
-  const state = { user: null, language: localStorage.getItem('tb_language') || 'zh', event: null, stream: null, operations: false, editor: null, roster: {}, rosterOrder: [], users: [], page: 1, filters: {}, connection: '', drawTimer: null, drawToken: 0, draw: null };
+  const state = { user: null, language: localStorage.getItem('tb_language') || 'zh', boardTransparency: readBoardTransparency(), event: null, stream: null, operations: false, editor: null, roster: {}, rosterOrder: [], users: [], page: 1, filters: {}, connection: '', drawTimer: null, drawToken: 0, draw: null };
   const langs = { zh: '中文', en: 'English', ko: '한국어' };
   const t = key => window.TB_I18N[state.language]?.[key] || window.TB_I18N.zh[key] || key;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -501,11 +501,34 @@
       board.style.removeProperty('--event-background-image');
     }
   }
+  // 透明度是当前浏览器的观赛偏好，不修改赛事资料或广播给其他观众。
+  function readBoardTransparency() {
+    try {
+      const saved = localStorage.getItem('tb_board_transparency');
+      if (saved === null || saved.trim() === '' || !Number.isFinite(Number(saved))) return 30;
+      return Math.max(0, Math.min(100, Math.round(Number(saved))));
+    } catch (_) { return 30; }
+  }
+  function bindBoardTransparency() {
+    const board = $('.broadcast-board'), slider = $('#board-transparency'), output = $('#board-transparency-value');
+    if (!board || !slider) return;
+    const apply = () => {
+      board.style.setProperty('--board-panel-opacity', String((100 - state.boardTransparency) / 100));
+      slider.value = String(state.boardTransparency);
+      output.value = state.boardTransparency + '%';
+      slider.setAttribute('aria-valuetext', output.value);
+    };
+    slider.addEventListener('input', () => {
+      state.boardTransparency = Number(slider.value); apply();
+      try { localStorage.setItem('tb_board_transparency', String(state.boardTransparency)); } catch (_) {}
+    });
+    apply();
+  }
   function boardPage() {
     const e = state.event;
     if (!manages(e)) state.operations = false;
-    app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div id="board-content">${boardContent(e)}</div><div id="event-operations" tabindex="-1" class="event-operations${state.operations ? '' : ' hidden'}"></div><details class="board-menu"><summary aria-label="${t('eventControls')}">☰</summary><div>${picker()}<button data-go="/">${t('homeLink')}</button>${manages(e) && !terminal(e) ? `<button id="toggle-operations">${t('eventControls')}</button>` : ''}${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></main>`;
-    applyEventBackground(e); bindCommon(); bindBoardSettings(); $('#toggle-operations')?.addEventListener('click', () => { if (state.setupDraw) return; state.operations = !state.operations; $('#event-operations').classList.toggle('hidden', !state.operations); if (state.operations) { renderOperations(); $('#event-operations').focus({ preventScroll: true }); } });
+    app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div id="board-content">${boardContent(e)}</div><div id="event-operations" tabindex="-1" class="event-operations${state.operations ? '' : ' hidden'}"></div><details class="board-menu"><summary aria-label="${t('eventControls')}">☰</summary><div>${picker()}<fieldset class="board-contrast-setting"><legend>${t('contrastSettings')}</legend><label for="board-transparency">${t('panelTransparency')}<output id="board-transparency-value" for="board-transparency">${state.boardTransparency}%</output></label><input id="board-transparency" type="range" min="0" max="100" step="1" value="${state.boardTransparency}"></fieldset><button data-go="/">${t('homeLink')}</button>${manages(e) && !terminal(e) ? `<button id="toggle-operations">${t('eventControls')}</button>` : ''}${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></main>`;
+    applyEventBackground(e); bindBoardTransparency(); bindCommon(); bindBoardSettings(); $('#toggle-operations')?.addEventListener('click', () => { if (state.setupDraw) return; state.operations = !state.operations; $('#event-operations').classList.toggle('hidden', !state.operations); if (state.operations) { renderOperations(); $('#event-operations').focus({ preventScroll: true }); } });
     if (state.operations) renderOperations();
   }
   function currentPending(event) {

@@ -65,7 +65,7 @@ button:disabled{opacity:.45;cursor:default}input,select,textarea{min-width:0}inp
 /* 赛事背景由公开赛事状态统一驱动，背景变更后所有看板通过 SSE 同步。 */
 .broadcast-board{position:relative;isolation:isolate;background-color:#0d1422;background-size:cover;background-position:center;background-attachment:fixed}
 .broadcast-board[data-has-background="true"]{background-image:var(--event-background-image)}
-.broadcast-board[data-has-background="true"]:before{content:"";position:fixed;inset:0;background:#0d1422;opacity:.78;z-index:-1;pointer-events:none}
+.broadcast-board[data-has-background="true"]:before{content:"";position:fixed;inset:0;background:#0d1422;opacity:.3;z-index:-1;pointer-events:none}
 .background-edit{display:grid;grid-template-columns:58px minmax(0,1fr) auto auto;gap:12px;align-items:center}
 .background-preview{width:58px;height:42px;object-fit:cover;border-radius:6px;border:1px solid var(--line);background:#f1f4f7}
 .background-edit input[type=file]{grid-column:2/-1}
@@ -373,6 +373,14 @@ tr[hidden]{display:none}
   .broadcast-board .event-operations{inset:12px;padding:16px}
   .broadcast-board .board-roster-name{font-size:19px}
 }
+/* 只调整面板底色，文字、比分和选手图标保持完全不透明。 */
+.broadcast-board .board-round,.broadcast-board .board-rules{background-color:rgba(23,35,56,var(--board-panel-opacity,.7))}
+.broadcast-board .board-match.is-pending{background-color:rgba(34,54,81,var(--board-panel-opacity,.7))}
+.board-contrast-setting{border:0;border-top:1px solid #dfe6ee;margin:4px 0;padding:12px 0 0;min-width:0}
+.board-contrast-setting legend{font-size:12px;font-weight:700;padding:0 6px 0 0;color:#53647a}
+.board-contrast-setting label{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;color:#53647a}
+.board-contrast-setting output{font-variant-numeric:tabular-nums;color:#15263d}
+.board-menu .board-contrast-setting input[type=range]{width:100%;min-height:32px;padding:0;border:0;background:transparent;box-shadow:none;accent-color:#3478b9;cursor:pointer}
 /* 设置操作固定在视口底部，页面只保留一次保存入口。 */
 .event-editor-page{padding-bottom:110px}
 .event-editor-actions{position:fixed;bottom:16px;right:max(20px,calc((100vw - 1200px)/2));z-index:20;display:flex;gap:12px;padding:12px 16px;border:1px solid #52617a;background:#101b2df2;box-shadow:0 8px 32px #0006;border-radius:14px;backdrop-filter:blur(12px)}

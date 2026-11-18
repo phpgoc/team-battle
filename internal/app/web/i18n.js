@@ -1,6 +1,8 @@
 window.TB_I18N = {
   "zh": {
     "eventRules": "赛事规则",
+    "contrastSettings": "对比度设置",
+    "panelTransparency": "面板透明度",
     "round1Lineup": "第一轮排阵",
     "lineupSubmitted": "已排阵",
     "lineupWaiting": "待排阵",
@@ -278,6 +280,8 @@ window.TB_I18N = {
   },
   "en": {
     "eventRules": "Event rules",
+    "contrastSettings": "Contrast settings",
+    "panelTransparency": "Panel transparency",
     "round1Lineup": "Round 1 lineup",
     "lineupSubmitted": "Lineup submitted",
     "lineupWaiting": "Awaiting lineup",
@@ -555,6 +559,8 @@ window.TB_I18N = {
   },
   "ko": {
     "eventRules": "대회 규칙",
+    "contrastSettings": "대비 설정",
+    "panelTransparency": "패널 투명도",
     "round1Lineup": "1라운드 라인업",
     "lineupSubmitted": "출전 순서 제출 완료",
     "lineupWaiting": "출전 순서 대기",
