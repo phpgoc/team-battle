@@ -4,28 +4,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"reflect"
 	"testing"
 	"time"
 )
 
-func TestDrawDurationsApplyToRoundAndAceSelection(t *testing.T) {
+func TestDrawDurationsNeverDelayServerMutation(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "random")
-	var waits []time.Duration
-	f.app.drawSleep = func(d time.Duration) { waits = append(waits, d) }
-	f.request(t, 2, "PATCH", fmt.Sprintf("/api/events/%d/draw-settings", id), map[string]any{"random_draw_seconds": 2, "ace_draw_seconds": 7}, 200)
+	f.request(t, 2, "PATCH", fmt.Sprintf("/api/events/%d/draw-settings", id), map[string]any{"random_draw_seconds": 5, "ace_draw_seconds": 5}, 200)
+	started := time.Now()
 	f.enterKOF(t, id)
 	match := f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=2`, id)
 	teams := f.teams(t, id)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[1]}, 200)
-	if want := []time.Duration{2 * time.Second}; !reflect.DeepEqual(waits, want) {
-		t.Fatalf("KOF结束不能自动抽大将: got %v, want %v", waits, want)
-	}
+	f.assertCount(t, 0, `SELECT COUNT(*) FROM matches WHERE event_id=? AND round_no=3`, id)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/ace/draw", id), nil, 200)
-	if want := []time.Duration{2 * time.Second, 7 * time.Second}; !reflect.DeepEqual(waits, want) {
-		t.Fatalf("排阵和大将战使用当前时长，预抽KOF首发不应重抽: got %v, want %v", waits, want)
+	if elapsed := time.Since(started); elapsed >= 3*time.Second {
+		t.Fatalf("5秒转盘不应阻塞录分或手动抽签接口，实际耗时 %v", elapsed)
 	}
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE event_id=? AND round_no=3 AND status='pending'`, id)
 }
 
 func TestDrawTimingDefaultsAndMutableSettings(t *testing.T) {

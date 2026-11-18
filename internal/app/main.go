@@ -52,7 +52,6 @@ type App struct {
 	writeMu     sync.Mutex
 	thumbnailMu sync.Mutex
 	rng         *mathrand.Rand
-	drawSleep   func(time.Duration)
 	storageDir  string
 	history     historyCache
 	directory   categoryDirectoryCache
@@ -239,7 +238,6 @@ func Main() {
 	app := &App{
 		db:         db,
 		rng:        mathrand.New(mathrand.NewSource(time.Now().UnixNano())),
-		drawSleep:  time.Sleep,
 		storageDir: filepath.Dir(*dbPath),
 	}
 	r := app.router()

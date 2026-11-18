@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
-	"time"
 )
 
 func TestAceDrawRequiresManualConfirmation(t *testing.T) {
@@ -15,16 +14,11 @@ func TestAceDrawRequiresManualConfirmation(t *testing.T) {
 	f.request(t, 2, "POST", draw, nil, 400)
 	f.enterKOF(t, id)
 	match := f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=2`, id)
-	var waits []time.Duration
-	f.app.drawSleep = func(d time.Duration) { waits = append(waits, d) }
 	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[1]}, 200)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE id=? AND status='ace'`, id)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM rounds WHERE event_id=? AND stage='ace' AND status='pending'`, id)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM matches WHERE event_id=? AND round_no=3`, id)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM event_actions WHERE event_id=? AND action='ace_drawn'`, id)
-	if len(waits) != 0 {
-		t.Fatalf("KOF末局不应执行大将抽签等待: %v", waits)
-	}
 	f.request(t, 0, "POST", draw, nil, 403)
 	f.request(t, 3, "POST", draw, nil, 403)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/ace/confirm", id), map[string]any{"player_a_id": 3, "player_b_id": 6}, 400)

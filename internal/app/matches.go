@@ -12,7 +12,7 @@ func (a *App) runMatchMutation(eventID, actorID int64, work func(*matchEngine) e
 		return err
 	}
 	defer tx.Rollback()
-	engine := &matchEngine{db: tx, eventID: eventID, actorID: actorID, rng: a.rng, drawSleep: a.drawSleep}
+	engine := &matchEngine{db: tx, eventID: eventID, actorID: actorID, rng: a.rng}
 	s, err := engine.status()
 	if err != nil {
 		return err

@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // 比赛推进在单个事务中完成，任何校验失败都不会留下半条比分。
@@ -20,13 +19,6 @@ type matchEngine struct {
 	db               sqlRunner
 	eventID, actorID int64
 	rng              *rand.Rand
-	drawSleep        func(time.Duration)
-}
-
-func (e *matchEngine) waitDraw(seconds int) {
-	if seconds > 0 && e.drawSleep != nil {
-		e.drawSleep(time.Duration(seconds) * time.Second)
-	}
 }
 
 type engineRound struct {
@@ -182,10 +174,6 @@ func (e *matchEngine) fillLineups(force bool) error {
 	if s != statusDraft && s != statusCaptainVote && s != statusLineup {
 		return errors.New("当前阶段不能随机排阵")
 	}
-	rules, err := e.rules()
-	if err != nil {
-		return err
-	}
 	var setupEntries int
 	if err := e.db.QueryRow(`SELECT COUNT(*) FROM lineup_entries WHERE event_id=? AND source='setup_draw'`, e.eventID).Scan(&setupEntries); err != nil {
 		return err
@@ -207,7 +195,6 @@ func (e *matchEngine) fillLineups(force bool) error {
 	if err := e.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=?`, e.eventID).Scan(&total); err != nil {
 		return err
 	}
-	drawing := false
 	for _, team := range teams {
 		ids, err := e.players(team)
 		if err != nil {
@@ -229,10 +216,6 @@ func (e *matchEngine) fillLineups(force bool) error {
 			}
 			if existing > 0 {
 				continue
-			}
-			if !drawing {
-				e.waitDraw(rules.RandomDrawSeconds)
-				drawing = true
 			}
 			var chosen int64
 			for _, id := range ids {
@@ -270,17 +253,12 @@ func (e *matchEngine) nextRound1() error {
 		return err
 	}
 	chosen := []int64{}
-	drawing := false
 	for _, team := range teams {
 		var id int64
 		err := e.db.QueryRow(`SELECT player_id FROM lineup_entries WHERE event_id=? AND team_id=? AND position=?`, e.eventID, team, count+1).Scan(&id)
 		if err == nil {
 			chosen = append(chosen, id)
 			continue
-		}
-		if !drawing {
-			e.waitDraw(rules.RandomDrawSeconds)
-			drawing = true
 		}
 		ids, err := e.players(team)
 		if err != nil {
@@ -429,11 +407,6 @@ func (e *matchEngine) afterResult(m engineMatch) error {
 			if err != nil {
 				return err
 			}
-			rules, err := e.rules()
-			if err != nil {
-				return err
-			}
-			e.waitDraw(rules.RandomDrawSeconds)
 			return e.chooseKOF(m, ids[e.rng.Intn(len(ids))])
 		}
 	}
@@ -527,7 +500,6 @@ func (e *matchEngine) initialKOF() error {
 	if initialA.Valid && initialB.Valid {
 		return e.insertMatch(stageRound2, initialA.Int64, initialB.Int64)
 	}
-	e.waitDraw(rules.RandomDrawSeconds)
 	teams, err := e.teams()
 	if err != nil {
 		return err
@@ -677,7 +649,6 @@ func (e *matchEngine) drawAce() error {
 
 	candidatesByTeam := make([][]int64, 0, len(teams))
 	sources := make([]string, 0, len(teams))
-	needsDraw := false
 	for side, team := range teams {
 		ids, err := e.players(team)
 		if err != nil {
@@ -711,14 +682,8 @@ func (e *matchEngine) drawAce() error {
 		if len(candidates) == 0 {
 			return errors.New("大将战没有可抽取的选手")
 		}
-		if len(candidates) > 1 {
-			needsDraw = true
-		}
 		candidatesByTeam = append(candidatesByTeam, candidates)
 		sources = append(sources, source)
-	}
-	if needsDraw {
-		e.waitDraw(rules.AceDrawSeconds)
 	}
 	chosen := make([]int64, 0, len(candidatesByTeam))
 	for _, candidates := range candidatesByTeam {
