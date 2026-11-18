@@ -42,6 +42,9 @@ func (a *App) castCaptainVote(c *gin.Context) {
 		if !containsID(ids, req.TargetID) {
 			return errors.New("只能选本队选手")
 		}
+		if req.TargetID == user.ID {
+			return errors.New("不能选自己为队长")
+		}
 		var captains int
 		if err := e.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND team_id=? AND is_captain=1 AND active=1`, id, team).Scan(&captains); err != nil {
 			return err

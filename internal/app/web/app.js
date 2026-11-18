@@ -483,8 +483,10 @@
   }
   function canOperate(e) { return boardVariant(e) !== 'spectator'; }
   function bindBoardSettings() {
+    $('#roster-actions')?.close();
     $('#board-settings')?.addEventListener('click', () => go('/live/' + state.event.id + '/setting'));
     $('#board-lineup')?.addEventListener('click', () => go('/live/' + state.event.id + '/lineup'));
+    if (!state.setupDraw) window.TBKOFBoard.bindRows({ root: $('#board-content'), event: state.event, user: state.user, manager: manages(state.event), t, action, onVote: voteForCaptain });
     if (state.event.status === 'round2' && canOperate(state.event) && !state.setupDraw) renderKOFSelection(state.event, manages(state.event)).catch(error => toast(error.message));
     if (state.setupDraw) $('#board-content')?.setAttribute('data-setup-drawing', 'true');
   }
@@ -501,8 +503,8 @@
   }
   function boardPage() {
     const e = state.event;
-    if (!canOperate(e)) state.operations = false;
-    app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div id="board-content">${boardContent(e)}</div><div id="event-operations" tabindex="-1" class="event-operations${state.operations ? '' : ' hidden'}"></div><details class="board-menu"><summary aria-label="${t('eventControls')}">☰</summary><div>${picker()}<button data-go="/">${t('homeLink')}</button>${canOperate(e) ? `<button id="toggle-operations">${t('eventControls')}</button>` : ''}${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></main>`;
+    if (!manages(e)) state.operations = false;
+    app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div id="board-content">${boardContent(e)}</div><div id="event-operations" tabindex="-1" class="event-operations${state.operations ? '' : ' hidden'}"></div><details class="board-menu"><summary aria-label="${t('eventControls')}">☰</summary><div>${picker()}<button data-go="/">${t('homeLink')}</button>${manages(e) && !terminal(e) ? `<button id="toggle-operations">${t('eventControls')}</button>` : ''}${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></main>`;
     applyEventBackground(e); bindCommon(); bindBoardSettings(); $('#toggle-operations')?.addEventListener('click', () => { if (state.setupDraw) return; state.operations = !state.operations; $('#event-operations').classList.toggle('hidden', !state.operations); if (state.operations) { renderOperations(); $('#event-operations').focus({ preventScroll: true }); } });
     if (state.operations) renderOperations();
   }
@@ -577,12 +579,13 @@
   }
   async function refreshEvent() { const previous = state.event; state.event = await api('/api/public/events/' + state.event.id); if (!state.editor) { boardPage(); startDrawAnimation(previous, state.event); } }
   async function eventAction(path, body = {}, method = 'POST') { await post('/api/events/' + state.event.id + path, body, method); await refreshEvent(); }
+  async function voteForCaptain(id) { await eventAction('/captain-votes', { target_id: id }); toast(t('voteSaved')); }
   async function renderKOFSelection(e, manager) {
     const target = $('#board-kof-controls');
     if (!target || !canOperate(e) || e.status !== 'round2') return;
     const choices = await api('/api/events/' + e.id + '/kof/options');
     if (!target.isConnected || state.event?.id !== e.id || state.event.status !== 'round2') return;
-    const paint = () => window.TBKOFBoard.render({ root: $('#board-content'), event: state.event, choices, user: state.user, manager, selectedTeam: state.kofTeam, t, action,
+    const paint = () => window.TBKOFBoard.render({ root: $('#board-content'), event: state.event, choices, user: state.user, manager, selectedTeam: state.kofTeam, t, action, onVote: voteForCaptain,
       onTeam: id => { state.kofTeam = id; paint(); },
       onSend: async body => {
         try { await eventAction(choices.match_id ? '/kof/next-player' : '/kof/starter', body); toast(t('reservationSaved')); }
@@ -595,13 +598,9 @@
   }
   function renderOperations() {
     const e = state.event, target = $('#event-operations'); if (!target) return;
-    if (!canOperate(e)) { target.innerHTML = ''; return; }
-    const manager = manages(e), people = e.teams.flatMap(team => team.players), myTeam = e.teams.find(team => team.players.some(p => p.id === state.user.id));
+    if (!manages(e) || terminal(e)) { target.innerHTML = ''; return; }
+    const manager = manages(e), people = e.teams.flatMap(team => team.players);
     let content = `<div class="operations-heading"><div><span class="eyebrow">${t('eventControls')}</span><h2>${t(e.status)}</h2></div><button class="outline" id="close-operations">${t('close')}</button></div>`;
-    if (myTeam && !myTeam.players.some(p => p.is_captain && p.active !== false)) {
-      const candidates = myTeam.players.filter(player => player.active !== false);
-      content += `<section class="panel"><div class="panel-body"><p class="help">${t('voteThreshold').replace('{count}', Math.ceil(candidates.length / 2))}</p><form id="vote-form" class="inline-form">${field('vote', `<select name="target_id">${candidates.map(player => `<option value="${player.id}">${esc(player.display_name)} · ${e.votes.find(vote => vote.player_id === player.id)?.count || 0} ${t('votes')}</option>`).join('')}</select>`)}<button class="primary">${t('vote')}</button></form></div></section>`;
-    }
     if (manager && e.teams.every(team => team.players.length)) content += `<section class="panel section-gap"><form id="captains-form" class="panel-body form-grid">${e.teams.map((team, i) => { return field(i ? 'teamB' : 'teamA', `<select name="team_${i ? 'b' : 'a'}_player_id"><option value="0">${t('noCaptain')}</option>${team.players.map(p => `<option value="${p.id}"${p.is_captain ? ' selected' : ''}>${esc(p.display_name)} · ${e.votes.find(v => v.player_id === p.id)?.count || 0} ${t('votes')}</option>`).join('')}</select>`); }).join('')}<button class="primary">${t('confirmCaptains')}</button></form></section>`;
     if (canArrangeLineup(e)) content += `<section class="panel section-gap"><div class="panel-body"><a class="primary" href="/live/${e.id}/lineup" id="operations-lineup">${t('round1Lineup')}</a></div></section>`;
     if (manager && preMatch(e)) content += `<div class="form-footer"><button class="primary accent" id="start-event">${t('start')}</button></div>`;
@@ -612,7 +611,6 @@
     if (manager && e.matches.some(m => m.status === 'finished')) content += `<section class="panel section-gap"><div class="panel-head"><h2>${t('correct')}</h2></div><form id="correct-form" class="panel-body form-grid"><p class="notice full">${t('correctHint')}</p>${field('matchNo', `<select name="match_id">${e.matches.filter(m => m.status === 'finished').map(m => `<option value="${m.id}">${t(m.stage)} #${m.seq} · ${esc(m.player_a_name)} / ${esc(m.player_b_name)}</option>`).join('')}</select>`)}${field('winner', `<select name="winner_team_id">${e.teams.map(team => `<option value="${team.id}">${esc(teamName(e, team))}</option>`).join('')}</select>`)}<button class="outline">${t('correct')}</button></form></section>`;
     target.innerHTML = content;
     $('#close-operations')?.addEventListener('click', () => { state.operations = false; $('#event-operations').classList.add('hidden'); });
-    $('#vote-form')?.addEventListener('submit', action(async event => { event.preventDefault(); await eventAction('/captain-votes', { target_id: Number(new FormData(event.target).get('target_id')) }); toast(t('voteSaved')); }));
     $('#captains-form')?.addEventListener('submit', action(async event => { event.preventDefault(); const f = new FormData(event.target); await eventAction('/captains/confirm', { team_a_player_id: Number(f.get('team_a_player_id')), team_b_player_id: Number(f.get('team_b_player_id')) }); }));
     $('#operations-lineup')?.addEventListener('click', event => { event.preventDefault(); go('/live/' + e.id + '/lineup'); });
     $('#start-event')?.addEventListener('click', action(() => eventAction('/start')));
