@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const app = document.getElementById('app');
-  const state = { user: null, language: localStorage.getItem('tb_language') || 'zh', event: null, stream: null, operations: false, editor: null, roster: {}, users: [], backgrounds: [], page: 1, filters: {}, connection: '', drawTimer: null, drawToken: 0, draw: null };
+  const state = { user: null, language: localStorage.getItem('tb_language') || 'zh', event: null, stream: null, operations: false, editor: null, roster: {}, users: [], page: 1, filters: {}, connection: '', drawTimer: null, drawToken: 0, draw: null };
   const langs = { zh: '中文', en: 'English', ko: '한국어' };
   const t = key => window.TB_I18N[state.language]?.[key] || window.TB_I18N.zh[key] || key;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -416,17 +416,6 @@
   function bindBoardSettings() {
     $('#board-settings')?.addEventListener('click', () => go('/live/' + state.event.id + '/setting'));
   }
-  function bindBoardBackground() {
-    $('#board-background')?.addEventListener('change', action(async event => {
-      const select = event.currentTarget;
-      const backgroundID = Number(select.value || 0);
-      await post('/api/events/' + state.event.id + '/background', { background_id: backgroundID }, 'PATCH');
-      state.event = await api('/api/public/events/' + state.event.id);
-      applyEventBackground(state.event);
-      select.value = String(state.event.background_id || 0);
-      toast(t('backgroundSaved'));
-    }));
-  }
   function applyEventBackground(e) {
     const board = $('.broadcast-board');
     if (!board) return;
@@ -441,9 +430,8 @@
   function boardPage() {
     const e = state.event;
     if (!canOperate(e)) state.operations = false;
-    const backgroundControl = !terminal(e) && state.backgrounds.length ? `<label class="board-menu-field"><span>${t('background')}</span><select id="board-background">${backgroundOptions(state.backgrounds, e.background_id)}</select></label>` : '';
-    app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div id="board-content">${boardContent(e)}</div><div id="event-operations" tabindex="-1" class="event-operations${state.operations ? '' : ' hidden'}"></div><details class="board-menu"><summary aria-label="${t('eventControls')}">☰</summary><div>${picker()}${backgroundControl}<button data-go="/">${t('homeLink')}</button>${canOperate(e) ? `<button id="toggle-operations">${t('eventControls')}</button>` : ''}${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></main>`;
-    applyEventBackground(e); bindCommon(); bindBoardSettings(); bindBoardBackground(); $('#toggle-operations')?.addEventListener('click', () => { state.operations = !state.operations; $('#event-operations').classList.toggle('hidden', !state.operations); if (state.operations) { renderOperations(); $('#event-operations').focus({ preventScroll: true }); } });
+    app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div id="board-content">${boardContent(e)}</div><div id="event-operations" tabindex="-1" class="event-operations${state.operations ? '' : ' hidden'}"></div><details class="board-menu"><summary aria-label="${t('eventControls')}">☰</summary><div>${picker()}<button data-go="/">${t('homeLink')}</button>${canOperate(e) ? `<button id="toggle-operations">${t('eventControls')}</button>` : ''}${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></main>`;
+    applyEventBackground(e); bindCommon(); bindBoardSettings(); $('#toggle-operations')?.addEventListener('click', () => { state.operations = !state.operations; $('#event-operations').classList.toggle('hidden', !state.operations); if (state.operations) { renderOperations(); $('#event-operations').focus({ preventScroll: true }); } });
     if (state.operations) renderOperations();
   }
   function currentPending(event) {
@@ -577,7 +565,6 @@
   async function openEvent(id, preserve = false, setting = false) {
     if (state.event?.id !== Number(id)) state.event = null;
     state.event = await api('/api/public/events/' + id);
-    state.backgrounds = (await api('/api/backgrounds')).backgrounds || [];
     if (!hasRoster(state.event) && !setting) {
       if (state.user && manages(state.event)) {
         history.replaceState({}, '', '/live/' + id + '/setting');
@@ -603,7 +590,7 @@
         const backgroundName = $('.event-background-panel .panel-head span');
         if (backgroundName) backgroundName.textContent = data.background_name || t('noBackground');
       }
-      if (changed && !state.editor && $('#board-content')) { $('#board-content').innerHTML = boardContent(data); applyEventBackground(data); bindBoardSettings(); if ($('#board-background')) $('#board-background').value = String(data.background_id || 0); startDrawAnimation(previous, data); if (state.operations) { const forms = captureForms(); renderOperations(); restoreForms(forms); } }
+      if (changed && !state.editor && $('#board-content')) { $('#board-content').innerHTML = boardContent(data); applyEventBackground(data); bindBoardSettings(); startDrawAnimation(previous, data); if (state.operations) { const forms = captureForms(); renderOperations(); restoreForms(forms); } }
       if (terminal(data)) { closeStream(); if (!state.editor) boardPage(); }
     };
   }

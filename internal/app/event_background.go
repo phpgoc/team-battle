@@ -15,11 +15,10 @@ func backgroundExists(db sqlRunner, backgroundID int64) (bool, error) {
 	return count == 1, err
 }
 
-// 赛事背景属于公开观赛设置，任何观看者都可切换并通过 SSE 同步给其他人。
+// 赛事背景用于广告和赞助展示，仅赛事管理员及超级管理员可修改，所有观众通过 SSE 同步。
 func (a *App) updateEventBackground(c *gin.Context) {
-	eventID, err := parseID(c.Param("id"))
-	if err != nil || !a.eventExists(eventID) {
-		fail(c, 404, "赛事不存在")
+	actor, eventID, access := a.managerEvent(c)
+	if !access {
 		return
 	}
 	var req eventBackgroundRequest
@@ -27,7 +26,6 @@ func (a *App) updateEventBackground(c *gin.Context) {
 		fail(c, 400, "背景编号无效")
 		return
 	}
-	actor, _ := a.currentUser(c)
 	tx, err := a.db.Begin()
 	if err != nil {
 		fail(c, 500, "更新赛事背景失败")

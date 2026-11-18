@@ -76,7 +76,8 @@ func TestPublicSSEMatchesAcrossIdentitiesAndPushesResults(t *testing.T) {
 			t.Fatalf("公开推送不应含内部字段 %s", key)
 		}
 	}
-	f.request(t, 0, "PATCH", fmt.Sprintf("/api/events/%d/background", id), map[string]any{"background_id": 0}, 200)
+	f.request(t, 0, "PATCH", fmt.Sprintf("/api/events/%d/background", id), map[string]any{"background_id": 0}, 403)
+	f.request(t, 2, "PATCH", fmt.Sprintf("/api/events/%d/background", id), map[string]any{"background_id": 0}, 200)
 	updated := read(guest)
 	if updated == initial || updated != read(manager) {
 		t.Fatal("切换背景后访客与管理员应收到相同的 SSE 更新")

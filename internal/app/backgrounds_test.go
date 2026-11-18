@@ -74,14 +74,23 @@ func TestBackgroundManagementAndPublicEventSelection(t *testing.T) {
 	if got := f.request(t, 0, http.MethodGet, imageURL, nil, http.StatusOK); !bytes.Equal(got, image) {
 		t.Fatal("公开背景图片接口没有返回上传内容")
 	}
-	f.request(t, 3, http.MethodPatch, fmt.Sprintf("/api/events/%d/background", id), map[string]any{"background_id": backgroundID}, http.StatusOK)
+	path := fmt.Sprintf("/api/events/%d/background", id)
+	// 访客、队长、普通选手及其他赛事的管理员均不能修改赞助背景。
+	for _, user := range []int{0, 3, 4, 9} {
+		f.request(t, user, http.MethodPatch, path, map[string]any{"background_id": backgroundID}, http.StatusForbidden)
+	}
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE id=? AND background_id IS NULL`, id)
+	f.assertCount(t, 0, `SELECT COUNT(*) FROM event_actions WHERE event_id=? AND action='event_background_updated'`, id)
+	f.request(t, 2, http.MethodPatch, path, map[string]any{"background_id": backgroundID}, http.StatusOK)
+	f.request(t, 1, http.MethodPatch, path, map[string]any{"background_id": 0}, http.StatusOK)
+	f.request(t, 1, http.MethodPatch, path, map[string]any{"background_id": backgroundID}, http.StatusOK)
 	detail := f.request(t, 0, http.MethodGet, fmt.Sprintf("/api/public/events/%d", id), nil, http.StatusOK)
 	for _, expected := range []string{fmt.Sprintf(`"background_id":%d`, backgroundID), `"background_name":"比赛背景"`, imageURL} {
 		if !bytes.Contains(detail, []byte(expected)) {
 			t.Fatalf("公开赛事没有背景字段 %q: %s", expected, detail)
 		}
 	}
-	f.request(t, 3, http.MethodPatch, fmt.Sprintf("/api/events/%d/background", id), map[string]any{"background_id": backgroundID + 999}, http.StatusBadRequest)
+	f.request(t, 2, http.MethodPatch, path, map[string]any{"background_id": backgroundID + 999}, http.StatusBadRequest)
 	f.request(t, 1, http.MethodPost, "/api/events/archive", map[string]any{
 		"name": "带背景历史赛事", "event_time": "2026-11-17T19", "background_id": backgroundID,
 		"player_ids":        []int{3, 4, 5, 6, 7, 8},
@@ -117,7 +126,8 @@ func TestBackgroundManagementAndPublicEventSelection(t *testing.T) {
 	if _, err := f.app.db.Exec(`UPDATE events SET status=? WHERE id=?`, statusCompleted, id); err != nil {
 		t.Fatal(err)
 	}
-	f.request(t, 3, http.MethodPatch, fmt.Sprintf("/api/events/%d/background", id), map[string]any{"background_id": 0}, http.StatusBadRequest)
+	f.request(t, 2, http.MethodPatch, path, map[string]any{"background_id": 0}, http.StatusBadRequest)
+	f.request(t, 1, http.MethodPatch, path, map[string]any{"background_id": 0}, http.StatusBadRequest)
 }
 
 func TestBackgroundUploadRejectsInvalidImage(t *testing.T) {
