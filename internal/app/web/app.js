@@ -572,7 +572,17 @@
     } finally {
       if (state.setupDraw === session) {
         state.setupDraw = null;
-        if (!state.editor && state.event?.id === e.id) { boardPage(); $$('.board-matches,.board-roster-list').forEach(node => node.scrollTop = 0); }
+        if (!state.editor && state.event?.id === e.id) {
+          const previous = $$('.board-current-side > .current-player').map(slot => ({ html: slot.innerHTML, className: slot.className, key: Number(slot.dataset.drawPlayer) || 0 }));
+          boardPage();
+          $$('.board-current-side > .current-player').forEach((slot, side) => {
+            if (!previous[side]) return;
+            const final = { html: slot.innerHTML, className: slot.className, key: Number(slot.querySelector('[data-player-record]')?.dataset.playerRecord) || 0 };
+            window.TBMatchDraw.swapPlayer(slot, previous[side].html, previous[side].key, { animate: false, className: previous[side].className });
+            requestAnimationFrame(() => { if (slot.isConnected) window.TBMatchDraw.swapPlayer(slot, final.html, final.key, { className: final.className }); });
+          });
+          $$('.board-matches,.board-roster-list').forEach(node => node.scrollTop = 0);
+        }
       }
     }
   }
@@ -787,6 +797,24 @@
     const endAt = startedAt + plan.duration;
     state.draw = { key, candidates, plan, startedAt, endAt };
     const board = $('.broadcast-board');
+    const slots = $$('.board-current-side > .current-player');
+    let firstPaint = true;
+    const paintPlayers = players => {
+      players.forEach((player, side) => {
+        if (!slots[side]) return;
+        const template = document.createElement('template');
+        const value = player || { display_name: t('toConfirm') };
+        template.innerHTML = currentPlayerMarkup(next, value, match.stage, side ? 'b' : 'a');
+        const content = template.content.firstElementChild;
+        window.TBMatchDraw.swapPlayer(slots[side], content.innerHTML, player?.id || 0, { animate: !firstPaint, className: content.className });
+      });
+      firstPaint = false;
+    };
+    const caption = html => {
+      if (roll.innerHTML === html) return;
+      roll.innerHTML = html;
+      roll.animate([{ opacity: .3, transform: 'translateY(4px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 160, easing: 'ease-out' });
+    };
     const update = () => {
       // 导航、纠错或人选被覆盖后，旧动画不能继续占住新对战区。
       const current = currentPending(state.event);
@@ -800,6 +828,7 @@
       board.classList.toggle('is-drawing-rule', frame?.kind === 'rule');
       $$('[data-current-winner]').forEach(button => button.disabled = !!frame || state.recordingResult);
       if (!frame) {
+        if (plan.duration) paintPlayers(finals);
         clearInterval(state.drawTimer); state.drawTimer = null; roll.hidden = true;
         return;
       }
@@ -808,11 +837,13 @@
       roll.dataset.phase = frame.kind;
       if (frame.kind === 'rule') {
         const source = frame.choices[frame.tick % frame.choices.length];
-        roll.innerHTML = `<span>${t('aceRuleStep')} · ${step}</span><div class="draw-rule-name">${esc(window.TBMatchDraw.sourceLabel(source, 0, t))}</div>`;
+        paintPlayers([null, null]);
+        const label = frame.settling ? aceSourceLabel(next) : window.TBMatchDraw.sourceLabel(source, 0, t);
+        caption(`<span>${t('aceRuleStep')} · ${step}</span><div class="draw-rule-name">${esc(label)}</div>`);
       } else {
-        const names = candidates.map((list, side) => esc((list.length > 1 ? list[frame.tick % list.length] : finals[side])?.display_name || t('toConfirm')));
+        paintPlayers(candidates.map((list, side) => frame.settling || list.length <= 1 ? finals[side] : list[frame.tick % list.length]));
         const title = match.stage === 'ace' ? `${t('aceCandidateStep')} · ${step} · ${aceSourceLabel(next)}` : t('drawing');
-        roll.innerHTML = `<span>${esc(title)}</span><div><strong id="draw-roll-a">${names[0]}</strong><b>VS</b><strong id="draw-roll-b">${names[1]}</strong></div>${match.stage === 'ace' ? `<small>${candidates.map((list, side) => `${t(side ? 'teamB' : 'teamA')} · ${list.length === 1 ? t('aceDirectPick') : `${list.length} ${t('aceCandidateCount')}`}`).join(' / ')}</small>` : ''}`;
+        caption(`<span>${esc(title)}</span>`);
       }
     };
     update();

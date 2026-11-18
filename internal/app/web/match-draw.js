@@ -1,9 +1,37 @@
 (() => {
   'use strict';
   const sourceLabel = (source, special, t) => source === 'most_wins' ? t('sourceMostWins') : source === 'most_losses' ? t('sourceMostLosses') : source === 'special' ? `${t('specialMatchGroup')}${special || 1}` : source.startsWith('special:') ? `${t('specialMatchGroup')}${Number(source.slice(8)) + 1}` : source === 'mixed' ? t('mixed') : t('random');
+  const playerFrames = new WeakMap();
+
+  // 只平滑替换对战位中的人像和姓名，最终结果继续使用同一个对战位。
+  function swapPlayer(slot, markup, key, { animate = true, className = slot.className } = {}) {
+    const previous = playerFrames.get(slot);
+    if (previous?.key === key && previous.markup === markup && slot.className === className) return;
+    previous?.animations.forEach(animation => animation.cancel());
+    slot.querySelectorAll('.draw-player-leaving').forEach(node => node.remove());
+    const leaving = animate && slot.hasChildNodes() ? slot.cloneNode(true) : null;
+    slot.className = className;
+    slot.innerHTML = markup;
+    slot.dataset.drawPlayer = String(key || 0);
+    const animations = [];
+    if (leaving) {
+      leaving.removeAttribute('data-draw-player');
+      leaving.classList.add('draw-player-leaving');
+      leaving.setAttribute('aria-hidden', 'true');
+      leaving.querySelectorAll('button,a').forEach(node => node.setAttribute('tabindex', '-1'));
+      const incoming = [...slot.children];
+      slot.append(leaving);
+      const options = { duration: 180, easing: 'cubic-bezier(.2,.7,.3,1)' };
+      const outgoing = leaving.animate([{ opacity: 1, transform: 'translateY(0)' }, { opacity: 0, transform: 'translateY(-16px)' }], options);
+      animations.push(outgoing, ...incoming.map(node => node.animate([{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'translateY(0)' }], options)));
+      outgoing.finished.catch(() => {}).then(() => leaving.remove());
+    }
+    playerFrames.set(slot, { key, markup, animations });
+  }
 
   window.TBMatchDraw = {
     sourceLabel,
+    swapPlayer,
     record(event, { t, esc, recordName }) {
       const draw = event.ace_draw;
       if (!event.ace_draw_source) return '';
@@ -34,7 +62,7 @@
     frame(plan, elapsed) {
       let start = 0;
       for (const [index, phase] of plan.phases.entries()) {
-        if (elapsed < start + phase.duration) return { ...phase, index, tick: Math.floor((elapsed - start) / 250) };
+        if (elapsed < start + phase.duration) return { ...phase, index, tick: Math.floor((elapsed - start) / 250), settling: start + phase.duration - elapsed <= 250 };
         start += phase.duration;
       }
       return null;

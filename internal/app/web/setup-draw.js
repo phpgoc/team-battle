@@ -9,12 +9,11 @@
       const progress = { visible, round1: 0, kof: false, step: null };
       const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
       const draw = () => { if (isActive()) render(progress); };
-      const slots = () => [...document.querySelectorAll('.board-current-fighters .current-player')];
-      const paint = ids => {
+      const slots = () => [...document.querySelectorAll('.board-current-side > .current-player')];
+      const paint = (ids, animate = true) => {
         slots().forEach((slot, index) => {
           const player = byID(ids[index]);
-          slot.innerHTML = player ? playerMarkup(player) : `<span class="setup-empty-slot">${translate('toConfirm')}</span>`;
-          slot.dataset.drawPlayer = String(player?.id || 0);
+          window.TBMatchDraw.swapPlayer(slot, player ? playerMarkup(player) : `<span class="setup-empty-slot">${translate('toConfirm')}</span>`, player?.id || 0, { animate });
         });
       };
       const fly = async (sources, step) => {
@@ -62,20 +61,21 @@
             const a = aPool.length ? aPool[tick % aPool.length] : step.a;
             let b = bPool.length ? bPool[(tick + 1) % bPool.length] : step.b;
             if (step.kind === 'group' && a === b) b = bPool.find(id => id !== a) || 0;
-            paint([step.a ? a : 0, step.b ? b : 0]);
+            const settling = until - Date.now() <= 250;
+            paint(settling ? [step.a, step.b] : [step.a ? a : 0, step.b ? b : 0], tick > 0);
             tick += 1;
             await pause(Math.min(250, Math.max(0, until - Date.now())));
           }
           if (!isActive()) return;
           paint([step.a, step.b]);
-          if (duration) await pause(180);
+          if (duration) await pause(80);
           if (!isActive()) return;
           const sources = slots().map(slot => slot.getBoundingClientRect());
           if (step.kind === 'group') [step.a, step.b, step.extra_a].filter(Boolean).forEach(id => visible.add(id));
           if (step.kind === 'round1') progress.round1 = step.position;
           if (step.kind === 'round2') progress.kof = true;
           draw();
-          paint([step.a, step.b]);
+          paint([step.a, step.b], false);
           await fly(sources, step);
         }
       } finally {

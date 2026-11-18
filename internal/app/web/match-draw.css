@@ -14,5 +14,10 @@
 .broadcast-board .board-draw-roll small{display:block;margin-top:10px;font-size:18px;color:#c7d1df}
 .broadcast-board.is-drawing-rule .ace-draw-record{visibility:hidden}
 .broadcast-board.is-drawing .ace-draw-details{visibility:hidden}
-.broadcast-board .board-current-match:has(.board-draw-roll:not([hidden])) .board-current-fighters{visibility:hidden}
+.broadcast-board .board-current-match:has(.board-draw-roll:not([hidden])) .board-current-fighters{visibility:visible;opacity:1}
 .broadcast-board.is-drawing .board-match.is-pending .board-identity{visibility:hidden}
+.broadcast-board .board-current-side>.current-player{position:relative;width:100%}
+.broadcast-board .current-player>.draw-player-leaving{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:inherit;width:100%;height:100%;pointer-events:none}
+.broadcast-board .board-current-match .board-draw-roll{inset:0 0 auto;height:22px;min-height:0;padding:0;border:0;border-radius:0;background:none;box-shadow:none;pointer-events:none;display:flex;flex-direction:row;align-items:center;gap:8px}
+.broadcast-board .board-draw-roll>span{margin:0;font-size:13px;line-height:1.4}
+.broadcast-board .board-draw-roll .draw-rule-name{width:auto;font-size:16px;line-height:1.4}
