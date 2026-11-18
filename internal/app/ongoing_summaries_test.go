@@ -30,13 +30,13 @@ func TestOngoingSummariesKeepUnconfirmedTournaments(t *testing.T) {
 			t.Fatalf("未确认赛事应持续留在正在进行分类，status=%s: %+v", status, result)
 		}
 	}
-	// 尚未分组可在首页列出，但访客仍然不能打开对战页。
+	// 名单足够时即使尚未分组，也允许直接打开实时页。
 	if _, err := f.app.db.Exec(`UPDATE tournaments SET status='draft' WHERE id=?`, id); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.app.db.Exec(`DELETE FROM tournament_players WHERE tournament_id=?`, id); err != nil {
 		t.Fatal(err)
 	}
-	f.request(t, 0, "GET", fmt.Sprintf("/live/%d", id), nil, 404)
-	f.request(t, 2, "GET", fmt.Sprintf("/live/%d", id), nil, 302)
+	f.request(t, 0, "GET", fmt.Sprintf("/live/%d", id), nil, 200)
+	f.request(t, 2, "GET", fmt.Sprintf("/live/%d", id), nil, 200)
 }

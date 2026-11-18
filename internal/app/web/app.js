@@ -11,6 +11,7 @@
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
   const terminal = e => ['completed', 'cancelled'].includes(e.status);
   const hasRoster = e => e?.teams?.length === 2 && e.teams.every(team => team.players.some(player => player.active !== false));
+  const canWatch = e => e?.public_ready === true;
   const hasGrouping = e => (e?.teams || []).some(team => team.players?.some(player => player.active !== false));
   const preMatch = e => ['draft', 'captain_vote', 'lineup_confirm'].includes(e.status);
   const manages = e => state.user && (state.user.role === 'superadmin' || Number(state.user.id) === Number(e.manager_id));
@@ -134,9 +135,10 @@
   }
   function liveCards(events) {
     return '<div class="live-grid">' + events.map(e => {
-      const available = e.has_roster || manages(e), tag = available ? 'a' : 'div';
-      const entry = e.has_roster ? 'enterLive' : available ? 'eventSettings' : 'awaitingGrouping';
-      return `<${tag} class="live-card"${available ? ` href="/live/${e.id}" data-go="/live/${e.id}"` : ''}><h3>${esc(e.name)}</h3><p>${esc(displayTime(e.start_time))}</p><div class="live-card-score"><span>${t('teamA')}</span><b>${e.round_wins_a || 0}<i>:</i>${e.round_wins_b || 0}</b><span>${t('teamB')}</span></div><div class="live-card-footer"><span>${t('players')} · ${e.player_count || 0}</span><strong>${t(entry)}${available ? ' <span aria-hidden="true">→</span>' : ''}</strong></div></${tag}>`;
+      const available = e.public_ready || manages(e), tag = available ? 'a' : 'div';
+      const path = e.public_ready ? `/live/${e.id}` : `/live/${e.id}/setting`;
+      const entry = e.public_ready ? 'enterLive' : 'eventSettings';
+      return `<${tag} class="live-card"${available ? ` href="${path}" data-go="${path}"` : ''}><h3>${esc(e.name)}</h3><p>${esc(displayTime(e.start_time))}</p><div class="live-card-score"><span>${t('teamA')}</span><b>${e.round_wins_a || 0}<i>:</i>${e.round_wins_b || 0}</b><span>${t('teamB')}</span></div><div class="live-card-footer"><span>${t('players')} · ${e.player_count || 0}</span><strong>${t(entry)}${available ? ' <span aria-hidden="true">→</span>' : ''}</strong></div></${tag}>`;
     }).join('') + '</div>';
   }
   async function homePage() {
@@ -434,7 +436,7 @@
     const content = '<div class="page-head"><div><h1>' + t(mode === 'create' ? 'createEvent' : mode === 'roster' ? 'editRoster' : 'eventSettings') + '</h1><p class="subtitle">' + t(settingsHint) + '</p></div></div>' + (mode === 'roster' ? '' : editorJumps(!!correctionPanel)) + '<form id="event-form"><fieldset class="event-settings-fields">' + basic + rosterMarkup(state.users, state.roster, roundSetupEditable) + (mode === 'roster' ? '' : rulesMarkup(e, roundSetupEditable, aceSettingsEditable)) + '</fieldset>' + (mode === 'roster' ? '' : drawTimingMarkup(e, timingEditable)) + backgroundPanel + correctionPanel + (mode === 'settings' ? eventManagementMarkup(e) : '') + '<div class="event-editor-actions">' + (mode === 'create' ? '' : '<button type="button" class="outline" id="back-board">' + t('backToMatch') + '</button>') + (!terminal(e) ? '<button type="submit" class="primary accent">' + t(mode === 'create' ? 'createEvent' : 'save') + '</button>' : '') + '</div></form>';
     if (mode === 'create') shell(content, 'createEvent'); else {
       app.innerHTML = '<main class="event-editor-page"><div class="editor-language">' + picker() + '</div>' + content + '</main>';
-      bindCommon(); $('#back-board').onclick = () => go(hasRoster(state.event) ? '/live/' + state.event.id : '/');
+      bindCommon(); $('#back-board').onclick = () => go(canWatch(state.event) ? '/live/' + state.event.id : '/');
     }
     const form = $('#event-form');
     form.addEventListener('click', click => {
@@ -507,7 +509,7 @@
         }
         state.editor = null;
         if (mode === 'settings') history.replaceState({}, '', '/live/' + e.id);
-        if (!hasRoster(state.event)) { await openEvent(e.id); } else { await refreshEvent(); }
+        if (!canWatch(state.event)) { await openEvent(e.id); } else { await refreshEvent(); }
         toast(t('saved'));
       }
     });
@@ -538,12 +540,12 @@
     return `<section class="board-round"><div class="board-round-head"><div><span class="board-round-no">${t(round.stage)}</span><h2>${round.score_a} : ${round.score_b}</h2></div></div>${draw}<div class="board-matches">${matches.map(m => matchMarkup(m, people)).join('') || `<div class="board-empty">${t('noMatches')}</div>`}</div></section>`;
   }
   function aceRulesSummary(e, rules) {
-    const players = new Map(e.teams.flatMap(team => team.players).map(player => [player.id, player]));
+    const players = new Map(e.teams.flatMap(team => team.players).concat(e.setup_roster || []).map(player => [player.id, player]));
     const specials = (rules.ace_specials || []).map((group, index) => {
       const split = Array.isArray(group.team_a_ids) || Array.isArray(group.team_b_ids);
       const sides = e.teams.map((team, side) => {
         const ids = split ? group[side === 0 ? 'team_a_ids' : 'team_b_ids'] || [] : group.player_ids || [];
-        const names = ids.filter(id => team.players.some(player => player.id === Number(id))).map(id => players.get(Number(id))).filter(Boolean).map(recordName);
+        const names = ids.filter(id => !hasGrouping(e) || team.players.some(player => player.id === Number(id))).map(id => players.get(Number(id))).filter(Boolean).map(recordName);
         return `<span class="special-rule-side" aria-label="${t(side === 0 ? 'teamA' : 'teamB')}">${names.length ? names.join('、') : t('random')}</span>`;
       });
       return `<div class="ace-special-rule"><dt>${t('specialMatchGroup')}${index + 1} <b>${Number(group.probability) || 0}%</b></dt><dd class="special-rules-summary">${sides.join(`<span class="special-rule-versus">${t('matchupAgainst')}</span>`)}</dd></div>`;
@@ -552,7 +554,7 @@
     const odds = [['sourceMostWins', Number(rules.ace_most_wins) || 0], ['sourceMostLosses', Number(rules.ace_most_losses) || 0], ['fallback', Math.max(0, 100 - configured)]];
     return `<div class="board-rule-block ace-rule-block"><div class="ace-rule-heading"><h3>${t('ace')}</h3><div class="ace-rule-odds">${odds.map(([label, probability]) => `<dl><dt>${t(label)}</dt><dd>${probability}%</dd></dl>`).join('')}</div></div>${specials ? `<dl class="ace-special-list">${specials}</dl>` : ''}</div>`;
   }
-  function rulesSummary(e) { const rules = { ...defaultRules(), ...e.rules }; return `<section class="board-rules"><div class="board-roster-head"><span>${t('eventRules')}</span></div><div class="board-rule-block"><h3>${t('round1')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round1_target}</dd></div><div><dt>${t('round1Mode')}</dt><dd>${t(rules.round1_mode === 'random' ? 'random' : 'manual')}</dd></div><div><dt>${t('noRepeat')}</dt><dd>${t(rules.no_repeat ? 'enabled' : 'disabled')}</dd></div></dl></div><div class="board-rule-block"><h3>${t('round2')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round2_target}</dd></div><div><dt>${t('kofStarter')}</dt><dd>${t(rules.kof_starter === 'captain' ? 'captainStarter' : 'randomStarter')}</dd></div>${window.TBKOF.needsRevivalRule(e.teams.map(team => team.players.filter(player => player.active !== false).length), e.round2_target) ? `<div><dt>${t('kofRevivalNoRepeat')}</dt><dd>${t(rules.kof_revival_no_repeat ? 'enabled' : 'disabled')}</dd></div>` : ''}</dl></div>${aceRulesSummary(e, rules)}</section>`; }
+  function rulesSummary(e) { const rules = { ...defaultRules(), ...e.rules }; return `<section class="board-rules"><div class="board-roster-head"><span>${t('eventRules')}</span></div><div class="board-rule-block"><h3>${t('round1')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round1_target}</dd></div><div><dt>${t('round1Mode')}</dt><dd>${t(rules.round1_mode === 'random' ? 'random' : 'manual')}</dd></div><div><dt>${t('noRepeat')}</dt><dd>${t(rules.no_repeat ? 'enabled' : 'disabled')}</dd></div></dl></div><div class="board-rule-block"><h3>${t('round2')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round2_target}</dd></div><div><dt>${t('kofStarter')}</dt><dd>${t(rules.kof_starter === 'captain' ? 'captainStarter' : 'randomStarter')}</dd></div>${window.TBKOF.needsRevivalRule(hasGrouping(e) ? e.teams.map(team => team.players.filter(player => player.active !== false).length) : window.TBKOF.teamSizes((e.setup_roster || []).map(player => [player.id, player.fixed_team])), e.round2_target) ? `<div><dt>${t('kofRevivalNoRepeat')}</dt><dd>${t(rules.kof_revival_no_repeat ? 'enabled' : 'disabled')}</dd></div>` : ''}</dl></div>${aceRulesSummary(e, rules)}</section>`; }
   // 预抽对阵只用于展示，正式开赛后由比赛引擎按同一份排阵生成真实对局。
   function plannedMatches(e, stage) {
     if (!['round1', 'round2'].includes(stage) || terminal(e) || e.rounds.find(round => round.stage === stage)?.status === 'finished') return [];
@@ -594,6 +596,7 @@
   }
   function boardContent(e) {
     const teams = e.teams, people = teams.flatMap(team => team.players), rounds = e.rounds;
+    const ungrouped = !hasGrouping(e);
     const setup = state.setupDraw?.id === e.id ? state.setupDraw.progress : null;
     const panel = stage => {
       const matches = e.matches.filter(match => match.stage === stage);
@@ -601,7 +604,7 @@
       matches.push(...previews);
       const waiting = stage === 'round2' ? waitingKOFMatch(e) : null;
       if (waiting && !matches.some(match => match.seq === waiting.seq)) matches.push(waiting);
-      if (stage === 'round1' && preMatch(e) && e.rules.round1_mode === 'manual' && !e.teams.every(team => team.lineup_submitted)) {
+      if (hasGrouping(e) && stage === 'round1' && preMatch(e) && e.rules.round1_mode === 'manual' && !e.teams.every(team => team.lineup_submitted)) {
         const round = rounds.find(round => round.stage === stage);
         return `<section class="board-round"><div class="board-round-head"><div><span class="board-round-no">${t(stage)}</span><h2>${round.score_a} : ${round.score_b}</h2></div></div><div class="board-matches board-lineup-readiness">${teams.map(team => `<div class="board-empty" data-lineup-status="${team.id}">${teamName(e, team)} · ${t(team.lineup_submitted ? 'lineupSubmitted' : 'lineupWaiting')}</div>`).join('')}</div></section>`;
       }
@@ -609,7 +612,7 @@
     };
     const pending = setup?.step ? { stage: setup.step.kind === 'group' ? 'setupGrouping' : setup.step.kind, player_a_id: setup.step.a, player_b_id: setup.step.b, player_a_name: t('toConfirm'), player_b_name: t('toConfirm') } : !terminal(e) ? (e.matches.find(match => match.status === 'pending' && match.stage === e.status) || waitingKOFMatch(e) || (e.status === 'ace' && !e.matches.some(match => match.stage === 'ace') ? { stage: 'ace', status: 'waiting' } : null) || (preMatch(e) ? plannedMatches(e, 'round1').find(match => match.player_a_id && match.player_b_id) : null)) : null;
     // 累计胜局颜色与KOF淘汰线独立：历史保留颜色，淘汰线只用于实时KOF。
-    const roster = (team, side) => `<aside class="board-roster board-roster-${side}"><div class="board-roster-head"><span>${esc(teamName(e, team))}</span><b>${team.players.filter(player => !setup || setup.visible.has(player.id)).length}</b></div><div class="board-roster-list" style="--roster-count:${Math.max(1, team.players.filter(player => !setup || setup.visible.has(player.id)).length)}">${team.players.filter(player => !setup || setup.visible.has(player.id)).map(player => {
+    const roster = (team, side, unassigned = false) => `<aside class="board-roster board-roster-${side}"><div class="board-roster-head"><span>${unassigned ? t('unassignedPlayers') : esc(teamName(e, team))}</span><b>${team.players.filter(player => !setup || setup.visible.has(player.id)).length}</b></div><div class="board-roster-list" style="--roster-count:${Math.max(1, Math.ceil(team.players.filter(player => !setup || setup.visible.has(player.id)).length / (unassigned ? 2 : 1)))}">${team.players.filter(player => !setup || setup.visible.has(player.id)).map(player => {
       const lost = e.status === 'round2' && playerHasLoss(e, player.id, 'round2');
       const recordClass = playerHasWin(e, player.id) ? 'is-record-winner' : 'is-record-new';
       return `<div data-roster-player="${player.id}" class="board-roster-player ${lost ? 'is-lost' : ''} ${recordClass}"><div class="board-roster-profile">${avatar(player)}<span class="board-roster-name">${boardIdentity(player)}${player.is_captain ? `<small class="board-captain">${t('captain')}</small>` : ''}</span></div></div>`;
@@ -619,7 +622,7 @@
       <div class="board-overview"><div class="board-title"><h1>${esc(e.name)}</h1>${e.description?.trim() ? `<p class="board-subtitle">${esc(e.description)}</p>` : ''}<p><time>${esc(displayTime(e.start_time))}</time><span class="board-manager">${t('manager')}: <b>${esc(e.manager_name || '')}</b></span></p></div>
         <div class="board-overview-bottom">${score}${['final_confirm', 'completed', 'cancelled'].includes(e.status) ? `<span class="board-status">${t(e.status)}</span>` : ''}</div>
       </div>${pending ? currentMatchMarkup(e, pending, people) : ''}
-    </header><div class="board-arena"><div class="board-center"><div class="board-records"><div class="board-columns"><div class="board-left">${panel('round1')}${panel('round2')}</div><div class="board-right">${panel('ace')}<div class="board-rosters">${roster(teams[0], 'a')}${roster(teams[1], 'b')}</div></div></div>${rulesSummary(e)}</div></div></div>`;
+    </header><div class="board-arena"><div class="board-center"><div class="board-records"><div class="board-columns"><div class="board-left">${panel('round1')}${panel('round2')}</div><div class="board-right">${panel('ace')}<div class="board-rosters${ungrouped ? ' is-ungrouped' : ''}">${ungrouped ? roster({ players: e.setup_roster || [] }, 'unassigned', true) : roster(teams[0], 'a') + roster(teams[1], 'b')}</div></div></div>${rulesSummary(e)}</div></div></div>`;
   }
   async function renderLineupPage(preserve = false) {
     const e = state.event;
@@ -677,7 +680,7 @@
         $$('[data-current-winner]').forEach(control => control.disabled = state.draw?.endAt > Date.now());
       }
     })));
-    if (!state.setupDraw) window.TBKOFBoard.bindRows({ root: $('#board-content'), event: state.event, user: state.user, manager: manages(state.event), t, action, onVote: voteForCaptain, onCaptain: assignCaptain });
+    if (!state.setupDraw && hasRoster(e)) window.TBKOFBoard.bindRows({ root: $('#board-content'), event: state.event, user: state.user, manager: manages(state.event), t, action, onVote: voteForCaptain, onCaptain: assignCaptain });
     if (state.event.status === 'round2' && canOperate(state.event) && !state.setupDraw) renderKOFSelection(state.event, manages(state.event)).catch(error => toast(error.message));
     if (state.setupDraw) $('#board-content')?.setAttribute('data-setup-drawing', 'true');
   }
@@ -897,7 +900,7 @@
   async function openEvent(id, preserve = false, setting = false) {
     if (state.event?.id !== Number(id)) state.event = null;
     state.event = await api('/api/public/tournaments/' + id);
-    if (!hasRoster(state.event) && !setting) {
+    if (!canWatch(state.event) && !setting) {
       if (state.user && manages(state.event)) {
         history.replaceState({}, '', '/live/' + id + '/setting');
         state.editor = 'settings';
@@ -909,13 +912,15 @@
     if (state.editor === 'lineup') await renderLineupPage(preserve);
     else if (state.editor) await eventEditor(state.editor, preserve); else { boardPage(); startDrawAnimation(state.event, state.event); }
     if (terminal(state.event)) { closeStream(); return; }
-    if (!hasRoster(state.event)) return;
+    if (!canWatch(state.event)) return;
     if (state.stream) return;
     const stream = new EventSource('/api/public/tournaments/' + id + '/stream'); state.stream = stream;
     stream.onopen = () => { state.connection = 'connected'; if ($('#connection-state')) $('#connection-state').textContent = t('connected'); };
     stream.onerror = () => { state.connection = 'reconnecting'; if ($('#connection-state')) $('#connection-state').textContent = t('reconnecting'); };
     stream.onmessage = message => {
-      const data = JSON.parse(message.data); const previous = state.event; const changed = JSON.stringify(state.event) !== JSON.stringify(data); const variantChanged = boardVariant(state.event) !== boardVariant(data); const settingsLocked = canEditSettings(state.event) && !canEditSettings(data); state.event = data;
+      const data = JSON.parse(message.data);
+      if (data.unavailable) { const target = manages(state.event) ? '/live/' + id + '/setting' : '/'; closeStream(); go(target); return; }
+      const previous = state.event; const changed = JSON.stringify(state.event) !== JSON.stringify(data); const variantChanged = boardVariant(state.event) !== boardVariant(data); const settingsLocked = canEditSettings(state.event) && !canEditSettings(data); state.event = data;
       if (state.editor === 'lineup') { if (!canArrangeLineup(data)) go('/live/' + id); }
       else if (state.editor && (settingsLocked || (!hasGrouping(previous) && hasGrouping(data)))) { eventEditor(state.editor).catch(error => toast(error.message)); }
       if (variantChanged && !state.editor) { boardPage(); }
@@ -965,15 +970,15 @@
   }
   window.addEventListener('popstate', () => { closeStream(); state.editor = null; renderRoute().catch(error => toast(error.message)); });
   // 由接口的401响应处理会话失效，不为检查登录状态发起轮询。
-  // 分队前公开SSE尚不可连接，轮询检查其他管理端是否已抽签，及时锁定录入控件。
+  // 人数不足时尚无公开SSE，设置页检查其他管理端是否已补全名单或抽签。
   let checkingGrouping = false;
   setInterval(async () => {
-    if (checkingGrouping || document.hidden || !state.editor || !state.event || hasRoster(state.event) || terminal(state.event)) return;
+    if (checkingGrouping || state.stream || document.hidden || !state.editor || !state.event || hasRoster(state.event) || terminal(state.event)) return;
     const id = state.event.id, token = state.drawToken;
     checkingGrouping = true;
     try {
       const event = await api('/api/public/tournaments/' + id);
-      if (state.drawToken === token && state.event?.id === id && state.editor && hasRoster(event)) await openEvent(id, false, true);
+      if (state.drawToken === token && state.event?.id === id && state.editor && canWatch(event)) await openEvent(id, false, true);
     } catch (_) {} finally { checkingGrouping = false; }
   }, 3000);
   // 预报名不进入公开推送，赛事页名单旁单独刷新本队报名状态。

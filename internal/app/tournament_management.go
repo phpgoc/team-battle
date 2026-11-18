@@ -23,7 +23,9 @@ func (a *App) listTournaments(c *gin.Context) {
 		return
 	}
 	query := `SELECT e.id, e.name, e.description, e.start_time, e.status, e.round1_target, e.round2_target, e.manager_id, COALESCE(u.display_name,''), e.created_at,
-		(SELECT COUNT(*) FROM tournament_players ep WHERE ep.tournament_id=e.id) AS player_count,
+		(SELECT COUNT(*) FROM tournament_players ep WHERE ep.tournament_id=e.id AND ep.active=1) AS player_count,
+		(SELECT COUNT(DISTINCT team_id) FROM tournament_players ep WHERE ep.tournament_id=e.id AND ep.active=1),
+		(SELECT COUNT(*) FROM tournament_setup_roster s WHERE s.tournament_id=e.id),
 		(SELECT COALESCE(SUM(r.score_a),0) FROM rounds r WHERE r.tournament_id=e.id) AS score_a,
 		(SELECT COALESCE(SUM(r.score_b),0) FROM rounds r WHERE r.tournament_id=e.id) AS score_b
 		FROM tournaments e LEFT JOIN users u ON u.id=e.manager_id`
@@ -42,11 +44,15 @@ func (a *App) listTournaments(c *gin.Context) {
 	items := []map[string]any{}
 	for rows.Next() {
 		var item = map[string]any{}
-		var id, managerID, playerCount, round1Target, round2Target, scoreA, scoreB int64
+		var id, managerID, playerCount, assignedTeams, setupCount, round1Target, round2Target, scoreA, scoreB int64
 		var name, description, startTime, status, managerName, createdAt string
-		if err := rows.Scan(&id, &name, &description, &startTime, &status, &round1Target, &round2Target, &managerID, &managerName, &createdAt, &playerCount, &scoreA, &scoreB); err != nil {
+		if err := rows.Scan(&id, &name, &description, &startTime, &status, &round1Target, &round2Target, &managerID, &managerName, &createdAt, &playerCount, &assignedTeams, &setupCount, &scoreA, &scoreB); err != nil {
 			fail(c, http.StatusInternalServerError, err.Error())
 			return
+		}
+		ready := rosterReadiness(int(playerCount), int(assignedTeams), int(setupCount))
+		if !ready.publicReady && user.Role != roleSuperAdmin && managerID != user.ID {
+			continue
 		}
 		item["id"] = id
 		item["name"] = name
@@ -57,7 +63,7 @@ func (a *App) listTournaments(c *gin.Context) {
 		item["round2_target"] = round2Target
 		item["manager_id"] = managerID
 		item["manager_name"] = managerName
-		item["player_count"] = playerCount
+		item["player_count"] = ready.playerCount
 		item["score_a"] = scoreA
 		item["score_b"] = scoreB
 		item["created_at"] = createdAt
@@ -72,7 +78,15 @@ func (a *App) publicTournaments(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "读取赛事失败")
 		return
 	}
-	ok(c, gin.H{"tournaments": items})
+	user, loggedIn := a.currentUser(c)
+	visible := []map[string]any{}
+	for _, item := range items {
+		if item["public_ready"] == true || (loggedIn == nil && (user.Role == roleSuperAdmin || item["manager_id"] == user.ID)) {
+			visible = append(visible, item)
+		}
+	}
+	c.Header("Cache-Control", "no-store")
+	ok(c, gin.H{"tournaments": visible})
 }
 
 func (a *App) publicHistory(c *gin.Context) {

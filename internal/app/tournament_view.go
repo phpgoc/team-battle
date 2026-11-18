@@ -27,6 +27,10 @@ func (a *App) tournamentDetail(c *gin.Context) {
 		fail(c, http.StatusNotFound, "赛事不存在")
 		return
 	}
+	if data["public_ready"] != true && !a.canManageTournament(user.ID, user.Role, tournamentID) {
+		fail(c, http.StatusNotFound, "赛事暂未公开")
+		return
+	}
 	ok(c, data)
 }
 
@@ -36,9 +40,15 @@ func (a *App) publicTournament(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "赛事编号无效")
 		return
 	}
+	c.Header("Cache-Control", "no-store")
 	data, err := a.buildTournament(tournamentID, false)
 	if err != nil {
 		fail(c, http.StatusNotFound, "赛事不存在")
+		return
+	}
+	user, authErr := a.currentUser(c)
+	if data["public_ready"] != true && !(authErr == nil && a.canManageTournament(user.ID, user.Role, tournamentID)) {
+		fail(c, http.StatusNotFound, "赛事暂未公开")
 		return
 	}
 	ok(c, data)
@@ -104,6 +114,20 @@ func (a *App) buildTournament(tournamentID int64, includePrivate bool) (map[stri
 	}
 	setupRows.Close()
 	tournament["setup_roster"] = setup
+	players, assigned := 0, 0
+	for _, team := range teams {
+		active := 0
+		for _, player := range team["players"].([]map[string]any) {
+			if player["active"] != false {
+				players++
+				active++
+			}
+		}
+		if active > 0 {
+			assigned++
+		}
+	}
+	tournament["public_ready"] = rosterReadiness(players, assigned, len(setup)).publicReady
 	var raw string
 	if err := a.db.QueryRow(`SELECT rules_json FROM tournaments WHERE id=?`, tournamentID).Scan(&raw); err != nil {
 		return nil, err

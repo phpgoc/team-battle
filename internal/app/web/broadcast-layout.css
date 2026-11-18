@@ -1,4 +1,6 @@
 /* 标题和比分居中；当前对战不重复显示阶段，主要空间留给选手。 */
+.broadcast-board .board-rosters.is-ungrouped{grid-template-columns:minmax(0,1fr)}
+.broadcast-board .is-ungrouped .board-roster-list{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(var(--roster-count),minmax(40px,1fr));gap:0 12px}
 .broadcast-board .board-top .board-overview{align-items:center;text-align:center;gap:12px}
 .broadcast-board .board-top:not(.has-current) .board-overview{flex-direction:column;justify-content:center;gap:6px}
 .broadcast-board .board-top:not(.has-current) .board-status{padding:2px 8px;font-size:14px;line-height:1.3}

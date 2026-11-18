@@ -150,8 +150,8 @@ func (a *App) serveLiveEntry(c *gin.Context, setting bool) {
 	}
 	user, loggedIn := a.currentUser(c)
 	manager := loggedIn == nil && a.canManageTournament(user.ID, user.Role, tournamentID)
-	var assignedTeams int
-	if err := a.db.QueryRow(`SELECT COUNT(DISTINCT team_id) FROM tournament_players WHERE tournament_id=? AND active=1`, tournamentID).Scan(&assignedTeams); err != nil {
+	ready, err := loadTournamentReadiness(a.db, tournamentID)
+	if err != nil {
 		c.Status(http.StatusInternalServerError)
 		return
 	}
@@ -163,7 +163,7 @@ func (a *App) serveLiveEntry(c *gin.Context, setting bool) {
 		a.serveIndex(c)
 		return
 	}
-	if assignedTeams != 2 {
+	if !ready.publicReady {
 		if manager {
 			c.Redirect(http.StatusFound, "/live/"+strconv.FormatInt(tournamentID, 10)+"/setting")
 			return

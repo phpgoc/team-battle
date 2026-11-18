@@ -22,8 +22,8 @@ func (a *App) publicStream(c *gin.Context) {
 		return
 	}
 	defer unsubscribe()
-	if !initial.grouped {
-		fail(c, http.StatusNotFound, "赛事尚未完成参赛分队")
+	if !initial.publicReady {
+		fail(c, http.StatusNotFound, "赛事暂未公开")
 		return
 	}
 	if initial.status == statusCompleted || initial.status == statusCancelled {
@@ -51,7 +51,9 @@ func (a *App) publicStream(c *gin.Context) {
 			}
 			c.Writer.Flush()
 		case next := <-updates:
-			if !next.grouped || len(next.payload) == 0 {
+			if !next.publicReady || len(next.payload) == 0 {
+				fmt.Fprint(c.Writer, "data: {\"unavailable\":true}\n\n")
+				c.Writer.Flush()
 				return
 			}
 			if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", next.payload); err != nil {

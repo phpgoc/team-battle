@@ -157,6 +157,9 @@ func seedTestData(db *sql.DB) error {
 	if err := seedKOFRevivalDemo(tx, managerID, adminID, playerIDs[:6]); err != nil {
 		return err
 	}
+	if err := seedUngroupedSpectatorDemo(tx, managerID, adminID, playerIDs[:6]); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 

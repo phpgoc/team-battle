@@ -1,5 +1,6 @@
 window.TB_I18N = {
   "zh": {
+    "unassignedPlayers": "参赛选手 · 待分队",
     "selectManager": "请选择赛事管理员",
     "profileTournamentLocked": "参加的赛事尚未关闭，暂不能修改个人资料，密码仍可修改。",
     "kofRevivalNoRepeat": "KOF复活不重复",

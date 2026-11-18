@@ -10,9 +10,9 @@ import (
 )
 
 type streamSnapshot struct {
-	payload []byte
-	status  string
-	grouped bool
+	payload     []byte
+	status      string
+	publicReady bool
 }
 
 type streamSubscribers struct {
@@ -35,11 +35,7 @@ func (a *App) streamSnapshot(tournamentID int64) (streamSnapshot, error) {
 	if err != nil {
 		return streamSnapshot{}, err
 	}
-	var assigned int
-	if err := a.db.QueryRow(`SELECT COUNT(DISTINCT team_id) FROM tournament_players WHERE tournament_id=? AND active=1`, tournamentID).Scan(&assigned); err != nil {
-		return streamSnapshot{}, err
-	}
-	return streamSnapshot{payload: payload, status: view["status"].(string), grouped: assigned == 2}, nil
+	return streamSnapshot{payload: payload, status: view["status"].(string), publicReady: view["public_ready"] == true}, nil
 }
 
 func (a *App) subscribeTournament(tournamentID int64) (streamSnapshot, <-chan streamSnapshot, func(), error) {
