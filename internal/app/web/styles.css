@@ -424,3 +424,6 @@ tr[hidden]{display:none}
 .broadcast-board .board-current-fighters>.board-current-side:last-child{order:3}
 .broadcast-board .board-current-fighters .board-current-side>.current-player{order:0}
 .board-current-side>.board-current-win{order:1;flex-shrink:0;white-space:nowrap}
+.board-ace-waiting{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;font-size:clamp(16px,1.3vw,24px)}
+.board-ace-waiting p{margin:0;line-height:1.6}
+.board-ace-waiting button{font-size:20px;padding:12px 28px}

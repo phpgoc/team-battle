@@ -321,6 +321,12 @@ func seedCompletedTestEvent(tx *sql.Tx, managerID, creatorID int64, players []in
 		}
 		var matchID int64
 		err = tx.QueryRow("SELECT id FROM matches WHERE event_id=? AND status='pending'", eventID).Scan(&matchID)
+		if err == sql.ErrNoRows && status == stageAce {
+			if err := engine.beginAceDraw(); err != nil {
+				return err
+			}
+			continue
+		}
 		if err == sql.ErrNoRows && status == stageRound2 {
 			var lastID int64
 			if err := tx.QueryRow("SELECT id FROM matches WHERE event_id=? AND round_no=2 ORDER BY seq DESC LIMIT 1", eventID).Scan(&lastID); err != nil {

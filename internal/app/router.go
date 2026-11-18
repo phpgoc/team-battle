@@ -137,6 +137,7 @@ func (a *App) router() *gin.Engine {
 	api.GET("/events/:id/kof/options", a.kofOptions)
 	api.POST("/events/:id/kof/starter", a.selectKOFStarter)
 	api.POST("/events/:id/ace/confirm", a.confirmAce)
+	api.POST("/events/:id/ace/draw", a.drawAceManually)
 	api.POST("/events/:id/cancel", a.cancelEvent)
 	api.POST("/events/:id/confirm", a.confirmEvent)
 	return r

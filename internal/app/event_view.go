@@ -212,7 +212,8 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 // 大将战来源只公开规则名称，不公开抽签时的选手候选和内部审计数据。
 func (a *App) loadAceDrawSource(eventID int64) (string, int, error) {
 	var payload string
-	if err := a.db.QueryRow(`SELECT payload FROM event_actions WHERE event_id=? AND action='ace_drawn' ORDER BY id DESC LIMIT 1`, eventID).Scan(&payload); err != nil {
+	// 修正前两轮会删除原大将战对局，旧抽签审计仍保留但不再作为当前来源。
+	if err := a.db.QueryRow(`SELECT payload FROM event_actions WHERE event_id=? AND action='ace_drawn' AND EXISTS(SELECT 1 FROM matches WHERE event_id=? AND round_no=3) ORDER BY id DESC LIMIT 1`, eventID, eventID).Scan(&payload); err != nil {
 		if err == sql.ErrNoRows {
 			return "", 0, nil
 		}

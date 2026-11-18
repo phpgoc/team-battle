@@ -390,10 +390,11 @@ func (e *matchEngine) afterResult(m engineMatch) error {
 			if err := e.setStage(stageAce); err != nil {
 				return err
 			}
-			if _, err := e.db.Exec(`UPDATE rounds SET status='active' WHERE event_id=? AND stage='ace'`, e.eventID); err != nil {
+			// KOF结束只进入待抽签阶段，管理员核对录分后再手动抽取大将。
+			if _, err := e.db.Exec(`UPDATE rounds SET status='pending' WHERE event_id=? AND stage='ace'`, e.eventID); err != nil {
 				return err
 			}
-			return e.drawAce()
+			return nil
 		case stageAce:
 			return e.setStage(statusFinalConfirm)
 		}
@@ -604,6 +605,39 @@ func (e *matchEngine) selectKOFStarter(teamID, playerID int64, manager bool) err
 		chosen = append(chosen, player)
 	}
 	return e.insertMatch(stageRound2, chosen[0], chosen[1])
+}
+
+// 手动抽签须在两轮各胜一轮后执行，重复点击不能重新选择大将。
+func (e *matchEngine) beginAceDraw() error {
+	stage, err := e.status()
+	if err != nil {
+		return err
+	}
+	if stage != stageAce {
+		return errors.New("当前阶段不能抽取大将")
+	}
+	first, err := e.round(stageRound1)
+	if err != nil {
+		return err
+	}
+	second, err := e.round(stageRound2)
+	if err != nil {
+		return err
+	}
+	if first.status != statusFinished || second.status != statusFinished || first.winner == 0 || second.winner == 0 || first.winner == second.winner {
+		return errors.New("前两轮必须各胜一轮才能抽取大将")
+	}
+	var count int
+	if err := e.db.QueryRow(`SELECT COUNT(*) FROM matches WHERE event_id=? AND round_no=3`, e.eventID).Scan(&count); err != nil {
+		return err
+	}
+	if count != 0 {
+		return errors.New("大将战已抽签，不能重复抽取")
+	}
+	if _, err := e.db.Exec(`UPDATE rounds SET status='active' WHERE event_id=? AND stage='ace'`, e.eventID); err != nil {
+		return err
+	}
+	return e.drawAce()
 }
 
 func (e *matchEngine) drawAce() error {

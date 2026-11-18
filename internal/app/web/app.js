@@ -388,6 +388,7 @@
   const boardIdentity = player => `<span class="board-identity">${recordName(player)}${categoryIcon(player)}</span>`;
   function currentPlayerMarkup(e, player, stage, side) { const hasWin = playerHasWin(e, player.id, stage); const hasLoss = stage === 'round2' && playerHasLoss(e, player.id, stage); const stateClass = hasWin ? 'is-record-winner' : 'is-record-new'; return `<div class="current-player ${side === 'b' ? 'current-player-right' : ''} ${stateClass} ${hasLoss ? 'is-lost' : ''}">${avatar(player)}<div><strong>${boardIdentity(player)}</strong></div></div>`; }
   function currentMatchMarkup(e, match, people) {
+    if (match.stage === 'ace' && match.status === 'waiting') return `<section class="board-current-match"><div class="board-current-head"><span class="board-round-no">${t('ace')}</span><span>${t('awaitingAceDraw')}</span></div><div class="board-ace-waiting"><p>${t(editable(e) ? 'aceDrawReviewHint' : 'aceDrawWaitingHint')}</p>${editable(e) ? `<button type="button" class="primary accent" id="draw-ace"${state.drawingAce ? ' disabled' : ''}>${t('drawAce')}</button>` : ''}</div></section>`;
     const a = people.find(p => p.id === match.player_a_id) || { display_name: match.player_a_name }, b = people.find(p => p.id === match.player_b_id) || { display_name: match.player_b_name };
     const canRecord = editable(e) && !state.setupDraw && match.player_a_id && match.player_b_id && (match.status === 'pending' || (preMatch(e) && match.status === 'planned'));
     const result = side => canRecord ? `<button type="button" class="board-current-win" data-current-winner="${e.teams[side].id}" data-current-match="${match.id || 0}" data-player-a="${match.player_a_id}" data-player-b="${match.player_b_id}">${t('recordWin')}</button>` : '';
@@ -450,7 +451,7 @@
       }
       return roundMarkup(rounds.find(round => round.stage === stage), matches, people, e);
     };
-    const pending = setup?.step ? { stage: setup.step.kind === 'group' ? 'setupGrouping' : setup.step.kind, player_a_id: setup.step.a, player_b_id: setup.step.b, player_a_name: t('toConfirm'), player_b_name: t('toConfirm') } : !terminal(e) ? (e.matches.find(match => match.status === 'pending' && match.stage === e.status) || waitingKOFMatch(e) || (preMatch(e) ? plannedMatches(e, 'round1').find(match => match.player_a_id && match.player_b_id) : null)) : null;
+    const pending = setup?.step ? { stage: setup.step.kind === 'group' ? 'setupGrouping' : setup.step.kind, player_a_id: setup.step.a, player_b_id: setup.step.b, player_a_name: t('toConfirm'), player_b_name: t('toConfirm') } : !terminal(e) ? (e.matches.find(match => match.status === 'pending' && match.stage === e.status) || waitingKOFMatch(e) || (e.status === 'ace' && !e.matches.some(match => match.stage === 'ace') ? { stage: 'ace', status: 'waiting' } : null) || (preMatch(e) ? plannedMatches(e, 'round1').find(match => match.player_a_id && match.player_b_id) : null)) : null;
     // 历史赛事继续保留KOF胜负颜色，避免赛事结束后阵容退回无标记状态。
     const recordStage = e.matches.some(match => match.stage === 'round2') ? 'round2' : 'round1';
     const roster = (team, side) => `<aside class="board-roster board-roster-${side}"><div class="board-roster-head"><span>${esc(teamName(e, team))}</span><b>${team.players.filter(player => !setup || setup.visible.has(player.id)).length}</b></div><div class="board-roster-list">${team.players.filter(player => !setup || setup.visible.has(player.id)).map(player => {
@@ -495,6 +496,12 @@
     if (!manager) { state.operations = false; $('#event-operations').classList.add('hidden'); }
     $('#board-settings')?.addEventListener('click', () => go('/live/' + state.event.id + '/setting'));
     $('#board-lineup')?.addEventListener('click', () => go('/live/' + state.event.id + '/lineup'));
+    $('#draw-ace')?.addEventListener('click', action(async () => {
+      if (state.drawingAce) return;
+      state.drawingAce = true;
+      try { await eventAction('/ace/draw'); }
+      finally { state.drawingAce = false; const button = $('#draw-ace'); if (button) button.disabled = false; }
+    }));
     $$('[data-current-winner]').forEach(button => button.addEventListener('click', action(async () => {
       if (state.recordingResult || state.setupDraw || (state.draw?.endAt > Date.now())) return;
       state.recordingResult = true;

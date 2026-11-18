@@ -218,6 +218,18 @@ func (a *App) selectKOFPlayer(c *gin.Context) {
 	}
 	ok(c, gin.H{"ok": true})
 }
+func (a *App) drawAceManually(c *gin.Context) {
+	actor, id, access := a.managerEvent(c)
+	if !access {
+		return
+	}
+	if err := a.runMatchMutation(id, actor.ID, func(e *matchEngine) error { return e.beginAceDraw() }); err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
+	ok(c, gin.H{"ok": true})
+}
+
 func (a *App) confirmAce(c *gin.Context) {
 	actor, id, access := a.managerEvent(c)
 	if !access {
@@ -258,9 +270,7 @@ func (a *App) confirmAce(c *gin.Context) {
 		var matchID int64
 		err = e.db.QueryRow(`SELECT id FROM matches WHERE round_id=? AND status='pending'`, r.id).Scan(&matchID)
 		if err == sql.ErrNoRows {
-			if err := e.insertMatch(stageAce, req.PlayerAID, req.PlayerBID); err != nil {
-				return err
-			}
+			return errors.New("请先在实时赛事页抽取大将")
 		} else if err != nil {
 			return err
 		} else {

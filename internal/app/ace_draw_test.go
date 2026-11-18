@@ -53,6 +53,7 @@ func TestAceSpecialGroupsAndFullRandomFallback(t *testing.T) {
 			f.enterKOF(t, id)
 			match := f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=2`, id)
 			f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": f.teams(t, id)[1]}, 200)
+			f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/ace/draw", id), nil, 200)
 			var payload string
 			if err := f.app.db.QueryRow(`SELECT payload FROM event_actions WHERE event_id=? AND action='ace_drawn' ORDER BY id DESC LIMIT 1`, id).Scan(&payload); err != nil {
 				t.Fatal(err)

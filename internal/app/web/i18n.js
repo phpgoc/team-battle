@@ -1,5 +1,9 @@
 window.TB_I18N = {
   "zh": {
+    "drawAce": "抽取大将",
+    "awaitingAceDraw": "待抽取大将",
+    "aceDrawReviewHint": "请先核对前两轮比分，确认无误后抽取大将。",
+    "aceDrawWaitingHint": "等待管理员核对比分并抽取大将。",
     "recordWin": "录入获胜",
     "correctAndConfirm": "修正比分与结束确认",
     "eventRules": "赛事规则",
@@ -284,6 +288,10 @@ window.TB_I18N = {
     "categoryIconFormat": "分类图标只支持 JPG、PNG、GIF 或 WebP"
   },
   "en": {
+    "drawAce": "Draw ace players",
+    "awaitingAceDraw": "Awaiting ace draw",
+    "aceDrawReviewHint": "Check the first two rounds before drawing ace players.",
+    "aceDrawWaitingHint": "Waiting for an administrator to review scores and draw ace players.",
     "recordWin": "Record win",
     "correctAndConfirm": "Correct scores and confirm finish",
     "eventRules": "Event rules",
@@ -568,6 +576,10 @@ window.TB_I18N = {
     "categoryIconFormat": "Category icons must be JPG, PNG, GIF or WebP."
   },
   "ko": {
+    "drawAce": "대장 추첨",
+    "awaitingAceDraw": "대장 추첨 대기",
+    "aceDrawReviewHint": "앞선 두 라운드의 점수를 확인한 후 대장을 추첨하세요.",
+    "aceDrawWaitingHint": "관리자의 점수 확인 및 대장 추첨을 기다리고 있습니다.",
     "recordWin": "승리 기록",
     "correctAndConfirm": "점수 정정 및 종료 확인",
     "eventRules": "대회 규칙",
