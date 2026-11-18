@@ -574,13 +574,15 @@
     const tools = $('#board-tools');
     if (tools) {
       tools.hidden = !manager || !(e.status === 'final_confirm' || (e.status === 'ace' && e.matches.some(match => match.stage === 'ace' && match.status === 'pending')));
-      tools.onclick = () => {
+      tools.textContent = t(e.status === 'final_confirm' ? 'confirmEnd' : 'overrideAce');
+      tools.onclick = action(async () => {
         $('.board-menu').open = false;
+        if (state.event.status === 'final_confirm') { await confirmEventEnd(); return; }
         state.operations = true;
         $('#event-operations').classList.remove('hidden');
         renderOperations();
         $('#event-operations').focus({ preventScroll: true });
-      };
+      });
     }
     if (!state.setupDraw) window.TBKOFBoard.bindRows({ root: $('#board-content'), event: state.event, user: state.user, manager: manages(state.event), t, action, onVote: voteForCaptain, onCaptain: assignCaptain });
     if (state.event.status === 'round2' && canOperate(state.event) && !state.setupDraw) renderKOFSelection(state.event, manages(state.event)).catch(error => toast(error.message));
@@ -756,6 +758,20 @@
     if (target.dataset.options === snapshot) return;
     target.dataset.options = snapshot; paint();
   }
+  async function confirmEventEnd() {
+    const e = state.event;
+    if (!editable(e) || e.status !== 'final_confirm' || state.confirmingEnd) return;
+    const results = event => JSON.stringify(event.matches.map(match => [match.id, match.status, match.winner_team_id]));
+    const snapshot = results(e);
+    state.confirmingEnd = true;
+    try {
+      if (!(await window.TBConfirm.ask(t('confirmEndHint'), { title: t('confirmEnd') }))) return;
+      // 确认期间仍接收推送，录分已改变时必须重新核对，不能封存旧结果。
+      const current = state.event;
+      if (current?.id !== e.id || !editable(current) || current.status !== 'final_confirm' || results(current) !== snapshot) { toast(t('resultChanged')); return; }
+      await eventAction('/confirm');
+    } finally { state.confirmingEnd = false; }
+  }
   function renderOperations() {
     const e = state.event, target = $('#event-operations'); if (!target) return;
     if (!manages(e) || terminal(e)) { target.innerHTML = ''; return; }
@@ -769,7 +785,7 @@
     $('#close-operations')?.addEventListener('click', () => { state.operations = false; $('#event-operations').classList.add('hidden'); });
     $('#operations-lineup')?.addEventListener('click', event => { event.preventDefault(); go('/live/' + e.id + '/lineup'); });
     $('#ace-form')?.addEventListener('submit', action(async event => { event.preventDefault(); const f = new FormData(event.target); await eventAction('/ace/confirm', { player_a_id: Number(f.get('player_a_id')), player_b_id: Number(f.get('player_b_id')) }); }));
-    $('#confirm-end')?.addEventListener('click', action(async () => { if (await confirmAction(t('confirmEndHint'))) await eventAction('/confirm'); }));
+    $('#confirm-end')?.addEventListener('click', action(confirmEventEnd));
   }
   async function openEvent(id, preserve = false, setting = false) {
     if (state.event?.id !== Number(id)) state.event = null;
