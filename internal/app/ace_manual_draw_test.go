@@ -61,7 +61,7 @@ func TestKOFResultCorrectionClearsAceDraw(t *testing.T) {
 		if err := json.Unmarshal(raw, &view); err != nil {
 			t.Fatal(err)
 		}
-		if view["ace_draw_source"] != nil {
+		if view["ace_draw_source"] != nil || view["ace_draw"] != nil {
 			t.Fatalf("仍公开已失效的抽签来源: %s", raw)
 		}
 	}
@@ -73,4 +73,8 @@ func TestKOFResultCorrectionClearsAceDraw(t *testing.T) {
 	assertNoAceSource()
 	f.request(t, 1, "POST", draw, nil, 200)
 	f.assertCount(t, 2, `SELECT COUNT(*) FROM event_actions WHERE event_id=? AND action='ace_drawn'`, id)
+	recorded, err := f.app.loadAceDrawResult(id)
+	if err != nil || recorded == nil || recorded.MatchID != f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=3`, id) {
+		t.Fatalf("重抽后没有绑定新的大将对局: %+v %v", recorded, err)
+	}
 }

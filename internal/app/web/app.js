@@ -489,11 +489,14 @@
     if (match.stage === 'ace' && match.status === 'waiting') return `<section class="board-current-match"><div class="board-current-head"><span class="board-round-no">${t('ace')}</span><span>${t('awaitingAceDraw')}</span></div><div class="board-ace-waiting"><p>${t(editable(e) ? 'aceDrawReviewHint' : 'aceDrawWaitingHint')}</p>${editable(e) ? `<button type="button" class="primary accent" id="draw-ace"${state.drawingAce ? ' disabled' : ''}>${t('drawAce')}</button>` : ''}</div></section>`;
     const a = people.find(p => p.id === match.player_a_id) || { display_name: match.player_a_name }, b = people.find(p => p.id === match.player_b_id) || { display_name: match.player_b_name };
     const canRecord = editable(e) && !state.setupDraw && match.player_a_id && match.player_b_id && (match.status === 'pending' || (preMatch(e) && match.status === 'planned'));
-    const result = side => canRecord ? `<button type="button" class="board-current-win" data-current-winner="${e.teams[side].id}" data-current-match="${match.id || 0}" data-player-a="${match.player_a_id}" data-player-b="${match.player_b_id}"${state.recordingResult ? ' disabled' : ''}>${t('recordWin')}</button>` : '';
+    const result = side => canRecord ? `<button type="button" class="board-current-win" data-current-winner="${e.teams[side].id}" data-current-match="${match.id || 0}" data-player-a="${match.player_a_id}" data-player-b="${match.player_b_id}"${state.recordingResult || state.draw?.endAt > Date.now() ? ' disabled' : ''}>${t('recordWin')}</button>` : '';
     return `<section class="board-current-match" aria-label="${t('currentMatch')}"><div class="board-draw-roll" id="draw-roll" aria-live="polite" hidden><span>${t('drawing')}</span><div><strong id="draw-roll-a">${esc(a.display_name)}</strong><b>VS</b><strong id="draw-roll-b">${esc(b.display_name)}</strong></div></div><div class="board-current-fighters"><div class="board-current-side">${currentPlayerMarkup(e, a, match.stage, 'a')}${result(0)}</div><div class="board-current-vs">VS</div><div class="board-current-side">${currentPlayerMarkup(e, b, match.stage, 'b')}${result(1)}</div></div></section>`;
   }
-  function aceSourceLabel(e) { if (e.ace_draw_source === 'most_wins') return t('sourceMostWins'); if (e.ace_draw_source === 'most_losses') return t('sourceMostLosses'); if (e.ace_draw_source === 'special') return `${t('specialMatchGroup')}${e.ace_draw_special || 1}`; if (e.ace_draw_source === 'mixed') return t('mixed'); return t('random'); }
-  function roundMarkup(round, matches, people, e) { const source = round.stage === 'ace' && e && terminal(e) && e.ace_draw_source ? `<span class="board-ace-source">${t('aceSourceLabel')}: ${aceSourceLabel(e)}</span>` : ''; return `<section class="board-round"><div class="board-round-head"><div><span class="board-round-no">${t(round.stage)}</span><h2>${round.score_a} : ${round.score_b}</h2></div>${source}</div><div class="board-matches">${matches.map(m => matchMarkup(m, people)).join('') || `<div class="board-empty">${t('noMatches')}</div>`}</div></section>`; }
+  function aceSourceLabel(e) { return window.TBMatchDraw.sourceLabel(e.ace_draw_source || 'random', e.ace_draw_special, t); }
+  function roundMarkup(round, matches, people, e) {
+    const draw = round.stage === 'ace' && e ? window.TBMatchDraw.record(e, { t, esc, recordName }) : '';
+    return `<section class="board-round"><div class="board-round-head"><div><span class="board-round-no">${t(round.stage)}</span><h2>${round.score_a} : ${round.score_b}</h2></div></div>${draw}<div class="board-matches">${matches.map(m => matchMarkup(m, people)).join('') || `<div class="board-empty">${t('noMatches')}</div>`}</div></section>`;
+  }
   function aceRulesSummary(e, rules) {
     const players = new Map(e.teams.flatMap(team => team.players).map(player => [player.id, player]));
     const specials = (rules.ace_specials || []).map((group, index) => {
@@ -623,7 +626,7 @@
         await eventAction(id ? '/matches/' + id + '/result' : '/opening-result', { winner_team_id: winner, player_a_id: playerA, player_b_id: playerB });
       } finally {
         state.recordingResult = false;
-        $$('[data-current-winner]').forEach(control => control.disabled = false);
+        $$('[data-current-winner]').forEach(control => control.disabled = state.draw?.endAt > Date.now());
       }
     })));
     const tools = $('#board-tools');
@@ -713,9 +716,14 @@
       return lostLast && event.round2_target > players.length && players.every(lost) ? players : final;
     }
     if (next.stage === 'ace') {
+      if (event.ace_draw?.candidate_ids?.length === 2) {
+        const ids = event.ace_draw.candidate_ids[side];
+        return players.filter(player => ids.includes(player.id));
+      }
       const source = event.ace_draw_source;
       if (source === 'special') {
-        const ids = event.rules.ace_specials[(event.ace_draw_special || 1) - 1]?.player_ids || [];
+        const group = event.rules.ace_specials[(event.ace_draw_special || 1) - 1];
+        const ids = group?.[side ? 'team_b_ids' : 'team_a_ids'] || group?.player_ids || [];
         const special = players.filter(player => ids.includes(player.id));
         return special.length ? special : players;
       }
@@ -751,48 +759,48 @@
     // 等待报名的占位对局和正式待确认对局可以使用同一个序号，只有旧状态本身已经是待确认时才跳过。
     if (!continuing && oldMatch && oldMatch.status === 'pending' && oldMatch.stage === match.stage && oldMatch.seq >= match.seq) return;
     const roll = $('#draw-roll');
-    const aName = $('#draw-roll-a');
-    const bName = $('#draw-roll-b');
-    if (!roll || !aName || !bName) return;
+    if (!roll) return;
     if (state.drawTimer) clearInterval(state.drawTimer);
     state.drawToken += 1;
-    const token = state.drawToken;
-    const people = next.teams.flatMap(team => team.players);
-    const aFinal = people.find(player => player.id === match.player_a_id);
-    const bFinal = people.find(player => player.id === match.player_b_id);
+    const token = state.drawToken, people = next.teams.flatMap(team => team.players);
+    const finals = [match.player_a_id, match.player_b_id].map(id => people.find(player => player.id === id));
     const candidates = continuing ? state.draw.candidates : [drawCandidates(next, 0, previous, match), drawCandidates(next, 1, previous, match)];
-    const durationSeconds = Math.max(0, Number(match.stage === 'ace' ? next.rules.ace_draw_seconds : next.rules.random_draw_seconds) || 0);
-    if (!candidates.some(list => list.length > 1) || durationSeconds === 0) {
-      state.draw = { key, candidates, endAt: 0 };
-      roll.hidden = true;
-      return;
-    }
-    const interval = 250;
-    const endAt = continuing ? state.draw.endAt : Date.now() + durationSeconds * 1000;
-    state.draw = { key, candidates, endAt };
-    if (!continuing) { state.operations = false; $('#event-operations')?.classList.add('hidden'); }
-    let tick = 0;
+    const plan = continuing ? state.draw.plan : window.TBMatchDraw.plan(next, match, candidates);
+    const startedAt = continuing ? state.draw.startedAt : Date.now();
+    const endAt = startedAt + plan.duration;
+    state.draw = { key, candidates, plan, startedAt, endAt };
+    const board = $('.broadcast-board');
+    if (!continuing && plan.duration) { state.operations = false; $('#event-operations')?.classList.add('hidden'); }
     const update = () => {
-      for (const [index, list] of candidates.entries()) {
-        if (list.length > 1 && Date.now() < endAt) {
-          const player = list[tick % list.length];
-          (index ? bName : aName).textContent = player.display_name;
-        } else {
-          (index ? bName : aName).textContent = (index ? bFinal : aFinal)?.display_name || t('toConfirm');
-        }
+      // 导航、纠错或人选被覆盖后，旧动画不能继续占住新对战区。
+      const current = currentPending(state.event);
+      if (!roll.isConnected || state.editor || !manages(state.event) || current?.id !== match.id || current.player_a_id !== match.player_a_id || current.player_b_id !== match.player_b_id) {
+        clearInterval(state.drawTimer); state.drawTimer = null; state.draw.endAt = 0;
+        board?.classList.remove('is-drawing', 'is-drawing-rule');
+        return;
       }
-      tick += 1;
-      if (Date.now() >= endAt) {
-        clearInterval(state.drawTimer);
-        state.drawTimer = null;
-        roll.hidden = true;
+      const frame = window.TBMatchDraw.frame(plan, Date.now() - startedAt);
+      board.classList.toggle('is-drawing', !!frame);
+      board.classList.toggle('is-drawing-rule', frame?.kind === 'rule');
+      $$('[data-current-winner]').forEach(button => button.disabled = !!frame || state.recordingResult);
+      if (!frame) {
+        clearInterval(state.drawTimer); state.drawTimer = null; roll.hidden = true;
         return;
       }
       roll.hidden = false;
+      const step = `${frame.index + 1}/${plan.phases.length}`;
+      roll.dataset.phase = frame.kind;
+      if (frame.kind === 'rule') {
+        const source = frame.choices[frame.tick % frame.choices.length];
+        roll.innerHTML = `<span>${t('aceRuleStep')} · ${step}</span><div class="draw-rule-name">${esc(window.TBMatchDraw.sourceLabel(source, 0, t))}</div>`;
+      } else {
+        const names = candidates.map((list, side) => esc((list.length > 1 ? list[frame.tick % list.length] : finals[side])?.display_name || t('toConfirm')));
+        const title = match.stage === 'ace' ? `${t('aceCandidateStep')} · ${step} · ${aceSourceLabel(next)}` : t('drawing');
+        roll.innerHTML = `<span>${esc(title)}</span><div><strong id="draw-roll-a">${names[0]}</strong><b>VS</b><strong id="draw-roll-b">${names[1]}</strong></div>${match.stage === 'ace' ? `<small>${candidates.map((list, side) => `${t(side ? 'teamB' : 'teamA')} · ${list.length === 1 ? t('aceDirectPick') : `${list.length} ${t('aceCandidateCount')}`}`).join(' / ')}</small>` : ''}`;
+      }
     };
-    roll.hidden = false;
     update();
-    if (Date.now() < endAt) state.drawTimer = setInterval(() => { if (token === state.drawToken) update(); }, interval);
+    if (Date.now() < endAt && !roll.hidden) state.drawTimer = setInterval(() => { if (token === state.drawToken) update(); }, 250);
   }
   async function refreshEvent() { const previous = state.event; state.event = await api('/api/public/events/' + state.event.id); if (!state.editor) { boardPage(); startDrawAnimation(previous, state.event); } }
   async function eventAction(path, body = {}, method = 'POST') { await post('/api/events/' + state.event.id + path, body, method); await refreshEvent(); }
@@ -855,7 +863,7 @@
     }
     if (setting) state.editor = 'settings';
     if (state.editor === 'lineup') await renderLineupPage(preserve);
-    else if (state.editor) await eventEditor(state.editor, preserve); else boardPage();
+    else if (state.editor) await eventEditor(state.editor, preserve); else { boardPage(); startDrawAnimation(state.event, state.event); }
     if (terminal(state.event)) { closeStream(); return; }
     if (!hasRoster(state.event)) return;
     if (state.stream) return;

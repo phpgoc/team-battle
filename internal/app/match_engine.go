@@ -692,7 +692,11 @@ func (e *matchEngine) drawAce() error {
 	if err := e.insertMatch(stageAce, chosen[0], chosen[1]); err != nil {
 		return err
 	}
-	return e.log("ace_drawn", map[string]any{"player_a_id": chosen[0], "player_b_id": chosen[1], "source": mode, "rules": sources, "candidate_counts": []int{len(candidatesByTeam[0]), len(candidatesByTeam[1])}})
+	var matchID int64
+	if err := e.db.QueryRow(`SELECT id FROM matches WHERE event_id=? AND round_no=3`, e.eventID).Scan(&matchID); err != nil {
+		return err
+	}
+	return e.log("ace_drawn", map[string]any{"match_id": matchID, "player_a_id": chosen[0], "player_b_id": chosen[1], "source": mode, "rules": sources, "candidate_ids": candidatesByTeam, "candidate_counts": []int{len(candidatesByTeam[0]), len(candidatesByTeam[1])}})
 }
 
 type aceRecord struct {

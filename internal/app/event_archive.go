@@ -178,7 +178,12 @@ func (a *App) archiveEvent(c *gin.Context) {
 		return
 	}
 	if len(grouped[2]) == 1 {
-		if err := engine.log("ace_drawn", map[string]any{"source": aceSource, "rules": []string{aceSource, aceSource}}); err != nil {
+		var matchID int64
+		if err := tx.QueryRow(`SELECT id FROM matches WHERE event_id=? AND round_no=3`, id).Scan(&matchID); err != nil {
+			fail(c, 500, err.Error())
+			return
+		}
+		if err := engine.log("ace_drawn", aceDrawResult{MatchID: matchID, Source: aceSource, Rules: []string{aceSource, aceSource}, PlayerAID: grouped[2][0].AID, PlayerBID: grouped[2][0].BID}); err != nil {
 			fail(c, 500, err.Error())
 			return
 		}

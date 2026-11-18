@@ -1,5 +1,13 @@
 window.TB_I18N = {
   "zh": {
+    "aceRuleStep": "抽中规则",
+    "aceCandidateStep": "候选人抽签",
+    "aceFinalStep": "抽中对阵",
+    "aceDrawDetails": "查看抽签过程",
+    "aceDirectPick": "直接确定",
+    "aceCandidateCount": "位候选",
+    "aceAdjusted": "管理员已调整",
+    "aceAdjustedHint": "以上保留原抽签结果，当前对阵以对战区为准。",
     "specialSideFallback": "本侧不选候选时，从本队全部选手中随机。",
     "specialOtherTeam": "已分到另一队，本侧不参与抽选",
     "confirmRecordWin": "确认录入获胜",

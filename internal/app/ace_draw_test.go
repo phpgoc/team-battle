@@ -62,16 +62,28 @@ func TestAceSpecialGroupsAndFullRandomFallback(t *testing.T) {
 				t.Fatal(err)
 			}
 			var draw struct {
-				Source string `json:"source"`
-				Counts []int  `json:"candidate_counts"`
-				A      int64  `json:"player_a_id"`
-				B      int64  `json:"player_b_id"`
+				Source     string    `json:"source"`
+				Counts     []int     `json:"candidate_counts"`
+				A          int64     `json:"player_a_id"`
+				B          int64     `json:"player_b_id"`
+				MatchID    int64     `json:"match_id"`
+				Candidates [][]int64 `json:"candidate_ids"`
 			}
 			if err := json.Unmarshal([]byte(payload), &draw); err != nil {
 				t.Fatal(err)
 			}
 			if draw.Source != test.source || !reflect.DeepEqual(draw.Counts, test.counts) || !containsID(test.poolA, draw.A) || !containsID(test.poolB, draw.B) {
 				t.Fatalf("大将战候选池不符合配置: %+v", draw)
+			}
+			if draw.MatchID != f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=3`, id) || !reflect.DeepEqual(draw.Candidates, [][]int64{test.poolA, test.poolB}) {
+				t.Fatalf("没有保存准确的对局与候选快照: %+v", draw)
+			}
+			view, err := f.app.loadAceDrawResult(id)
+			if err != nil || view == nil || !reflect.DeepEqual(view.CandidateIDs, draw.Candidates) || view.PlayerAID != draw.A || view.PlayerBID != draw.B {
+				t.Fatalf("公开抽签结果与审计不一致: %+v, %v", view, err)
+			}
+			if test.name == "空侧从本队全随机" && view.Rules[1] != "random_fallback" {
+				t.Fatalf("没有保存空侧的全随机来源: %+v", view)
 			}
 		})
 	}

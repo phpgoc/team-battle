@@ -2,12 +2,10 @@ package app
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -196,10 +194,11 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 		return nil, err
 	}
 	event["matches"] = matches
-	if source, special, err := a.loadAceDrawSource(eventID); err == nil && source != "" {
-		event["ace_draw_source"] = source
-		if special > 0 {
-			event["ace_draw_special"] = special
+	if draw, err := a.loadAceDrawResult(eventID); err == nil && draw != nil {
+		event["ace_draw"] = draw
+		event["ace_draw_source"] = draw.Source
+		if draw.Special > 0 {
+			event["ace_draw_special"] = draw.Special
 		}
 	}
 	if includePrivate {
@@ -207,46 +206,6 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 		event["actions"] = actions
 	}
 	return event, nil
-}
-
-// 大将战来源只公开规则名称，不公开抽签时的选手候选和内部审计数据。
-func (a *App) loadAceDrawSource(eventID int64) (string, int, error) {
-	var payload string
-	// 修正前两轮会删除原大将战对局，旧抽签审计仍保留但不再作为当前来源。
-	if err := a.db.QueryRow(`SELECT payload FROM event_actions WHERE event_id=? AND action='ace_drawn' AND EXISTS(SELECT 1 FROM matches WHERE event_id=? AND round_no=3) ORDER BY id DESC LIMIT 1`, eventID, eventID).Scan(&payload); err != nil {
-		if err == sql.ErrNoRows {
-			return "", 0, nil
-		}
-		return "", 0, err
-	}
-	var data struct {
-		Source string   `json:"source"`
-		Rules  []string `json:"rules"`
-	}
-	if err := json.Unmarshal([]byte(payload), &data); err != nil {
-		return "", 0, err
-	}
-	source := data.Source
-	if source == "" && len(data.Rules) > 0 {
-		source = data.Rules[0]
-		for _, item := range data.Rules[1:] {
-			if item != source {
-				source = "mixed"
-				break
-			}
-		}
-	}
-	if source == "random_fallback" {
-		source = "random"
-	}
-	special := 0
-	if strings.HasPrefix(source, "special:") {
-		if value, err := strconv.Atoi(strings.TrimPrefix(source, "special:")); err == nil && value >= 0 {
-			special = value + 1
-			source = "special"
-		}
-	}
-	return source, special, nil
 }
 
 func (a *App) loadTeams(eventID int64) ([]map[string]any, error) {
