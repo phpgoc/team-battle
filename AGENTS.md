@@ -11,8 +11,8 @@
 - SQLite 使用纯 Go 驱动，避免依赖 CGO，保证单文件部署和跨平台编译。
 - 前端使用内嵌的 HTML、CSS、JavaScript，不能依赖独立 Node 服务或外部 CDN。
 - 数据库启动时执行幂等迁移；不要要求用户手动初始化表结构。
-- 默认数据库路径为当前目录下的 `team-battle.sqlite`，支持 `--db` 覆盖。
-- 启动参数为 `--db`、`--host`、`--port`；默认值分别为 `./team-battle.sqlite`、`localhost`、`9527`。
+- 默认数据库路径为当前目录 `runtime/team-battle.sqlite`，启动时会自动创建 `runtime` 目录，支持 `--db` 覆盖。
+- 启动参数为 `--db`、`--host`、`--port`；默认值分别为 `./runtime/team-battle.sqlite`、`localhost`、`9527`。
 - 应用只提供 HTTP，不实现 TLS；生产 HTTPS 由 Nginx 反向代理终止并转发到应用端口。
 - 密码必须使用不可逆哈希保存，不能保存明文密码。
 - 会话默认使用 HttpOnly Cookie；修改操作必须经过服务端权限校验。

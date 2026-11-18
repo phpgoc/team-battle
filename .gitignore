@@ -5,6 +5,7 @@ team-battle-*.exe
 *.exe~
 
 # 本地运行数据库和会话文件
+runtime/
 *.sqlite
 !test.sqlite
 *.db

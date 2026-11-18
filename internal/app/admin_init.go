@@ -8,13 +8,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// defaultDatabasePath 返回当前目录下的默认数据库文件路径。
+// defaultDatabasePath 返回当前目录 runtime 下的默认数据库文件路径。
 func defaultDatabasePath() string {
 	workingDir, err := os.Getwd()
 	if err != nil {
-		return filepath.Join(".", "team-battle.sqlite")
+		return filepath.Join(".", "runtime", "team-battle.sqlite")
 	}
-	return filepath.Join(workingDir, "team-battle.sqlite")
+	return filepath.Join(workingDir, "runtime", "team-battle.sqlite")
 }
 
 // ensureDefaultAdmin 为全新数据库创建默认超级管理员，已有账号时不覆盖任何数据。

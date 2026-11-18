@@ -7,6 +7,7 @@ import (
 	"log"
 	mathrand "math/rand"
 	"net"
+	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -201,6 +202,9 @@ func Main() {
 	}
 	if *dbPath == "" {
 		*dbPath = defaultDatabasePath()
+	}
+	if err := os.MkdirAll(filepath.Dir(*dbPath), 0755); err != nil {
+		log.Fatal(err)
 	}
 
 	db, err := sql.Open("sqlite", *dbPath)
