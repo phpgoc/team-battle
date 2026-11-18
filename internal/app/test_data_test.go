@@ -4,12 +4,38 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
+	"image"
+	_ "image/png"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+func TestDemoImagesAreDetailedLocalAssets(t *testing.T) {
+	// 防止演示数据退回单色占位或简易像素图片。
+	for _, category := range testCategories {
+		data, err := demoFS.ReadFile("testdata/demo/" + category.asset + ".png")
+		if err != nil {
+			t.Fatal(err)
+		}
+		config, _, err := image.DecodeConfig(bytes.NewReader(data))
+		if err != nil || config.Width < 64 || config.Height < 64 || len(data) < 4096 {
+			t.Fatalf("分类 %s 的演示图标不完整: %dx%d, %d 字节, %v", category.name, config.Width, config.Height, len(data), err)
+		}
+	}
+	for _, username := range []string{"admin", "2", "3", "4", "5", "6", "7", "8", "9", "10"} {
+		data, err := demoAvatar(username)
+		if err != nil {
+			t.Fatal(err)
+		}
+		config, _, err := image.DecodeConfig(bytes.NewReader(data))
+		if err != nil || config.Width != 256 || config.Height != 256 || len(data) < 4096 {
+			t.Fatalf("账号 %s 的演示头像不完整: %dx%d, %d 字节, %v", username, config.Width, config.Height, len(data), err)
+		}
+	}
+}
 
 func TestDemoDataHasConsistentCompleteMatches(t *testing.T) {
 	f := newWorkflowFixture(t)

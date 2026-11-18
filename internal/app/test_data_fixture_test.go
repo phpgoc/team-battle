@@ -1,15 +1,10 @@
 package app
 
 import (
-	"bytes"
-	"crypto/sha256"
 	"database/sql"
 	"embed"
 	"encoding/json"
 	"fmt"
-	"image"
-	"image/color"
-	"image/png"
 	mathrand "math/rand"
 	"os"
 	"path/filepath"
@@ -21,7 +16,7 @@ import (
 
 // 测试服务使用的种族图片只在测试构建中打包。
 //
-//go:embed testdata/demo/*.png
+//go:embed testdata/demo/*.png testdata/demo/avatars/*.png
 var demoFS embed.FS
 
 type testAccount struct {
@@ -663,27 +658,7 @@ func seedPlayers(tx *sql.Tx, eventID, teamA, teamB int64, players []int64) error
 	return nil
 }
 
-// 根据账号生成对称像素头像，演示选手能够一眼区分且不使用外部图片。
+// 演示头像使用官方游戏角色裁图，不代表同名选手的真实肖像。
 func demoAvatar(username string) ([]byte, error) {
-	hash := sha256.Sum256([]byte(username))
-	img := image.NewRGBA(image.Rect(0, 0, 96, 96))
-	foreground := color.RGBA{70 + hash[0]/2, 80 + hash[1]/2, 90 + hash[2]/2, 255}
-	for y := 0; y < 96; y++ {
-		for x := 0; x < 96; x++ {
-			shade := color.RGBA{237, 242, 247, 255}
-			col, row := (x-8)/16, (y-8)/16
-			if x >= 8 && x < 88 && y >= 8 && y < 88 {
-				if col > 2 {
-					col = 4 - col
-				}
-				if hash[row*3+col]&1 == 1 {
-					shade = foreground
-				}
-			}
-			img.SetRGBA(x, y, shade)
-		}
-	}
-	var out bytes.Buffer
-	err := png.Encode(&out, img)
-	return out.Bytes(), err
+	return demoFS.ReadFile("testdata/demo/avatars/" + username + ".png")
 }
