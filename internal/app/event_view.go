@@ -62,6 +62,11 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 	event["round1_target"] = round1Target
 	event["round2_target"] = round2Target
 	event["manager_id"] = managerID
+	// 管理员可能不在参赛名单中，通过账号目录读取公开显示名。
+	event["manager_name"] = ""
+	if manager, err := a.cachedUser(managerID); err == nil && !manager.IsDeleted && isNonSuperAdmin(manager.Role) {
+		event["manager_name"] = manager.DisplayName
+	}
 	event["created_at"] = createdAt
 	if backgroundID.Valid {
 		var backgroundName, updatedAt string
