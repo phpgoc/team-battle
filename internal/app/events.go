@@ -16,7 +16,7 @@ func (a *App) publicStream(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "赛事编号无效")
 		return
 	}
-	initial, updates, unsubscribe, err := a.subscribeEvent(tournamentID)
+	initial, updates, unsubscribe, err := a.subscribeTournament(tournamentID)
 	if err != nil {
 		fail(c, http.StatusNotFound, "赛事不存在")
 		return
@@ -65,8 +65,8 @@ func (a *App) publicStream(c *gin.Context) {
 	}
 }
 
-func (a *App) publicEventPayload(tournamentID int64) ([]byte, error) {
-	data, err := a.buildEvent(tournamentID, false)
+func (a *App) publicTournamentPayload(tournamentID int64) ([]byte, error) {
+	data, err := a.buildTournament(tournamentID, false)
 	if err != nil {
 		return nil, err
 	}

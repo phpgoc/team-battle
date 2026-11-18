@@ -22,9 +22,9 @@ func requireEditableSettings(db sqlRunner, tournamentID int64) error {
 	return nil
 }
 
-// eventHasGrouping 表示赛事是否已经完成过一次选手分队抽签。
+// tournamentHasGrouping 表示赛事是否已经完成过一次选手分队抽签。
 // 分队完成后，第一轮和KOF的规则必须保持不变；大将战规则仍可在首场开赛前调整。
-func eventHasGrouping(db sqlRunner, tournamentID int64) (bool, error) {
+func tournamentHasGrouping(db sqlRunner, tournamentID int64) (bool, error) {
 	var count int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND active=1`, tournamentID).Scan(&count); err != nil {
 		return false, err
@@ -32,16 +32,16 @@ func eventHasGrouping(db sqlRunner, tournamentID int64) (bool, error) {
 	return count > 0, nil
 }
 
-func roundSetupChanged(before, after EventRules) bool {
+func roundSetupChanged(before, after TournamentRules) bool {
 	return before.Round1Mode != after.Round1Mode || before.KOFStarter != after.KOFStarter || before.NoRepeat != after.NoRepeat
 }
 
-func (a *App) updateEventSettings(c *gin.Context) {
-	actor, tournamentID, access := a.managerEvent(c)
+func (a *App) updateTournamentSettings(c *gin.Context) {
+	actor, tournamentID, access := a.managerTournament(c)
 	if !access {
 		return
 	}
-	var req eventSettingsRequest
+	var req tournamentSettingsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		fail(c, 400, "赛事设置格式不正确")
 		return
@@ -100,7 +100,7 @@ func (a *App) updateEventSettings(c *gin.Context) {
 					return err
 				}
 			}
-			return e.log("event_settings_updated", req)
+			return e.log("tournament_settings_updated", req)
 		}
 		if req.AcePlayers != nil {
 			return errors.New("当前不是大将战阶段")
@@ -112,7 +112,7 @@ func (a *App) updateEventSettings(c *gin.Context) {
 		if err := tx.QueryRow(`SELECT round1_target,round2_target FROM tournaments WHERE id=?`, tournamentID).Scan(&beforeRound1Target, &beforeRound2Target); err != nil {
 			return err
 		}
-		grouped, err := eventHasGrouping(tx, tournamentID)
+		grouped, err := tournamentHasGrouping(tx, tournamentID)
 		if err != nil {
 			return err
 		}
@@ -141,7 +141,7 @@ func (a *App) updateEventSettings(c *gin.Context) {
 		}
 		rosterChanged := false
 		if req.PlayerIDs != nil {
-			changed, err := eventRosterChanged(tx, tournamentID, *req.PlayerIDs, req.FixedAssignments)
+			changed, err := tournamentRosterChanged(tx, tournamentID, *req.PlayerIDs, req.FixedAssignments)
 			if err != nil {
 				return err
 			}
@@ -220,7 +220,7 @@ func (a *App) updateEventSettings(c *gin.Context) {
 				return err
 			}
 		}
-		return e.log("event_settings_updated", req)
+		return e.log("tournament_settings_updated", req)
 	})
 	if err != nil {
 		fail(c, 400, err.Error())
@@ -230,7 +230,7 @@ func (a *App) updateEventSettings(c *gin.Context) {
 }
 
 // 固定分队与当前阵容一致时保留队长及投票；主动随机分队则重新确认。
-func eventRosterChanged(db sqlRunner, tournamentID int64, ids []int64, fixed map[string]string) (bool, error) {
+func tournamentRosterChanged(db sqlRunner, tournamentID int64, ids []int64, fixed map[string]string) (bool, error) {
 	if len(ids) > 12 {
 		return false, errors.New("参赛列表最多12人")
 	}

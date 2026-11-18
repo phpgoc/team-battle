@@ -45,7 +45,7 @@ func TestPlayerRecordsIncludeBothSidesAndOpponentCategories(t *testing.T) {
 			assignments = map[string]string{"3": "B", "4": "B", "5": "B", "6": "A", "7": "A", "8": "A"}
 			matches = []archivedMatch{{1, 6, 3, "b"}, {2, 7, 3, "a"}, {3, 8, 3, "a"}}
 		}
-		f.request(t, 1, "POST", "/api/events/archive", map[string]any{
+		f.request(t, 1, "POST", "/api/tournaments/archive", map[string]any{
 			"name": "战绩统计", "start_time": "2026-11-17T19", "player_ids": []int{3, 4, 5, 6, 7, 8},
 			"fixed_assignments": assignments, "matches": matches,
 		}, 200)
@@ -92,14 +92,14 @@ func TestPlayerRecordsReflectLiveCorrectionsAndCancellation(t *testing.T) {
 	id := f.create(t, "captain")
 	teams := f.teams(t, id)
 	for side, players := range [][]int{{3, 4, 5}, {6, 7, 8}} {
-		f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/lineup/submit", id), map[string]any{"team_id": teams[side], "player_ids": players}, 200)
+		f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/lineup/submit", id), map[string]any{"team_id": teams[side], "player_ids": players}, 200)
 	}
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/start", id), nil, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/start", id), nil, 200)
 	if got := f.records(t, 0, 3); got.Overall != (recordScore{}) || len(got.ByCategory) != 0 {
 		t.Fatalf("待定对局不应计入战绩: %+v", got)
 	}
 	match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=1`, id)
-	result := fmt.Sprintf("/api/events/%d/matches/%d/result", id, match)
+	result := fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match)
 	f.request(t, 2, "POST", result, map[string]any{"winner_team_id": teams[0]}, 200)
 	if got := f.records(t, 0, 3); got.Overall != (recordScore{1, 0}) || got.Ace != (recordScore{}) {
 		t.Fatalf("进行中对局未计入战绩: %+v", got)
@@ -108,7 +108,7 @@ func TestPlayerRecordsReflectLiveCorrectionsAndCancellation(t *testing.T) {
 	if got := f.records(t, 0, 3); got.Overall != (recordScore{0, 1}) {
 		t.Fatalf("比分修正后统计未更新: %+v", got)
 	}
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/cancel", id), nil, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/cancel", id), nil, 200)
 	if got := f.records(t, 0, 3); got.Overall != (recordScore{}) {
 		t.Fatalf("取消赛事不应计入战绩: %+v", got)
 	}
@@ -130,17 +130,17 @@ func TestTeamBattleRecordsWaitForConfirmation(t *testing.T) {
 	id := f.create(t, "random")
 	teams := f.teams(t, id)
 	for side, players := range [][]int{{3, 4, 5}, {6, 7, 8}} {
-		f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/lineup/submit", id), map[string]any{"team_id": teams[side], "player_ids": players}, 200)
+		f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/lineup/submit", id), map[string]any{"team_id": teams[side], "player_ids": players}, 200)
 	}
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/start", id), nil, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/start", id), nil, 200)
 	for _, stage := range []string{stageRound1, stageRound2} {
 		match := f.scalar(t, `SELECT m.id FROM matches m JOIN rounds r ON r.id=m.round_id WHERE m.tournament_id=? AND r.stage=? AND m.status='pending'`, id, stage)
-		f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[0]}, 200)
+		f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[0]}, 200)
 		if got := f.records(t, 0, 3); got.TeamBattle != (recordScore{}) {
 			t.Fatalf("进行中和待确认结束赛事不能提前计算团战胜负: %+v", got)
 		}
 	}
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/confirm", id), nil, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/confirm", id), nil, 200)
 	for _, player := range []int{3, 4, 5, 6, 7, 8} {
 		want := recordScore{1, 0}
 		if player >= 6 {

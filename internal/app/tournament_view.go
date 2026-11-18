@@ -10,19 +10,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (a *App) eventDetail(c *gin.Context) {
+func (a *App) tournamentDetail(c *gin.Context) {
 	user, err := a.currentUser(c)
 	if err != nil {
 		fail(c, http.StatusUnauthorized, "未登录")
 		return
 	}
 	tournamentID, err := parseID(c.Param("id"))
-	if err != nil || !a.canViewEvent(user.ID, user.Role, tournamentID) {
+	if err != nil || !a.canViewTournament(user.ID, user.Role, tournamentID) {
 		fail(c, http.StatusForbidden, "无权查看该赛事")
 		return
 	}
 	// 预报名审计含尚未公开的选手，完整审计仅供赛事管理员查看。
-	data, err := a.buildEvent(tournamentID, a.canManageEvent(user.ID, user.Role, tournamentID))
+	data, err := a.buildTournament(tournamentID, a.canManageTournament(user.ID, user.Role, tournamentID))
 	if err != nil {
 		fail(c, http.StatusNotFound, "赛事不存在")
 		return
@@ -30,13 +30,13 @@ func (a *App) eventDetail(c *gin.Context) {
 	ok(c, data)
 }
 
-func (a *App) publicEvent(c *gin.Context) {
+func (a *App) publicTournament(c *gin.Context) {
 	tournamentID, err := parseID(c.Param("id"))
 	if err != nil {
 		fail(c, http.StatusBadRequest, "赛事编号无效")
 		return
 	}
-	data, err := a.buildEvent(tournamentID, false)
+	data, err := a.buildTournament(tournamentID, false)
 	if err != nil {
 		fail(c, http.StatusNotFound, "赛事不存在")
 		return
@@ -44,41 +44,41 @@ func (a *App) publicEvent(c *gin.Context) {
 	ok(c, data)
 }
 
-func (a *App) buildEvent(tournamentID int64, includePrivate bool) (map[string]any, error) {
-	var event = map[string]any{}
+func (a *App) buildTournament(tournamentID int64, includePrivate bool) (map[string]any, error) {
+	var tournament = map[string]any{}
 	var name, description, startTime, status, createdAt string
 	var round1Target, round2Target, managerID int64
 	var backgroundID sql.NullInt64
 	if err := a.db.QueryRow(`SELECT e.name,e.description,e.start_time,e.status,e.round1_target,e.round2_target,e.manager_id,e.created_at,e.background_id FROM tournaments e WHERE e.id=?`, tournamentID).Scan(&name, &description, &startTime, &status, &round1Target, &round2Target, &managerID, &createdAt, &backgroundID); err != nil {
 		return nil, err
 	}
-	event["id"] = tournamentID
-	event["name"] = name
-	event["description"] = description
-	event["start_time"] = startTime
-	event["status"] = status
-	event["round1_target"] = round1Target
-	event["round2_target"] = round2Target
-	event["manager_id"] = managerID
+	tournament["id"] = tournamentID
+	tournament["name"] = name
+	tournament["description"] = description
+	tournament["start_time"] = startTime
+	tournament["status"] = status
+	tournament["round1_target"] = round1Target
+	tournament["round2_target"] = round2Target
+	tournament["manager_id"] = managerID
 	// 管理员可能不在参赛名单中，通过账号目录读取公开显示名。
-	event["manager_name"] = ""
+	tournament["manager_name"] = ""
 	if manager, err := a.cachedUser(managerID); err == nil && !manager.IsDeleted && isNonSuperAdmin(manager.Role) {
-		event["manager_name"] = manager.DisplayName
+		tournament["manager_name"] = manager.DisplayName
 	}
-	event["created_at"] = createdAt
+	tournament["created_at"] = createdAt
 	if backgroundID.Valid {
 		var backgroundName, updatedAt string
 		if err := a.db.QueryRow(`SELECT name,updated_at FROM backgrounds WHERE id=?`, backgroundID.Int64).Scan(&backgroundName, &updatedAt); err == nil {
-			event["background_id"] = backgroundID.Int64
-			event["background_name"] = backgroundName
-			event["background_url"] = "/api/backgrounds/" + strconv.FormatInt(backgroundID.Int64, 10) + "/image?v=" + url.QueryEscape(updatedAt)
+			tournament["background_id"] = backgroundID.Int64
+			tournament["background_name"] = backgroundName
+			tournament["background_url"] = "/api/backgrounds/" + strconv.FormatInt(backgroundID.Int64, 10) + "/image?v=" + url.QueryEscape(updatedAt)
 		}
 	}
 	teams, err := a.loadTeams(tournamentID)
 	if err != nil {
 		return nil, err
 	}
-	event["teams"] = teams
+	tournament["teams"] = teams
 	directory, err := a.userDirectory()
 	if err != nil {
 		return nil, err
@@ -103,7 +103,7 @@ func (a *App) buildEvent(tournamentID int64, includePrivate bool) (map[string]an
 		return nil, err
 	}
 	setupRows.Close()
-	event["setup_roster"] = setup
+	tournament["setup_roster"] = setup
 	var raw string
 	if err := a.db.QueryRow(`SELECT rules_json FROM tournaments WHERE id=?`, tournamentID).Scan(&raw); err != nil {
 		return nil, err
@@ -112,7 +112,7 @@ func (a *App) buildEvent(tournamentID int64, includePrivate bool) (map[string]an
 	if err != nil {
 		return nil, err
 	}
-	event["rules"] = rules
+	tournament["rules"] = rules
 	starters := []map[string]any{}
 	selectionRows, err := a.db.Query(`SELECT team_id,player_id FROM player_selections WHERE tournament_id=? AND stage='round2' AND EXISTS (SELECT 1 FROM matches WHERE tournament_id=? AND round_no=2) ORDER BY team_id`, tournamentID, tournamentID)
 	if err != nil {
@@ -131,14 +131,14 @@ func (a *App) buildEvent(tournamentID int64, includePrivate bool) (map[string]an
 		return nil, err
 	}
 	selectionRows.Close()
-	event["kof_starters"] = starters
+	tournament["kof_starters"] = starters
 	if rules.KOFStarter == "random" {
 		var aID, bID sql.NullInt64
 		if err := a.db.QueryRow(`SELECT kof_initial_a,kof_initial_b FROM tournaments WHERE id=?`, tournamentID).Scan(&aID, &bID); err != nil {
 			return nil, err
 		}
 		if aID.Valid && bID.Valid && len(teams) == 2 {
-			event["kof_starters"] = []map[string]any{{"team_id": teams[0]["id"], "player_id": aID.Int64}, {"team_id": teams[1]["id"], "player_id": bID.Int64}}
+			tournament["kof_starters"] = []map[string]any{{"team_id": teams[0]["id"], "player_id": aID.Int64}, {"team_id": teams[1]["id"], "player_id": bID.Int64}}
 		}
 	}
 	lineups := []map[string]any{}
@@ -167,7 +167,7 @@ func (a *App) buildEvent(tournamentID int64, includePrivate bool) (map[string]an
 			lineups = []map[string]any{}
 		}
 	}
-	event["lineups"] = lineups
+	tournament["lineups"] = lineups
 	votes := []map[string]any{}
 	voteRows, err := a.db.Query(`SELECT target_id,COUNT(*) FROM captain_votes WHERE tournament_id=? GROUP BY target_id`, tournamentID)
 	if err != nil {
@@ -183,29 +183,29 @@ func (a *App) buildEvent(tournamentID int64, includePrivate bool) (map[string]an
 		votes = append(votes, map[string]any{"player_id": player, "count": count})
 	}
 	voteRows.Close()
-	event["votes"] = votes
+	tournament["votes"] = votes
 	rounds, err := a.loadRounds(tournamentID)
 	if err != nil {
 		return nil, err
 	}
-	event["rounds"] = rounds
+	tournament["rounds"] = rounds
 	matches, err := a.loadMatches(tournamentID)
 	if err != nil {
 		return nil, err
 	}
-	event["matches"] = matches
+	tournament["matches"] = matches
 	if draw, err := a.loadAceDrawResult(tournamentID); err == nil && draw != nil {
-		event["ace_draw"] = draw
-		event["ace_draw_source"] = draw.Source
+		tournament["ace_draw"] = draw
+		tournament["ace_draw_source"] = draw.Source
 		if draw.Special > 0 {
-			event["ace_draw_special"] = draw.Special
+			tournament["ace_draw_special"] = draw.Special
 		}
 	}
 	if includePrivate {
 		actions, _ := a.loadActions(tournamentID)
-		event["actions"] = actions
+		tournament["actions"] = actions
 	}
-	return event, nil
+	return tournament, nil
 }
 
 func (a *App) loadTeams(tournamentID int64) ([]map[string]any, error) {

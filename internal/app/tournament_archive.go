@@ -9,13 +9,13 @@ import (
 )
 
 // 过去赛事与实时赛事共用对局表，一次事务导入后立即封存。
-func (a *App) archiveEvent(c *gin.Context) {
+func (a *App) archiveTournament(c *gin.Context) {
 	actor, err := a.currentUser(c)
 	if err != nil || actor.Role != roleSuperAdmin {
 		fail(c, 403, "只有超级管理员可以录入过去赛事")
 		return
 	}
-	var req archiveEventRequest
+	var req archiveTournamentRequest
 	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Name) == "" {
 		fail(c, 400, "请输入赛事名称")
 		return
@@ -169,7 +169,7 @@ func (a *App) archiveEvent(c *gin.Context) {
 			}
 		}
 	}
-	if err := engine.log("historical_event_created", map[string]any{"matches": len(req.Matches)}); err != nil {
+	if err := engine.log("historical_tournament_created", map[string]any{"matches": len(req.Matches)}); err != nil {
 		fail(c, 500, err.Error())
 		return
 	}

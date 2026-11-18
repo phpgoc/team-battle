@@ -123,7 +123,7 @@ func (a *App) kofOptions(c *gin.Context) {
 		fail(c, 404, "赛事不存在")
 		return
 	}
-	manager := a.canManageEvent(actor.ID, actor.Role, id)
+	manager := a.canManageTournament(actor.ID, actor.Role, id)
 	var membership int
 	if err := a.db.QueryRow(`SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND user_id=? AND active=1`, id, actor.ID).Scan(&membership); err != nil {
 		fail(c, 500, "读取队伍失败")

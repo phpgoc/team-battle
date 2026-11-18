@@ -51,8 +51,8 @@ type setupDrawStep struct {
 }
 
 // 后台一次确定全部结果并原子保存，动画计划仅随主动操作响应返回，SSE不补播。
-func (a *App) drawEventSetup(c *gin.Context) {
-	actor, id, access := a.managerEvent(c)
+func (a *App) drawTournamentSetup(c *gin.Context) {
+	actor, id, access := a.managerTournament(c)
 	if !access {
 		return
 	}
@@ -61,7 +61,7 @@ func (a *App) drawEventSetup(c *gin.Context) {
 		if err := requireEditableSettings(e.db, id); err != nil {
 			return err
 		}
-		grouped, err := eventHasGrouping(e.db, id)
+		grouped, err := tournamentHasGrouping(e.db, id)
 		if err != nil {
 			return err
 		}
@@ -183,7 +183,7 @@ func (a *App) drawEventSetup(c *gin.Context) {
 		if err := e.setStage(statusCaptainVote); err != nil {
 			return err
 		}
-		return e.log("event_setup_drawn", steps)
+		return e.log("tournament_setup_drawn", steps)
 	})
 	if err != nil {
 		fail(c, 400, err.Error())

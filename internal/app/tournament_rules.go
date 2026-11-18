@@ -44,7 +44,7 @@ func (s AceSpecial) allPlayerIDs() []int64 {
 	return ids
 }
 
-type EventRules struct {
+type TournamentRules struct {
 	Round1Mode        string       `json:"round1_mode"`
 	KOFStarter        string       `json:"kof_starter"`
 	NoRepeat          bool         `json:"no_repeat"`
@@ -55,22 +55,22 @@ type EventRules struct {
 	AceSpecials       []AceSpecial `json:"ace_specials"`
 }
 
-func defaultRules() EventRules {
-	return EventRules{Round1Mode: "manual", KOFStarter: "random", NoRepeat: true, RandomDrawSeconds: 5, AceDrawSeconds: 5, AceMostWins: 20, AceMostLosses: 20, AceSpecials: []AceSpecial{}}
+func defaultRules() TournamentRules {
+	return TournamentRules{Round1Mode: "manual", KOFStarter: "random", NoRepeat: true, RandomDrawSeconds: 5, AceDrawSeconds: 5, AceMostWins: 20, AceMostLosses: 20, AceSpecials: []AceSpecial{}}
 }
 
 // 兼容旧赛事未保存首发方式的规则，缺省时使用随机首发。
-func (r *EventRules) UnmarshalJSON(data []byte) error {
-	type plainRules EventRules
+func (r *TournamentRules) UnmarshalJSON(data []byte) error {
+	type plainRules TournamentRules
 	defaults := plainRules(defaultRules())
 	if err := json.Unmarshal(data, &defaults); err != nil {
 		return err
 	}
-	*r = EventRules(defaults)
+	*r = TournamentRules(defaults)
 	return nil
 }
 
-func decodeRules(raw string) (EventRules, error) {
+func decodeRules(raw string) (TournamentRules, error) {
 	rules := defaultRules()
 	if err := json.Unmarshal([]byte(raw), &rules); err != nil {
 		return rules, err
@@ -78,7 +78,7 @@ func decodeRules(raw string) (EventRules, error) {
 	return rules, rules.validate()
 }
 
-func (r EventRules) validate() error {
+func (r TournamentRules) validate() error {
 	if r.Round1Mode != "manual" && r.Round1Mode != "random" {
 		return errors.New("第一轮模式只能为手动或随机")
 	}
@@ -123,7 +123,7 @@ func normalizeStartTime(value string) (string, error) {
 	return "", errors.New("比赛开始时间格式不正确")
 }
 
-func saveRules(tx *sql.Tx, tournamentID int64, rules EventRules) error {
+func saveRules(tx *sql.Tx, tournamentID int64, rules TournamentRules) error {
 	raw, err := json.Marshal(rules)
 	if err != nil {
 		return err
@@ -133,7 +133,7 @@ func saveRules(tx *sql.Tx, tournamentID int64, rules EventRules) error {
 }
 
 // 将旧版本的分钟精度统一为整点时间。
-func normalizeEventMetadata(db *sql.DB) error {
+func normalizeTournamentMetadata(db *sql.DB) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err

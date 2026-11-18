@@ -9,13 +9,13 @@ import (
 func TestUnifiedMutableSettingsAndRollback(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "captain")
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/start", id), nil, 200)
-	path := fmt.Sprintf("/api/events/%d/settings", id)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/start", id), nil, 200)
+	path := fmt.Sprintf("/api/tournaments/%d/settings", id)
 	f.request(t, 4, "PATCH", path, map[string]any{"random_draw_seconds": 2}, 403)
 	f.request(t, 2, "PATCH", path, map[string]any{"random_draw_seconds": 2, "ace_draw_seconds": 7, "background_id": 0}, 200)
-	before, _ := f.app.publicEventPayload(id)
+	before, _ := f.app.publicTournamentPayload(id)
 	f.request(t, 2, "PATCH", path, map[string]any{"random_draw_seconds": 3, "background_id": 999}, 400)
-	after, _ := f.app.publicEventPayload(id)
+	after, _ := f.app.publicTournamentPayload(id)
 	if !bytes.Equal(before, after) {
 		t.Fatal("无效背景未回滚")
 	}
@@ -28,7 +28,7 @@ func TestUnifiedMutableSettingsAndRollback(t *testing.T) {
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND background_id IS NULL`, id)
 	f.request(t, 2, "PATCH", path, map[string]any{"background_id": background, "random_draw_seconds": 2, "ace_draw_seconds": 7}, 200)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND background_id=?`, id, background)
-	if rules := mustEventRules(f.app.db, id); rules.RandomDrawSeconds != 2 || rules.AceDrawSeconds != 7 {
+	if rules := mustTournamentRules(f.app.db, id); rules.RandomDrawSeconds != 2 || rules.AceDrawSeconds != 7 {
 		t.Fatal(rules)
 	}
 	if _, err := f.app.db.Exec(`UPDATE tournaments SET status='completed' WHERE id=?`, id); err != nil {

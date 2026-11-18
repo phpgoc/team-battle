@@ -48,15 +48,15 @@ func TestAceSpecialGroupsAndFullRandomFallback(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			f := newWorkflowFixture(t)
 			id := f.create(t, "random")
-			rules := mustEventRules(f.app.db, id)
+			rules := mustTournamentRules(f.app.db, id)
 			rules.AceMostWins, rules.AceMostLosses = 0, 0
 			rules.RandomDrawSeconds, rules.AceDrawSeconds = 0, 0
 			rules.AceSpecials = test.groups
-			f.request(t, 2, "PATCH", fmt.Sprintf("/api/events/%d/settings", id), map[string]any{"rules": rules}, 200)
+			f.request(t, 2, "PATCH", fmt.Sprintf("/api/tournaments/%d/settings", id), map[string]any{"rules": rules}, 200)
 			f.enterKOF(t, id)
 			match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2`, id)
-			f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": f.teams(t, id)[1]}, 200)
-			f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/ace/draw", id), nil, 200)
+			f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": f.teams(t, id)[1]}, 200)
+			f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/ace/draw", id), nil, 200)
 			var payload string
 			if err := f.app.db.QueryRow(`SELECT payload FROM tournament_actions WHERE tournament_id=? AND action='ace_drawn' ORDER BY id DESC LIMIT 1`, id).Scan(&payload); err != nil {
 				t.Fatal(err)
@@ -110,21 +110,21 @@ func TestAceSideCandidatesValidationAndRosterCleanup(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			body := base()
 			body["rules"].(map[string]any)["ace_specials"] = []map[string]any{{"team_a_ids": test.a, "team_b_ids": test.b, "probability": 20}}
-			f.request(t, 1, "POST", "/api/events", body, 400)
+			f.request(t, 1, "POST", "/api/tournaments", body, 400)
 			f.assertCount(t, 0, `SELECT COUNT(*) FROM tournaments WHERE name='双侧特殊对战'`)
 		})
 	}
 	body := base()
 	// 未分组的同一选手可分别列为两侧候选，不能当作同侧重复。
 	body["rules"].(map[string]any)["ace_specials"] = []map[string]any{{"team_a_ids": []int64{3, 4}, "team_b_ids": []int64{3, 6}, "probability": 20}}
-	f.request(t, 1, "POST", "/api/events", body, 200)
+	f.request(t, 1, "POST", "/api/tournaments", body, 200)
 	id := f.scalar(t, `SELECT id FROM tournaments WHERE name='双侧特殊对战'`)
-	path := fmt.Sprintf("/api/events/%d", id)
+	path := fmt.Sprintf("/api/tournaments/%d", id)
 	f.request(t, 3, "PATCH", path+"/settings", map[string]any{"rules": body["rules"]}, 403)
 	f.request(t, 2, "PATCH", path+"/settings", map[string]any{"rules": map[string]any{"ace_specials": []map[string]any{{"team_a_ids": []int64{9}, "team_b_ids": []int64{6}, "probability": 20}}}}, 400)
 	// 旧阵容接口删除参赛者时，也必须清理两侧名单。
 	f.request(t, 2, "POST", path+"/players", map[string]any{"player_ids": []int64{3, 5, 6, 7, 8, 9}}, 200)
-	rules := mustEventRules(f.app.db, id)
+	rules := mustTournamentRules(f.app.db, id)
 	if len(rules.AceSpecials) != 1 || !reflect.DeepEqual(rules.AceSpecials[0].TeamAIDs, []int64{3}) || !reflect.DeepEqual(rules.AceSpecials[0].TeamBIDs, []int64{3, 6}) {
 		t.Fatalf("修改阵容后双侧候选不正确: %+v", rules.AceSpecials)
 	}

@@ -13,7 +13,7 @@ func (a *App) registerPageRoutes(r *gin.Engine) {
 	r.GET("/", a.serveIndex)
 	r.GET("/login", a.serveIndex)
 	r.GET("/account", func(c *gin.Context) { a.serveWorkspaceEntry(c, false) })
-	for _, path := range []string{"/events/new", "/events/archive", "/accounts", "/accounts/new", "/site-settings", "/backgrounds"} {
+	for _, path := range []string{"/tournaments/new", "/tournaments/archive", "/accounts", "/accounts/new", "/site-settings", "/backgrounds"} {
 		r.GET(path, func(c *gin.Context) { a.serveWorkspaceEntry(c, true) })
 	}
 	r.GET("/accounts/:id", func(c *gin.Context) {
@@ -67,9 +67,9 @@ func (a *App) serveWorkspaceEntry(c *gin.Context, admin bool) {
 func (a *App) redirectLegacyWorkspace(c *gin.Context) {
 	paths := map[string]string{
 		"": "/", "home": "/", "settings": "/account",
-		"createEvent": "/events/new", "events": "/events/new",
+		"createEvent": "/tournaments/new", "events": "/tournaments/new",
 		"accounts": "/accounts", "users": "/accounts", "passwords": "/accounts", "createUser": "/accounts/new",
-		"archive": "/events/archive", "siteSettings": "/site-settings", "site-settings": "/site-settings", "backgrounds": "/backgrounds",
+		"archive": "/tournaments/archive", "siteSettings": "/site-settings", "site-settings": "/site-settings", "backgrounds": "/backgrounds",
 	}
 	target, exists := paths[c.Query("page")]
 	if !exists {

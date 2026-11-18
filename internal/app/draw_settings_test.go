@@ -11,14 +11,14 @@ import (
 func TestDrawDurationsNeverDelayServerMutation(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "random")
-	f.request(t, 2, "PATCH", fmt.Sprintf("/api/events/%d/draw-settings", id), map[string]any{"random_draw_seconds": 5, "ace_draw_seconds": 5}, 200)
+	f.request(t, 2, "PATCH", fmt.Sprintf("/api/tournaments/%d/draw-settings", id), map[string]any{"random_draw_seconds": 5, "ace_draw_seconds": 5}, 200)
 	started := time.Now()
 	f.enterKOF(t, id)
 	match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2`, id)
 	teams := f.teams(t, id)
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[1]}, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[1]}, 200)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=3`, id)
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/ace/draw", id), nil, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/ace/draw", id), nil, 200)
 	if elapsed := time.Since(started); elapsed >= 3*time.Second {
 		t.Fatalf("5秒转盘不应阻塞录分或手动抽签接口，实际耗时 %v", elapsed)
 	}
@@ -28,30 +28,30 @@ func TestDrawDurationsNeverDelayServerMutation(t *testing.T) {
 func TestDrawTimingDefaultsAndMutableSettings(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "random")
-	rules := mustEventRules(f.app.db, id)
+	rules := mustTournamentRules(f.app.db, id)
 	if rules.RandomDrawSeconds != 5 || rules.AceDrawSeconds != 5 {
 		t.Fatalf("默认抽选时长不正确: %+v", rules)
 	}
-	path := fmt.Sprintf("/api/events/%d/draw-settings", id)
+	path := fmt.Sprintf("/api/tournaments/%d/draw-settings", id)
 	f.request(t, 3, "PATCH", path, map[string]any{"random_draw_seconds": 8}, 403)
 	f.request(t, 2, "PATCH", path, map[string]any{"random_draw_seconds": 8, "ace_draw_seconds": 12}, 200)
-	rules = mustEventRules(f.app.db, id)
+	rules = mustTournamentRules(f.app.db, id)
 	if rules.RandomDrawSeconds != 8 || rules.AceDrawSeconds != 12 {
 		t.Fatalf("抽选时长未保存: %+v", rules)
 	}
 	f.enterKOF(t, id)
 	f.request(t, 2, "PATCH", path, map[string]any{"random_draw_seconds": 1, "ace_draw_seconds": 2}, 200)
-	rules = mustEventRules(f.app.db, id)
+	rules = mustTournamentRules(f.app.db, id)
 	if rules.RandomDrawSeconds != 1 || rules.AceDrawSeconds != 2 {
 		t.Fatalf("进行中抽选时长未保存: %+v", rules)
 	}
-	f.request(t, 2, "PATCH", fmt.Sprintf("/api/events/%d/settings", id), map[string]any{"name": "不能改", "start_time": "2026-11-18T20", "round1_target": 4, "round2_target": 5, "rules": defaultRules()}, 400)
+	f.request(t, 2, "PATCH", fmt.Sprintf("/api/tournaments/%d/settings", id), map[string]any{"name": "不能改", "start_time": "2026-11-18T20", "round1_target": 4, "round2_target": 5, "rules": defaultRules()}, 400)
 	f.request(t, 2, "PATCH", path, map[string]any{"random_draw_seconds": -1}, 400)
 }
 
 func TestEmptyRosterLiveRouteRequiresManagerSettings(t *testing.T) {
 	f := newWorkflowFixture(t)
-	raw := f.request(t, 1, "POST", "/api/events", map[string]any{
+	raw := f.request(t, 1, "POST", "/api/tournaments", map[string]any{
 		"name": "待分队赛事", "start_time": "2026-11-17T20", "manager_id": 2,
 		"round1_target": 4, "round2_target": 5, "rules": defaultRules(),
 	}, 200)
@@ -79,7 +79,7 @@ func TestBothTeamsRequiredBeforeOpeningLivePage(t *testing.T) {
 	}
 	// 选手全部放在一队时仍未完成分队，不能把半成品看板公开给访客。
 	f.request(t, 0, "GET", path, nil, http.StatusNotFound)
-	f.request(t, 0, "GET", fmt.Sprintf("/api/public/events/%d/stream", id), nil, http.StatusNotFound)
+	f.request(t, 0, "GET", fmt.Sprintf("/api/public/tournaments/%d/stream", id), nil, http.StatusNotFound)
 	f.request(t, 2, "GET", path, nil, http.StatusFound)
 	f.request(t, 2, "GET", path+"/setting", nil, http.StatusOK)
 	f.request(t, 3, "GET", path, nil, http.StatusNotFound)

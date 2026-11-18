@@ -15,19 +15,19 @@ type streamSnapshot struct {
 	grouped bool
 }
 
-type eventSubscribers struct {
+type streamSubscribers struct {
 	latest  streamSnapshot
 	clients map[chan streamSnapshot]struct{}
 }
 
 // 订阅者和最新公开快照只存在内存中，最后一个连接离开时释放。
-type eventBroadcast struct {
-	mu     sync.Mutex
-	events map[int64]*eventSubscribers
+type streamHub struct {
+	mu          sync.Mutex
+	tournaments map[int64]*streamSubscribers
 }
 
 func (a *App) streamSnapshot(tournamentID int64) (streamSnapshot, error) {
-	view, err := a.buildEvent(tournamentID, false)
+	view, err := a.buildTournament(tournamentID, false)
 	if err != nil {
 		return streamSnapshot{}, err
 	}
@@ -42,24 +42,24 @@ func (a *App) streamSnapshot(tournamentID int64) (streamSnapshot, error) {
 	return streamSnapshot{payload: payload, status: view["status"].(string), grouped: assigned == 2}, nil
 }
 
-func (a *App) subscribeEvent(tournamentID int64) (streamSnapshot, <-chan streamSnapshot, func(), error) {
+func (a *App) subscribeTournament(tournamentID int64) (streamSnapshot, <-chan streamSnapshot, func(), error) {
 	// 与写事务使用同一把锁，避免在初始快照和登记订阅之间漏掉更新。
 	a.writeMu.Lock()
 	defer a.writeMu.Unlock()
 	hub := &a.broadcast
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
-	if hub.events == nil {
-		hub.events = make(map[int64]*eventSubscribers)
+	if hub.tournaments == nil {
+		hub.tournaments = make(map[int64]*streamSubscribers)
 	}
-	entry := hub.events[tournamentID]
+	entry := hub.tournaments[tournamentID]
 	if entry == nil {
 		snapshot, err := a.streamSnapshot(tournamentID)
 		if err != nil {
 			return streamSnapshot{}, nil, nil, err
 		}
-		entry = &eventSubscribers{latest: snapshot, clients: make(map[chan streamSnapshot]struct{})}
-		hub.events[tournamentID] = entry
+		entry = &streamSubscribers{latest: snapshot, clients: make(map[chan streamSnapshot]struct{})}
+		hub.tournaments[tournamentID] = entry
 	}
 	client := make(chan streamSnapshot, 1)
 	entry.clients[client] = struct{}{}
@@ -68,19 +68,19 @@ func (a *App) subscribeEvent(tournamentID int64) (streamSnapshot, <-chan streamS
 		defer hub.mu.Unlock()
 		delete(entry.clients, client)
 		if len(entry.clients) == 0 {
-			delete(hub.events, tournamentID)
+			delete(hub.tournaments, tournamentID)
 		}
 	}
 	return entry.latest, client, unsubscribe, nil
 }
 
-func (a *App) publishEvents(tournamentID int64) {
+func (a *App) publishTournamentUpdates(tournamentID int64) {
 	a.writeMu.Lock()
 	defer a.writeMu.Unlock()
 	hub := &a.broadcast
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
-	for id, entry := range hub.events {
+	for id, entry := range hub.tournaments {
 		if tournamentID != 0 && tournamentID != id {
 			continue
 		}
@@ -110,11 +110,11 @@ func (a *App) broadcastAfterMutation(c *gin.Context) {
 		return
 	}
 	path := c.Request.URL.Path
-	if strings.HasPrefix(path, "/api/events/") {
+	if strings.HasPrefix(path, "/api/tournaments/") {
 		if id, err := parseID(c.Param("id")); err == nil && id > 0 {
-			a.publishEvents(id)
+			a.publishTournamentUpdates(id)
 		}
 	} else if strings.HasPrefix(path, "/api/users") || strings.HasPrefix(path, "/api/auth/profile") || strings.HasPrefix(path, "/api/auth/avatar") || strings.HasPrefix(path, "/api/site-settings/") {
-		a.publishEvents(0)
+		a.publishTournamentUpdates(0)
 	}
 }

@@ -6,12 +6,12 @@ import (
 )
 
 // 分组抽签前可以补充选手并调整固定队伍，保存不执行抽签。
-func (a *App) addEventPlayers(c *gin.Context) {
-	actor, tournamentID, access := a.managerEvent(c)
+func (a *App) addTournamentPlayers(c *gin.Context) {
+	actor, tournamentID, access := a.managerTournament(c)
 	if !access {
 		return
 	}
-	var req createEventRequest
+	var req createTournamentRequest
 	// 阵容请求无需名称，单独绑定以免触发创建赛事的必填校验。
 	var body struct {
 		PlayerIDs        []int64           `json:"player_ids"`
@@ -33,7 +33,7 @@ func (a *App) addEventPlayers(c *gin.Context) {
 		fail(c, 400, err.Error())
 		return
 	}
-	if grouped, err := eventHasGrouping(tx, tournamentID); err != nil || grouped {
+	if grouped, err := tournamentHasGrouping(tx, tournamentID); err != nil || grouped {
 		fail(c, 400, "分组抽签后不能修改参赛阵容")
 		return
 	}
@@ -105,12 +105,12 @@ func (a *App) addEventPlayers(c *gin.Context) {
 		fail(c, 500, err.Error())
 		return
 	}
-	a.logAction(tournamentID, actor.ID, "event_roster_updated", body)
+	a.logAction(tournamentID, actor.ID, "tournament_roster_updated", body)
 	ok(c, gin.H{"ok": true})
 }
 
-func (a *App) eligibleEventUsers(c *gin.Context) {
-	_, _, access := a.managerEvent(c)
+func (a *App) eligibleTournamentUsers(c *gin.Context) {
+	_, _, access := a.managerTournament(c)
 	if !access {
 		return
 	}

@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func createSetupEvent(t *testing.T, f *workflowFixture, count int, round1, kof string, fixed map[string]string) int64 {
+func createSetupTournament(t *testing.T, f *workflowFixture, count int, round1, kof string, fixed map[string]string) int64 {
 	t.Helper()
 	ids := []int{}
 	for id := 3; id < 3+count; id++ {
@@ -17,7 +17,7 @@ func createSetupEvent(t *testing.T, f *workflowFixture, count int, round1, kof s
 	rules.Round1Mode = round1
 	rules.KOFStarter = kof
 	rules.RandomDrawSeconds = 0
-	raw := f.request(t, 1, "POST", "/api/events", map[string]any{"name": "连续抽签", "start_time": "2026-11-18T20", "manager_id": 2, "player_ids": ids, "fixed_assignments": fixed, "round1_target": 1, "round2_target": 1, "rules": rules}, 200)
+	raw := f.request(t, 1, "POST", "/api/tournaments", map[string]any{"name": "连续抽签", "start_time": "2026-11-18T20", "manager_id": 2, "player_ids": ids, "fixed_assignments": fixed, "round1_target": 1, "round2_target": 1, "rules": rules}, 200)
 	var result struct {
 		ID int64 `json:"id"`
 	}
@@ -33,8 +33,8 @@ func TestSetupDrawCombinationsAndOddRemainder(t *testing.T) {
 			for _, kof := range []string{"captain", "random"} {
 				t.Run(fmt.Sprintf("%d/%s/%s", count, mode, kof), func(t *testing.T) {
 					f := newWorkflowFixture(t)
-					id := createSetupEvent(t, f, count, mode, kof, nil)
-					path := fmt.Sprintf("/api/events/%d/setup-draw", id)
+					id := createSetupTournament(t, f, count, mode, kof, nil)
+					path := fmt.Sprintf("/api/tournaments/%d/setup-draw", id)
 					f.assertCount(t, 0, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=?`, id)
 					f.assertCount(t, int64(count), `SELECT COUNT(*) FROM tournament_setup_roster WHERE tournament_id=?`, id)
 					f.request(t, 4, "POST", path, nil, 403)
@@ -80,19 +80,19 @@ func TestSetupDrawCombinationsAndOddRemainder(t *testing.T) {
 						t.Fatalf("抽签步骤不符: %+v", result)
 					}
 					f.assertCount(t, 0, `SELECT COUNT(*) FROM matches WHERE tournament_id=?`, id)
-					before, _ := f.app.publicEventPayload(id)
+					before, _ := f.app.publicTournamentPayload(id)
 					f.request(t, 1, "POST", path, nil, 400)
-					after, _ := f.app.publicEventPayload(id)
+					after, _ := f.app.publicTournamentPayload(id)
 					if !bytes.Equal(before, after) {
 						t.Fatal("重复抽签修改了结果")
 					}
-					f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/start", id), nil, 200)
+					f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/start", id), nil, 200)
 					if mode == "random" {
 						f.assertCount(t, 1, `SELECT COUNT(*) FROM matches m WHERE m.tournament_id=? AND m.player_a_id=(SELECT player_id FROM lineup_entries WHERE tournament_id=m.tournament_id AND team_id=m.team_a_id AND position=1) AND m.player_b_id=(SELECT player_id FROM lineup_entries WHERE tournament_id=m.tournament_id AND team_id=m.team_b_id AND position=1)`, id)
 					}
 					f.request(t, 2, "POST", path, nil, 400)
 					match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=1`, id)
-					f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[0]}, 200)
+					f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[0]}, 200)
 					if kof == "random" {
 						f.assertCount(t, 1, `SELECT COUNT(*) FROM matches m JOIN tournaments e ON e.id=m.tournament_id WHERE m.tournament_id=? AND m.round_no=2 AND m.player_a_id=e.kof_initial_a AND m.player_b_id=e.kof_initial_b`, id)
 					} else {
@@ -107,24 +107,24 @@ func TestSetupDrawCombinationsAndOddRemainder(t *testing.T) {
 func TestSetupDrawFixedTeamsAndAtomicFailure(t *testing.T) {
 	f := newWorkflowFixture(t)
 	fixed := map[string]string{"3": "A", "4": "A", "5": "A", "6": "A", "7": "A", "8": "A"}
-	id := createSetupEvent(t, f, 6, "random", "random", fixed)
-	path := fmt.Sprintf("/api/events/%d/setup-draw", id)
+	id := createSetupTournament(t, f, 6, "random", "random", fixed)
+	path := fmt.Sprintf("/api/tournaments/%d/setup-draw", id)
 	f.request(t, 2, "POST", path, nil, 400)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=?`, id)
 	fixed["8"] = "B"
-	f.request(t, 2, "PATCH", fmt.Sprintf("/api/events/%d/settings", id), map[string]any{"player_ids": []int{3, 4, 5, 6, 7, 8}, "fixed_assignments": fixed}, 200)
+	f.request(t, 2, "PATCH", fmt.Sprintf("/api/tournaments/%d/settings", id), map[string]any{"player_ids": []int{3, 4, 5, 6, 7, 8}, "fixed_assignments": fixed}, 200)
 	f.request(t, 2, "POST", path, nil, 200)
 	teams := f.teams(t, id)
 	f.assertCount(t, 5, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND team_id=?`, id, teams[0])
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND team_id=?`, id, teams[1])
 	f.assertCount(t, 6, `SELECT COUNT(*) FROM lineup_entries WHERE tournament_id=?`, id)
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/players", id), map[string]any{"player_ids": []int{3, 4, 5, 6, 7, 8}}, 400)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/players", id), map[string]any{"player_ids": []int{3, 4, 5, 6, 7, 8}}, 400)
 }
 
 func TestSetupDraftRulesAndSelectionRollback(t *testing.T) {
 	f := newWorkflowFixture(t)
-	id := createSetupEvent(t, f, 7, "manual", "captain", nil)
-	path := fmt.Sprintf("/api/events/%d/settings", id)
+	id := createSetupTournament(t, f, 7, "manual", "captain", nil)
+	path := fmt.Sprintf("/api/tournaments/%d/settings", id)
 	rules := defaultRules()
 	rules.Round1Mode = "random"
 	rules.AceSpecials = []AceSpecial{{PlayerIDs: []int64{3, 4}, Probability: 20}}
@@ -134,16 +134,16 @@ func TestSetupDraftRulesAndSelectionRollback(t *testing.T) {
 	f.request(t, 2, "PATCH", path, map[string]any{"player_ids": []int{3, 4, 5, 6, 7, 8, 8}}, 400)
 	f.request(t, 2, "PATCH", path, map[string]any{"player_ids": []int{1, 3, 4, 5, 6, 7}}, 400)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=?`, id)
-	f.request(t, 1, "POST", fmt.Sprintf("/api/events/%d/setup-draw", id), nil, 200)
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/lineup/generate", id), nil, 400)
+	f.request(t, 1, "POST", fmt.Sprintf("/api/tournaments/%d/setup-draw", id), nil, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/lineup/generate", id), nil, 400)
 	teams := f.teams(t, id)
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/lineup/submit", id), map[string]any{"team_id": teams[0], "player_ids": []int{}}, 400)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/lineup/submit", id), map[string]any{"team_id": teams[0], "player_ids": []int{}}, 400)
 	rules.AceMostWins = 25
 	f.request(t, 2, "PATCH", path, map[string]any{"rules": rules}, 200)
-	before, _ := f.app.publicEventPayload(id)
+	before, _ := f.app.publicTournamentPayload(id)
 	rules.Round1Mode = "manual"
 	f.request(t, 2, "PATCH", path, map[string]any{"rules": rules}, 400)
-	after, _ := f.app.publicEventPayload(id)
+	after, _ := f.app.publicTournamentPayload(id)
 	if !bytes.Equal(before, after) {
 		t.Fatal("抽签后修改规则未回滚")
 	}

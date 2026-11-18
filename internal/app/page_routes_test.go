@@ -9,7 +9,7 @@ import (
 
 func TestWorkspacePageRoutesAndPermissions(t *testing.T) {
 	f := newWorkflowFixture(t)
-	for _, path := range []string{"/events/new", "/events/archive", "/accounts", "/accounts/new", "/accounts/3", "/site-settings", "/backgrounds", "/account"} {
+	for _, path := range []string{"/tournaments/new", "/tournaments/archive", "/accounts", "/accounts/new", "/accounts/3", "/site-settings", "/backgrounds", "/account"} {
 		t.Run(path, func(t *testing.T) {
 			response := sessionRequest(f.handler, http.MethodGet, path, nil, nil)
 			if response.Code != http.StatusFound || response.Header().Get("Location") != "/login?return="+url.QueryEscape(path) {
@@ -45,8 +45,8 @@ func TestLegacyPageBookmarksRedirectToPaths(t *testing.T) {
 	for _, item := range []struct{ old, target string }{
 		{"/workspace", "/"},
 		{"/workspace?page=home&name=test&p=2", "/?name=test&p=2"},
-		{"/workspace?page=createEvent", "/events/new"},
-		{"/workspace?page=events", "/events/new"},
+		{"/workspace?page=createEvent", "/tournaments/new"},
+		{"/workspace?page=events", "/tournaments/new"},
 		{"/workspace?page=settings", "/account"},
 		{"/workspace?page=accounts", "/accounts"},
 		{"/workspace?page=accounts&edit=new", "/accounts/new"},
@@ -54,7 +54,7 @@ func TestLegacyPageBookmarksRedirectToPaths(t *testing.T) {
 		{"/workspace?page=createUser", "/accounts/new"},
 		{"/workspace?page=users", "/accounts"},
 		{"/workspace?page=passwords", "/accounts"},
-		{"/workspace?page=archive", "/events/archive"},
+		{"/workspace?page=archive", "/tournaments/archive"},
 		{"/workspace?page=siteSettings", "/site-settings"},
 		{"/workspace?page=site-settings", "/site-settings"},
 		{"/workspace?page=backgrounds", "/backgrounds"},

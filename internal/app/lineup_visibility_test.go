@@ -10,8 +10,8 @@ func TestManualLineupsRevealAfterBothSubmissions(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "captain")
 	teams := f.teams(t, id)
-	public := fmt.Sprintf("/api/public/events/%d", id)
-	private := fmt.Sprintf("/api/events/%d/lineup", id)
+	public := fmt.Sprintf("/api/public/tournaments/%d", id)
+	private := fmt.Sprintf("/api/tournaments/%d/lineup", id)
 	read := func(raw []byte) struct {
 		Lineups []struct {
 			TeamID   int64 `json:"team_id"`
@@ -36,14 +36,14 @@ func TestManualLineupsRevealAfterBothSubmissions(t *testing.T) {
 		}
 		return data
 	}
-	f.request(t, 3, "POST", fmt.Sprintf("/api/events/%d/lineup/submit", id), map[string]any{"team_id": teams[0], "player_ids": []int{5, 3}}, 200)
+	f.request(t, 3, "POST", fmt.Sprintf("/api/tournaments/%d/lineup/submit", id), map[string]any{"team_id": teams[0], "player_ids": []int{5, 3}}, 200)
 	for _, user := range []int{0, 1, 3, 6} {
 		data := read(f.request(t, user, "GET", public, nil, 200))
 		if len(data.Lineups) != 0 || !data.Teams[0].Submitted || data.Teams[1].Submitted {
 			t.Fatalf("单方排阵必须隐藏，仅公开提交状态: %+v", data)
 		}
 	}
-	payload, err := f.app.publicEventPayload(id)
+	payload, err := f.app.publicTournamentPayload(id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestManualLineupsRevealAfterBothSubmissions(t *testing.T) {
 	f.request(t, 0, "GET", private, nil, 401)
 	f.request(t, 4, "GET", private, nil, 403)
 	// 全部随机补位同样算提交，不能一直等不到另一方确认。
-	f.request(t, 6, "POST", fmt.Sprintf("/api/events/%d/lineup/submit", id), map[string]any{"team_id": teams[1], "player_ids": []int{}}, 200)
+	f.request(t, 6, "POST", fmt.Sprintf("/api/tournaments/%d/lineup/submit", id), map[string]any{"team_id": teams[1], "player_ids": []int{}}, 200)
 	data := read(f.request(t, 0, "GET", public, nil, 200))
 	if len(data.Lineups) != 6 || !data.Teams[0].Submitted || !data.Teams[1].Submitted {
 		t.Fatalf("双方提交后未公开排阵: %+v", data)
@@ -71,7 +71,7 @@ func TestManualLineupsRevealAfterBothSubmissions(t *testing.T) {
 	if _, err := f.app.db.Exec(`UPDATE tournaments SET lineup_a_submitted=0,lineup_b_submitted=0 WHERE id=?`, id); err != nil {
 		t.Fatal(err)
 	}
-	f.request(t, 6, "POST", fmt.Sprintf("/api/events/%d/lineup/submit", id), map[string]any{"team_id": teams[1], "player_ids": []int{8, 6}}, 200)
+	f.request(t, 6, "POST", fmt.Sprintf("/api/tournaments/%d/lineup/submit", id), map[string]any{"team_id": teams[1], "player_ids": []int{8, 6}}, 200)
 	if len(read(f.request(t, 0, "GET", public, nil, 200)).Lineups) != 6 {
 		t.Fatal("旧排阵未被识别为已提交")
 	}

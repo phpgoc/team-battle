@@ -134,7 +134,7 @@ func TestReplacedSessionReturnsUnauthorizedOnProtectedActions(t *testing.T) {
 	}
 	for _, endpoint := range []struct{ method, path string }{
 		{"GET", "/api/users"}, {"POST", "/api/users"}, {"PATCH", "/api/users/3/password"},
-		{"POST", "/api/events"}, {"POST", "/api/events/archive"}, {"POST", "/api/events/1/confirm"},
+		{"POST", "/api/tournaments"}, {"POST", "/api/tournaments/archive"}, {"POST", "/api/tournaments/1/confirm"},
 		{"GET", "/api/site-settings"}, {"PATCH", "/api/auth/profile"},
 	} {
 		response := sessionRequest(f.handler, endpoint.method, endpoint.path, nil, cookie)

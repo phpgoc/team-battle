@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-func TestPublicEventIncludesManagerDisplayName(t *testing.T) {
+func TestPublicTournamentIncludesManagerDisplayName(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "random")
-	path := fmt.Sprintf("/api/public/events/%d", id)
+	path := fmt.Sprintf("/api/public/tournaments/%d", id)
 	// 管理员不在两队名单中，公开详情仍然需要显示其名称。
 	for _, status := range []string{statusDraft, statusCompleted} {
 		if _, err := f.app.db.Exec(`UPDATE tournaments SET status=? WHERE id=?`, status, id); err != nil {

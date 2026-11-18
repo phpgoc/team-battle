@@ -43,7 +43,7 @@ func TestArchiveValidatesTeamSizes(t *testing.T) {
 					}
 					const savedRows = `SELECT (SELECT COUNT(*) FROM tournaments)+(SELECT COUNT(*) FROM tournament_setup_roster)+(SELECT COUNT(*) FROM tournament_players)+(SELECT COUNT(*) FROM rounds)+(SELECT COUNT(*) FROM matches)+(SELECT COUNT(*) FROM tournament_actions)`
 					before := f.scalar(t, savedRows)
-					raw := f.request(t, 1, "POST", "/api/events/archive", body, want)
+					raw := f.request(t, 1, "POST", "/api/tournaments/archive", body, want)
 					if want == 400 {
 						var result struct {
 							Error string `json:"error"`
@@ -103,14 +103,14 @@ func TestArchiveValidatesTargetsAndKOFBeforeSaving(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			body := base()
 			test.change(body)
-			f.request(t, 1, "POST", "/api/events/archive", body, 400)
+			f.request(t, 1, "POST", "/api/tournaments/archive", body, 400)
 			f.assertCount(t, 0, `SELECT COUNT(*) FROM tournaments WHERE name='分轮历史录入'`)
 		})
 	}
-	f.request(t, 0, "POST", "/api/events/archive", base(), 403)
-	f.request(t, 3, "POST", "/api/events/archive", base(), 403)
+	f.request(t, 0, "POST", "/api/tournaments/archive", base(), 403)
+	f.request(t, 3, "POST", "/api/tournaments/archive", base(), 403)
 	// 最后一局B队全员已败，目标4高于3人，可选择真实复活选手6。
-	f.request(t, 1, "POST", "/api/events/archive", base(), 200)
+	f.request(t, 1, "POST", "/api/tournaments/archive", base(), 200)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE name='分轮历史录入' AND status='completed' AND round1_target=2 AND round2_target=4`)
 	f.assertCount(t, 7, `SELECT COUNT(*) FROM matches`)
 }
@@ -123,9 +123,9 @@ func TestArchiveTiedRoundsRequireAce(t *testing.T) {
 		"fixed_assignments": map[string]string{"3": "A", "4": "A", "5": "A", "6": "B", "7": "B", "8": "B"},
 		"matches":           []archivedMatch{{1, 3, 6, "a"}, {1, 4, 7, "a"}, {2, 3, 6, "b"}, {2, 4, 6, "b"}},
 	}
-	f.request(t, 1, "POST", "/api/events/archive", body, 400)
+	f.request(t, 1, "POST", "/api/tournaments/archive", body, 400)
 	body["matches"] = append(body["matches"].([]archivedMatch), archivedMatch{3, 5, 8, "a"})
-	f.request(t, 1, "POST", "/api/events/archive", body, 200)
+	f.request(t, 1, "POST", "/api/tournaments/archive", body, 200)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM rounds WHERE stage='ace' AND score_a=1 AND score_b=0 AND status='finished'`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournament_actions WHERE action='ace_drawn' AND payload LIKE '%most_losses%'`)
 }

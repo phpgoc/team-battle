@@ -44,7 +44,7 @@ func (f *workflowFixture) backgroundForm(t *testing.T, user int, method, path, n
 	return response
 }
 
-func TestBackgroundManagementAndPublicEventSelection(t *testing.T) {
+func TestBackgroundManagementAndPublicTournamentSelection(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "random")
 	image, err := demoFS.ReadFile("testdata/demo/zerg.png")
@@ -74,24 +74,24 @@ func TestBackgroundManagementAndPublicEventSelection(t *testing.T) {
 	if got := f.request(t, 0, http.MethodGet, imageURL, nil, http.StatusOK); !bytes.Equal(got, image) {
 		t.Fatal("公开背景图片接口没有返回上传内容")
 	}
-	path := fmt.Sprintf("/api/events/%d/background", id)
+	path := fmt.Sprintf("/api/tournaments/%d/background", id)
 	// 访客、队长、普通选手及其他赛事的管理员均不能修改赞助背景。
 	for _, user := range []int{0, 3, 4, 9} {
 		f.request(t, user, http.MethodPatch, path, map[string]any{"background_id": backgroundID}, http.StatusForbidden)
 	}
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND background_id IS NULL`, id)
-	f.assertCount(t, 0, `SELECT COUNT(*) FROM tournament_actions WHERE tournament_id=? AND action='event_background_updated'`, id)
+	f.assertCount(t, 0, `SELECT COUNT(*) FROM tournament_actions WHERE tournament_id=? AND action='tournament_background_updated'`, id)
 	f.request(t, 2, http.MethodPatch, path, map[string]any{"background_id": backgroundID}, http.StatusOK)
 	f.request(t, 1, http.MethodPatch, path, map[string]any{"background_id": 0}, http.StatusOK)
 	f.request(t, 1, http.MethodPatch, path, map[string]any{"background_id": backgroundID}, http.StatusOK)
-	detail := f.request(t, 0, http.MethodGet, fmt.Sprintf("/api/public/events/%d", id), nil, http.StatusOK)
+	detail := f.request(t, 0, http.MethodGet, fmt.Sprintf("/api/public/tournaments/%d", id), nil, http.StatusOK)
 	for _, expected := range []string{fmt.Sprintf(`"background_id":%d`, backgroundID), `"background_name":"比赛背景"`, imageURL} {
 		if !bytes.Contains(detail, []byte(expected)) {
 			t.Fatalf("公开赛事没有背景字段 %q: %s", expected, detail)
 		}
 	}
 	f.request(t, 2, http.MethodPatch, path, map[string]any{"background_id": backgroundID + 999}, http.StatusBadRequest)
-	f.request(t, 1, http.MethodPost, "/api/events/archive", map[string]any{
+	f.request(t, 1, http.MethodPost, "/api/tournaments/archive", map[string]any{
 		"name": "带背景历史赛事", "start_time": "2026-11-17T19", "background_id": backgroundID,
 		"player_ids":        []int{3, 4, 5, 6, 7, 8},
 		"fixed_assignments": map[string]string{"3": "A", "4": "A", "5": "A", "6": "B", "7": "B", "8": "B"},
@@ -102,7 +102,7 @@ func TestBackgroundManagementAndPublicEventSelection(t *testing.T) {
 		},
 	}, http.StatusOK)
 	archivedID := f.scalar(t, `SELECT id FROM tournaments WHERE name='带背景历史赛事'`)
-	archived := f.request(t, 0, http.MethodGet, fmt.Sprintf("/api/public/events/%d", archivedID), nil, http.StatusOK)
+	archived := f.request(t, 0, http.MethodGet, fmt.Sprintf("/api/public/tournaments/%d", archivedID), nil, http.StatusOK)
 	if !bytes.Contains(archived, []byte(fmt.Sprintf(`"background_id":%d`, backgroundID))) {
 		t.Fatalf("历史赛事没有保留录入时选择的背景: %s", archived)
 	}
@@ -131,7 +131,7 @@ func TestBackgroundManagementAndPublicEventSelection(t *testing.T) {
 	f.request(t, 1, http.MethodPatch, path, map[string]any{"background_id": 0}, http.StatusBadRequest)
 }
 
-func TestBackgroundDeletionProtectsEveryBoundEvent(t *testing.T) {
+func TestBackgroundDeletionProtectsEveryBoundTournament(t *testing.T) {
 	f := newWorkflowFixture(t)
 	image, err := demoFS.ReadFile("testdata/demo/zerg.png")
 	if err != nil {

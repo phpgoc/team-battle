@@ -14,7 +14,7 @@ type drawSettingsRequest struct {
 
 // 抽选时长是赛事进行中唯一允许继续修改的赛事设置。
 func (a *App) updateDrawSettings(c *gin.Context) {
-	actor, tournamentID, access := a.managerEvent(c)
+	actor, tournamentID, access := a.managerTournament(c)
 	if !access {
 		return
 	}
@@ -50,10 +50,10 @@ func (a *App) updateDrawSettings(c *gin.Context) {
 		fail(c, 400, err.Error())
 		return
 	}
-	ok(c, gin.H{"ok": true, "rules": mustEventRules(a.db, tournamentID)})
+	ok(c, gin.H{"ok": true, "rules": mustTournamentRules(a.db, tournamentID)})
 }
 
-func mustEventRules(db *sql.DB, tournamentID int64) EventRules {
+func mustTournamentRules(db *sql.DB, tournamentID int64) TournamentRules {
 	var raw string
 	if err := db.QueryRow(`SELECT rules_json FROM tournaments WHERE id=?`, tournamentID).Scan(&raw); err != nil {
 		return defaultRules()

@@ -91,7 +91,7 @@ func (a *App) castCaptainVote(c *gin.Context) {
 	ok(c, gin.H{"ok": true})
 }
 func (a *App) confirmCaptains(c *gin.Context) {
-	actor, id, access := a.managerEvent(c)
+	actor, id, access := a.managerTournament(c)
 	if !access {
 		return
 	}
@@ -140,7 +140,7 @@ func (a *App) confirmCaptains(c *gin.Context) {
 
 // 单队指定在事务内只修改该队，避免管理员点击名单时覆盖另一队刚选出的队长。
 func (a *App) selectTeamCaptain(c *gin.Context) {
-	actor, id, access := a.managerEvent(c)
+	actor, id, access := a.managerTournament(c)
 	if !access {
 		return
 	}
@@ -188,7 +188,7 @@ func (a *App) selectTeamCaptain(c *gin.Context) {
 }
 
 func (a *App) generateLineup(c *gin.Context) {
-	actor, id, access := a.managerEvent(c)
+	actor, id, access := a.managerTournament(c)
 	if !access {
 		return
 	}
@@ -235,7 +235,7 @@ func (a *App) submitLineup(c *gin.Context) {
 		if !preMatch(s) {
 			return errors.New("当前阶段不能排阵")
 		}
-		if !a.canManageEvent(actor.ID, actor.Role, id) {
+		if !a.canManageTournament(actor.ID, actor.Role, id) {
 			var captain int
 			if err := e.db.QueryRow(`SELECT is_captain FROM tournament_players WHERE tournament_id=? AND team_id=? AND user_id=?`, id, req.TeamID, actor.ID).Scan(&captain); err != nil || captain != 1 {
 				return errors.New("只有本队队长或赛事管理员可以排阵")
@@ -277,7 +277,7 @@ func (a *App) submitLineup(c *gin.Context) {
 			return err
 		}
 		source := "captain"
-		if a.canManageEvent(actor.ID, actor.Role, id) {
+		if a.canManageTournament(actor.ID, actor.Role, id) {
 			source = "manager"
 		}
 		for i, player := range req.PlayerIDs {

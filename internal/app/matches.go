@@ -25,8 +25,8 @@ func (a *App) runMatchMutation(tournamentID, actorID int64, work func(*matchEngi
 	}
 	return tx.Commit()
 }
-func (a *App) startEvent(c *gin.Context) {
-	actor, id, access := a.managerEvent(c)
+func (a *App) startTournament(c *gin.Context) {
+	actor, id, access := a.managerTournament(c)
 	if !access {
 		return
 	}
@@ -39,7 +39,7 @@ func (a *App) startEvent(c *gin.Context) {
 
 // 首次录分与开赛在同一事务中完成，校验页面上的首发，避免旧页面把结果记到其他选手。
 func (a *App) submitOpeningResult(c *gin.Context) {
-	actor, id, access := a.managerEvent(c)
+	actor, id, access := a.managerTournament(c)
 	if !access {
 		return
 	}
@@ -110,7 +110,7 @@ func (a *App) submitOpeningResult(c *gin.Context) {
 }
 
 func (a *App) submitResult(c *gin.Context) {
-	actor, id, access := a.managerEvent(c)
+	actor, id, access := a.managerTournament(c)
 	if !access {
 		return
 	}
@@ -163,7 +163,7 @@ func (a *App) submitResult(c *gin.Context) {
 	ok(c, gin.H{"ok": true})
 }
 func (a *App) correctResult(c *gin.Context) {
-	actor, id, access := a.managerEvent(c)
+	actor, id, access := a.managerTournament(c)
 	if !access {
 		return
 	}
@@ -210,7 +210,7 @@ func (a *App) selectKOFPlayer(c *gin.Context) {
 		fail(c, 400, "请选择出场选手")
 		return
 	}
-	manager := a.canManageEvent(actor.ID, actor.Role, id)
+	manager := a.canManageTournament(actor.ID, actor.Role, id)
 	err = a.runMatchMutation(id, actor.ID, func(e *matchEngine) error { return e.reserveKOF(req.MatchID, req.TeamID, req.PlayerID, manager) })
 	if err != nil {
 		fail(c, 400, err.Error())
@@ -219,7 +219,7 @@ func (a *App) selectKOFPlayer(c *gin.Context) {
 	ok(c, gin.H{"ok": true})
 }
 func (a *App) drawAceManually(c *gin.Context) {
-	actor, id, access := a.managerEvent(c)
+	actor, id, access := a.managerTournament(c)
 	if !access {
 		return
 	}
@@ -231,7 +231,7 @@ func (a *App) drawAceManually(c *gin.Context) {
 }
 
 func (a *App) confirmAce(c *gin.Context) {
-	actor, id, access := a.managerEvent(c)
+	actor, id, access := a.managerTournament(c)
 	if !access {
 		return
 	}
@@ -292,8 +292,8 @@ func (e *matchEngine) overrideAce(req aceRequest, expectedMatchID int64) error {
 	}
 	return e.log("ace_players_overridden", req)
 }
-func (a *App) cancelEvent(c *gin.Context) {
-	actor, id, access := a.managerEvent(c)
+func (a *App) cancelTournament(c *gin.Context) {
+	actor, id, access := a.managerTournament(c)
 	if !access {
 		return
 	}
@@ -301,7 +301,7 @@ func (a *App) cancelEvent(c *gin.Context) {
 		if err := e.setStage(statusCancelled); err != nil {
 			return err
 		}
-		return e.log("event_cancelled", nil)
+		return e.log("tournament_cancelled", nil)
 	})
 	if err != nil {
 		fail(c, 400, err.Error())
@@ -330,7 +330,7 @@ func (a *App) selectKOFStarter(c *gin.Context) {
 		fail(c, 400, "请选择首发选手")
 		return
 	}
-	manager := a.canManageEvent(actor.ID, actor.Role, id)
+	manager := a.canManageTournament(actor.ID, actor.Role, id)
 	err = a.runMatchMutation(id, actor.ID, func(e *matchEngine) error { return e.selectKOFStarter(req.TeamID, req.PlayerID, manager) })
 	if err != nil {
 		fail(c, 400, err.Error())

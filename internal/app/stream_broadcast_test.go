@@ -9,22 +9,22 @@ import (
 func TestMemoryBroadcastKeepsLatestAndReleasesSubscribers(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "random")
-	first, guest, leaveGuest, err := f.app.subscribeEvent(id)
+	first, guest, leaveGuest, err := f.app.subscribeTournament(id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, manager, leaveManager, err := f.app.subscribeEvent(id)
+	second, manager, leaveManager, err := f.app.subscribeTournament(id)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(first.payload, second.payload) {
 		t.Fatal("同一赛事应共享公开快照")
 	}
-	path := fmt.Sprintf("/api/events/%d/draw-settings", id)
+	path := fmt.Sprintf("/api/tournaments/%d/draw-settings", id)
 	for _, seconds := range []int{7, 8, 9} {
 		f.request(t, 2, "PATCH", path, map[string]any{"random_draw_seconds": seconds, "ace_draw_seconds": 5}, 200)
 	}
-	latest, _ := f.app.publicEventPayload(id)
+	latest, _ := f.app.publicTournamentPayload(id)
 	for _, channel := range []<-chan streamSnapshot{guest, manager} {
 		select {
 		case update := <-channel:
@@ -49,11 +49,11 @@ func TestMemoryBroadcastKeepsLatestAndReleasesSubscribers(t *testing.T) {
 	default:
 	}
 	leaveGuest()
-	if len(f.app.broadcast.events) != 1 {
+	if len(f.app.broadcast.tournaments) != 1 {
 		t.Fatal("仍有连接时过早释放快照")
 	}
 	leaveManager()
-	if len(f.app.broadcast.events) != 0 {
+	if len(f.app.broadcast.tournaments) != 0 {
 		t.Fatal("最后一个连接离开后未释放内存")
 	}
 }
@@ -61,7 +61,7 @@ func TestMemoryBroadcastKeepsLatestAndReleasesSubscribers(t *testing.T) {
 func TestBroadcastRefreshesSharedPlayerProfiles(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "random")
-	_, updates, leave, err := f.app.subscribeEvent(id)
+	_, updates, leave, err := f.app.subscribeTournament(id)
 	if err != nil {
 		t.Fatal(err)
 	}

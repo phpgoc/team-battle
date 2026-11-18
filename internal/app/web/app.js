@@ -3,7 +3,7 @@
   const app = document.getElementById('app');
   const state = { user: null, language: localStorage.getItem('tb_language') || 'zh', boardTransparency: readBoardTransparency(), event: null, stream: null, editor: null, roster: {}, rosterOrder: [], users: [], page: 1, filters: {}, connection: '', drawTimer: null, drawToken: 0, draw: null };
   const langs = { zh: '中文', en: 'English', ko: '한국어' };
-  const pagePaths = { home: '/', createEvent: '/events/new', accounts: '/accounts', archive: '/events/archive', siteSettings: '/site-settings', backgrounds: '/backgrounds', settings: '/account' };
+  const pagePaths = { home: '/', createEvent: '/tournaments/new', accounts: '/accounts', archive: '/tournaments/archive', siteSettings: '/site-settings', backgrounds: '/backgrounds', settings: '/account' };
   const pageForPath = (path = location.pathname) => Object.keys(pagePaths).find(page => pagePaths[page] === path) || (/^\/accounts\/(new|[1-9]\d*)$/.test(path) ? 'accounts' : null);
   const t = key => window.TB_I18N[state.language]?.[key] || window.TB_I18N.zh[key] || key;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -142,9 +142,9 @@
   async function homePage() {
     const query = new URLSearchParams(location.search); state.page = Math.max(1, Number(query.get('p') || 1)); state.filters = { name: query.get('name') || '', player_id: query.get('player_id') || '', from: query.get('from') || '', to: query.get('to') || '' };
     const search = new URLSearchParams({ ...state.filters, page: state.page, page_size: 10 });
-    const [past, live] = await Promise.all([api('/api/public/history?' + search), api('/api/public/events')]);
+    const [past, live] = await Promise.all([api('/api/public/history?' + search), api('/api/public/tournaments')]);
     const playerOptions = '<option value="">' + t('allPlayers') + '</option>' + (past.players || []).map(player => '<option value="' + player.id + '"' + (String(player.id) === String(state.filters.player_id || '') ? ' selected' : '') + '>' + esc(player.display_name) + (player.category_name ? ' · ' + esc(player.category_name) : '') + '</option>').join('');
-    shell('<div class="home-heading"><div><span class="eyebrow">TEAM BATTLE / ' + t('eventCenter') + '</span><h1>' + t('home') + '</h1><p class="subtitle">' + t('homeIntro') + '</p></div><div class="home-summary"><span><b>' + live.events.length + '</b>' + t('ongoing') + '</span><span><b>' + past.total + '</b>' + t('history') + '</span></div></div>' + (live.events.length ? '<section class="home-live section-gap"><div class="section-title"><h2><span class="status-dot"></span>' + t('ongoing') + '</h2><span>' + t('watchPublic') + '</span></div>' + liveCards(live.events) + '</section>' : '') + '<section class="panel history-panel"><div class="panel-head"><div><span class="eyebrow">ARCHIVE</span><h2>' + t('history') + '</h2></div><span class="count-badge">' + t('total') + ' ' + past.total + '</span></div><form id="history-filter" class="filter-bar">' + field('name', input('name', state.filters.name, 'search', 'placeholder="' + t('searchEventHint') + '"')) + field('player', '<select name="player_id">' + playerOptions + '</select>') + field('from', input('from', state.filters.from, 'date')) + field('to', input('to', state.filters.to, 'date')) + '<button class="primary">' + t('search') + '</button><button type="button" class="ghost" data-go="/">' + t('clear') + '</button></form>' + eventTable(past.events) + '<div class="pagination"><span>' + t('total') + ' ' + past.total + '</span><div><button class="outline" id="previous" ' + (state.page <= 1 ? 'disabled' : '') + '>' + t('previous') + '</button><span>' + state.page + ' <small>/ ' + Math.max(1, Math.ceil(past.total / 10)) + '</small></span><button class="outline" id="next" ' + (state.page * 10 >= past.total ? 'disabled' : '') + '>' + t('next') + '</button></div></div></section>');
+    shell('<div class="home-heading"><div><span class="eyebrow">TEAM BATTLE / ' + t('eventCenter') + '</span><h1>' + t('home') + '</h1><p class="subtitle">' + t('homeIntro') + '</p></div><div class="home-summary"><span><b>' + live.tournaments.length + '</b>' + t('ongoing') + '</span><span><b>' + past.total + '</b>' + t('history') + '</span></div></div>' + (live.tournaments.length ? '<section class="home-live section-gap"><div class="section-title"><h2><span class="status-dot"></span>' + t('ongoing') + '</h2><span>' + t('watchPublic') + '</span></div>' + liveCards(live.tournaments) + '</section>' : '') + '<section class="panel history-panel"><div class="panel-head"><div><span class="eyebrow">ARCHIVE</span><h2>' + t('history') + '</h2></div><span class="count-badge">' + t('total') + ' ' + past.total + '</span></div><form id="history-filter" class="filter-bar">' + field('name', input('name', state.filters.name, 'search', 'placeholder="' + t('searchEventHint') + '"')) + field('player', '<select name="player_id">' + playerOptions + '</select>') + field('from', input('from', state.filters.from, 'date')) + field('to', input('to', state.filters.to, 'date')) + '<button class="primary">' + t('search') + '</button><button type="button" class="ghost" data-go="/">' + t('clear') + '</button></form>' + eventTable(past.tournaments) + '<div class="pagination"><span>' + t('total') + ' ' + past.total + '</span><div><button class="outline" id="previous" ' + (state.page <= 1 ? 'disabled' : '') + '>' + t('previous') + '</button><span>' + state.page + ' <small>/ ' + Math.max(1, Math.ceil(past.total / 10)) + '</small></span><button class="outline" id="next" ' + (state.page * 10 >= past.total ? 'disabled' : '') + '>' + t('next') + '</button></div></div></section>');
     const filterURL = (page = 1, values = state.filters) => '/?' + new URLSearchParams({ ...values, p: page });
     $('#history-filter').addEventListener('submit', action(async event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.target)); if (values.from && values.to && values.from > values.to) throw Error(t('dateRangeError')); go(filterURL(1, values)); }));
     $('#previous').onclick = () => go(filterURL(state.page - 1)); $('#next').onclick = () => go(filterURL(state.page + 1));
@@ -224,11 +224,11 @@
   async function siteSettingsPage() {
     const data = await api('/api/site-settings');
     shell(`<div class="page-head"><h1>${t('siteSettings')}</h1></div><div class="settings-columns"><section class="panel"><div class="panel-head"><h2>${t('names')}</h2></div><div class="panel-body"><form id="name-form" class="inline-form">${input('name', '', 'text', 'required')}<button class="primary">${t('add')}</button></form>${data.tournament_names.map(n => `<form class="inline-form item-form" data-name="${n.id}">${input('name', n.name, 'text', 'required')}<button class="outline">${t('save')}</button><button type="button" class="link danger" data-delete-name="${n.id}">${t('delete')}</button></form>`).join('')}</div></section><section class="panel"><div class="panel-head"><h2>${t('categories')}</h2></div><div class="panel-body"><form id="category-form" class="field">${field('categoryName', input('name', '', 'text', 'required'))}${field('icon', '<input type="file" name="icon" accept="image/jpeg,image/png,image/gif,image/webp" required>')}<p class="help">${t('imageHint')}</p><button class="primary">${t('add')}</button></form>${data.categories.map(c => `<form class="category-edit item-form" data-category="${c.id}">${c.icon_url ? `<img class="category-icon-preview" src="${esc(c.icon_url)}" alt="">` : `<span>${t('noIcon')}</span>`}${input('name', c.name, 'text', 'required')}<input type="file" name="icon" accept="image/jpeg,image/png,image/gif,image/webp"><button class="outline">${t('save')}</button><button type="button" class="link danger" data-delete-category="${c.id}">${t('delete')}</button></form>`).join('')}</div></section></div>`, 'siteSettings');
-    $('#name-form').onsubmit = action(async event => { event.preventDefault(); await post('/api/site-settings/event-names', Object.fromEntries(new FormData(event.target))); await siteSettingsPage(); });
+    $('#name-form').onsubmit = action(async event => { event.preventDefault(); await post('/api/site-settings/tournament-names', Object.fromEntries(new FormData(event.target))); await siteSettingsPage(); });
     $('#category-form').onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/categories', { method: 'POST', body: new FormData(event.target) }); await siteSettingsPage(); });
-    $$('[data-name]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); await post('/api/site-settings/event-names/' + form.dataset.name, Object.fromEntries(new FormData(form)), 'PATCH'); await siteSettingsPage(); }));
+    $$('[data-name]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); await post('/api/site-settings/tournament-names/' + form.dataset.name, Object.fromEntries(new FormData(form)), 'PATCH'); await siteSettingsPage(); }));
     $$('[data-category]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/categories/' + form.dataset.category, { method: 'PATCH', body: new FormData(form) }); await siteSettingsPage(); }));
-    for (const kind of ['name', 'category']) $$(`[data-delete-${kind}]`).forEach(button => button.onclick = action(async () => { if (!(await confirmAction(t('deleteConfirm')))) return; const id = button.getAttribute('data-delete-' + kind); const path = kind === 'name' ? 'event-names' : kind === 'category' ? 'categories' : 'backgrounds'; await api('/api/site-settings/' + path + '/' + id, { method: 'DELETE' }); await siteSettingsPage(); }));
+    for (const kind of ['name', 'category']) $$(`[data-delete-${kind}]`).forEach(button => button.onclick = action(async () => { if (!(await confirmAction(t('deleteConfirm')))) return; const id = button.getAttribute('data-delete-' + kind); const path = kind === 'name' ? 'tournament-names' : kind === 'category' ? 'categories' : 'backgrounds'; await api('/api/site-settings/' + path + '/' + id, { method: 'DELETE' }); await siteSettingsPage(); }));
   }
 
   async function backgroundsPage() {
@@ -401,7 +401,7 @@
     const timingEditable = mode === 'create' || (mode !== 'roster' && manages(source) && !terminal(source));
     const e = preserve && state.ruleDraft && !readonly ? { ...source, rules: state.ruleDraft } : source;
     const [users, catalog] = await Promise.all([
-      mode === 'create' ? api('/api/users') : terminal(e) ? Promise.resolve({ users: e.teams.flatMap(team => team.players) }) : api('/api/events/' + e.id + '/eligible-users'),
+      mode === 'create' ? api('/api/users') : terminal(e) ? Promise.resolve({ users: e.teams.flatMap(team => team.players) }) : api('/api/tournaments/' + e.id + '/eligible-users'),
       state.user.role === 'superadmin' ? api('/api/site-settings') : api('/api/settings/catalog')
     ]);
     // 将已录入资料补入目录，停用账号也不能在查看或保存时悄悄消失。
@@ -421,7 +421,7 @@
     const managerDefault = mode === 'create' || state.users.some(u => u.id === e.manager_id) ? 0 : e.manager_id;
     const managerField = state.user.role === 'superadmin' ? field('manager', '<select name="manager_id"><option value="' + managerDefault + '">' + t('managerDefault') + '</option>' + options(state.users, e.manager_id) + '</select>') : '';
     const createBackground = mode === 'create' ? field('background', `<select name="background_id">${backgroundOptions(backgrounds, e.background_id)}</select>`) : '';
-    const basic = mode !== 'roster' ? '<section class="panel editor-section" id="event-basics"><div class="panel-head"><h2>' + t('basicInfo') + '</h2><span>' + t('requiredBasics') + '</span></div><div class="panel-body form-grid">' + field('name', '<input name="name" list="event-names" value="' + esc(e.name || '') + '" required><datalist id="event-names">' + (catalog.tournament_names || []).map(n => '<option value="' + esc(n.name) + '">').join('') + '</datalist>', true) + field('time', startTimeInput(e.start_time || localTime())) + managerField + createBackground + field('description', '<textarea name="description" rows="2">' + esc(e.description || '') + '</textarea>', true) + '</div></section>' : '';
+    const basic = mode !== 'roster' ? '<section class="panel editor-section" id="event-basics"><div class="panel-head"><h2>' + t('basicInfo') + '</h2><span>' + t('requiredBasics') + '</span></div><div class="panel-body form-grid">' + field('name', '<input name="name" list="tournament-names" value="' + esc(e.name || '') + '" required><datalist id="tournament-names">' + (catalog.tournament_names || []).map(n => '<option value="' + esc(n.name) + '">').join('') + '</datalist>', true) + field('time', startTimeInput(e.start_time || localTime())) + managerField + createBackground + field('description', '<textarea name="description" rows="2">' + esc(e.description || '') + '</textarea>', true) + '</div></section>' : '';
     const backgroundPanel = mode === 'create' || mode === 'roster' ? '' : eventBackgroundMarkup(e, backgrounds, manages(e) && !terminal(e));
     const correctionPanel = mode === 'settings' ? resultCorrectionMarkup(e) : '';
     const settingsHint = terminal(e) ? 'readOnly' : readonly ? 'settingsLocked' : mode === 'create' ? 'requiredHint' : roundSetupEditable ? 'settingsResetHint' : 'roundSetupLocked';
@@ -488,11 +488,11 @@
         if (state.event?.id !== e.id || !editable(state.event) || JSON.stringify(state.event.matches) !== snapshot) throw new Error(t('resultChanged'));
         body.correction = { match_id: correctionMatch.id, winner_team_id: Number(f.get('correction_winner_team_id')) };
       }
-      if (mode === 'create') { const created = await post('/api/events', body); toast(t('eventCreated')); go('/live/' + created.id); }
+      if (mode === 'create') { const created = await post('/api/tournaments', body); toast(t('eventCreated')); go('/live/' + created.id); }
       else {
-        await post('/api/events/' + e.id + (mode === 'roster' ? '/players' : '/settings'), body, mode === 'roster' ? 'POST' : 'PATCH');
+        await post('/api/tournaments/' + e.id + (mode === 'roster' ? '/players' : '/settings'), body, mode === 'roster' ? 'POST' : 'PATCH');
         if (beginDraw) {
-          const result = await post('/api/events/' + e.id + '/setup-draw');
+          const result = await post('/api/tournaments/' + e.id + '/setup-draw');
           state.editor = null;
           closeStream(); history.pushState({}, '', '/live/' + e.id);
           await openEvent(e.id);
@@ -618,14 +618,14 @@
   async function renderLineupPage(preserve = false) {
     const e = state.event;
     if (!canArrangeLineup(e)) { go('/live/' + e.id); return; }
-    const privateLineup = await api('/api/events/' + e.id + '/lineup');
+    const privateLineup = await api('/api/tournaments/' + e.id + '/lineup');
     if (state.event?.id !== e.id || state.editor !== 'lineup') return;
     if (!preserve || state.lineupEvent !== e.id) { state.lineupDrafts = {}; state.lineupTeam = 0; state.lineupEvent = e.id; }
     const teams = lineupTeams(e);
     window.TBLineupPage.render({ root: app, event: { ...e, lineups: privateLineup.lineups }, teams, selectedTeam: state.lineupTeam, drafts: state.lineupDrafts, t, esc, person, picker, action, bindCommon,
       onTeam: id => { state.lineupTeam = id; renderLineupPage(true).catch(error => toast(error.message)); },
       onBack: () => go('/live/' + e.id),
-      onSave: async (team, ids) => { await post('/api/events/' + e.id + '/lineup/submit', { team_id: team, player_ids: ids }); toast(t('saved')); go('/live/' + e.id); }
+      onSave: async (team, ids) => { await post('/api/tournaments/' + e.id + '/lineup/submit', { team_id: team, player_ids: ids }); toast(t('saved')); go('/live/' + e.id); }
     });
   }
   function boardVariant(e) {
@@ -849,14 +849,14 @@
     update();
     if (Date.now() < endAt && !roll.hidden) state.drawTimer = setInterval(() => { if (token === state.drawToken) update(); }, 250);
   }
-  async function refreshEvent() { const previous = state.event; state.event = await api('/api/public/events/' + state.event.id); if (!state.editor) { boardPage(); startDrawAnimation(previous, state.event); } }
-  async function eventAction(path, body = {}, method = 'POST') { await post('/api/events/' + state.event.id + path, body, method); await refreshEvent(); }
+  async function refreshEvent() { const previous = state.event; state.event = await api('/api/public/tournaments/' + state.event.id); if (!state.editor) { boardPage(); startDrawAnimation(previous, state.event); } }
+  async function eventAction(path, body = {}, method = 'POST') { await post('/api/tournaments/' + state.event.id + path, body, method); await refreshEvent(); }
   async function voteForCaptain(id) { await eventAction('/captain-votes', { target_id: id }); toast(t('voteSaved')); }
   async function assignCaptain(team, player) { await eventAction('/captains/select', { team_id: team, player_id: player }); }
   async function renderKOFSelection(e, manager) {
     const target = $('.board-rosters');
     if (!target || !canOperate(e) || e.status !== 'round2') return;
-    const choices = await api('/api/events/' + e.id + '/kof/options');
+    const choices = await api('/api/tournaments/' + e.id + '/kof/options');
     if (!target.isConnected || state.event?.id !== e.id || state.event.status !== 'round2' || !canOperate(state.event)) return;
     const paint = () => window.TBKOFBoard.render({ root: $('#board-content'), event: state.event, choices, user: state.user, manager, t, action, onVote: voteForCaptain, onCaptain: assignCaptain,
       onSend: async body => {
@@ -879,7 +879,7 @@
       // 确认期间仍接收推送，录分已改变时必须重新核对，不能封存旧结果。
       const current = state.event;
       if (current?.id !== e.id || !editable(current) || current.status !== 'final_confirm' || results(current) !== snapshot) { toast(t('resultChanged')); return; }
-      await post('/api/events/' + e.id + '/confirm');
+      await post('/api/tournaments/' + e.id + '/confirm');
       state.editor = null;
       history.replaceState({}, '', '/live/' + e.id);
       await refreshEvent();
@@ -887,7 +887,7 @@
   }
   async function openEvent(id, preserve = false, setting = false) {
     if (state.event?.id !== Number(id)) state.event = null;
-    state.event = await api('/api/public/events/' + id);
+    state.event = await api('/api/public/tournaments/' + id);
     if (!hasRoster(state.event) && !setting) {
       if (state.user && manages(state.event)) {
         history.replaceState({}, '', '/live/' + id + '/setting');
@@ -902,7 +902,7 @@
     if (terminal(state.event)) { closeStream(); return; }
     if (!hasRoster(state.event)) return;
     if (state.stream) return;
-    const stream = new EventSource('/api/public/events/' + id + '/stream'); state.stream = stream;
+    const stream = new EventSource('/api/public/tournaments/' + id + '/stream'); state.stream = stream;
     stream.onopen = () => { state.connection = 'connected'; if ($('#connection-state')) $('#connection-state').textContent = t('connected'); };
     stream.onerror = () => { state.connection = 'reconnecting'; if ($('#connection-state')) $('#connection-state').textContent = t('reconnecting'); };
     stream.onmessage = message => {
@@ -928,7 +928,7 @@
     window.TBArchivePage.render({
       draft: state.archiveDraft, users: directory.users.filter(user => user.role !== 'superadmin'), backgrounds: backgrounds.backgrounds || [],
       t, esc, field, input, startTimeInput, startTimeValue, backgroundOptions, shell, action, toast, person,
-      onSave: async body => { const result = await post('/api/events/archive', body); state.archiveDraft = null; go('/live/' + result.id); }
+      onSave: async body => { const result = await post('/api/tournaments/archive', body); state.archiveDraft = null; go('/live/' + result.id); }
     });
   }
   async function renderRoute(preserve = false) {
@@ -963,7 +963,7 @@
     const id = state.event.id, token = state.drawToken;
     checkingGrouping = true;
     try {
-      const event = await api('/api/public/events/' + id);
+      const event = await api('/api/public/tournaments/' + id);
       if (state.drawToken === token && state.event?.id === id && state.editor && hasRoster(event)) await openEvent(id, false, true);
     } catch (_) {} finally { checkingGrouping = false; }
   }, 3000);

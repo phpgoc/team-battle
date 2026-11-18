@@ -16,7 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (a *App) listEvents(c *gin.Context) {
+func (a *App) listTournaments(c *gin.Context) {
 	user, err := a.currentUser(c)
 	if err != nil {
 		fail(c, http.StatusUnauthorized, "未登录")
@@ -63,16 +63,16 @@ func (a *App) listEvents(c *gin.Context) {
 		item["created_at"] = createdAt
 		items = append(items, item)
 	}
-	ok(c, gin.H{"events": items})
+	ok(c, gin.H{"tournaments": items})
 }
 
-func (a *App) publicEvents(c *gin.Context) {
-	items, err := a.publicEventSummaries(false)
+func (a *App) publicTournaments(c *gin.Context) {
+	items, err := a.publicTournamentSummaries(false)
 	if err != nil {
 		fail(c, http.StatusInternalServerError, "读取赛事失败")
 		return
 	}
-	ok(c, gin.H{"events": items})
+	ok(c, gin.H{"tournaments": items})
 }
 
 func (a *App) publicHistory(c *gin.Context) {
@@ -159,7 +159,7 @@ func (a *App) publicHistory(c *gin.Context) {
 			players = append(players, gin.H{"id": id, "display_name": user.DisplayName, "category_name": user.CategoryName})
 		}
 	}
-	ok(c, gin.H{"events": filtered[start:end], "players": players, "page": page, "page_size": pageSize, "total": total})
+	ok(c, gin.H{"tournaments": filtered[start:end], "players": players, "page": page, "page_size": pageSize, "total": total})
 }
 
 func (a *App) historyItems() ([]map[string]any, error) {
@@ -170,7 +170,7 @@ func (a *App) historyItems() ([]map[string]any, error) {
 		return items, nil
 	}
 	a.history.mu.RUnlock()
-	items, err := a.publicEventSummaries(true)
+	items, err := a.publicTournamentSummaries(true)
 	if err != nil {
 		return nil, err
 	}
@@ -214,13 +214,13 @@ func (a *App) invalidateHistoryCache() {
 	a.history.mu.Unlock()
 }
 
-func (a *App) createEvent(c *gin.Context) {
+func (a *App) createTournament(c *gin.Context) {
 	actor, err := a.currentUser(c)
 	if err != nil || actor.Role != roleSuperAdmin {
 		fail(c, http.StatusForbidden, "只有超级管理员可以创建赛事")
 		return
 	}
-	var req createEventRequest
+	var req createTournamentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		fail(c, http.StatusBadRequest, "赛事信息不完整")
 		return
@@ -313,12 +313,12 @@ func (a *App) createEvent(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, err.Error())
 		return
 	}
-	a.logAction(tournamentID, actor.ID, "event_created", gin.H{"name": req.Name})
+	a.logAction(tournamentID, actor.ID, "tournament_created", gin.H{"name": req.Name})
 	ok(c, gin.H{"id": tournamentID})
 }
 
-func (a *App) confirmEvent(c *gin.Context) {
-	actor, tournamentID, okAccess := a.managerEvent(c)
+func (a *App) confirmTournament(c *gin.Context) {
+	actor, tournamentID, okAccess := a.managerTournament(c)
 	if !okAccess {
 		return
 	}
@@ -335,7 +335,7 @@ func (a *App) confirmEvent(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "确认赛事结束失败")
 		return
 	}
-	a.logAction(tournamentID, actor.ID, "event_completed", nil)
+	a.logAction(tournamentID, actor.ID, "tournament_completed", nil)
 	a.invalidateHistoryCache()
 	ok(c, gin.H{"ok": true})
 }

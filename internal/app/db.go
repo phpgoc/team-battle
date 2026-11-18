@@ -256,7 +256,7 @@ func migrate(db *sql.DB) error {
 	if err := initializeFixedTeams(db); err != nil {
 		return err
 	}
-	return normalizeEventMetadata(db)
+	return normalizeTournamentMetadata(db)
 }
 
 func ensureColumn(db *sql.DB, table, column, definition string) error {

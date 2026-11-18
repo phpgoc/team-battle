@@ -16,12 +16,12 @@ func backgroundExists(db sqlRunner, backgroundID int64) (bool, error) {
 }
 
 // 赛事背景用于广告和赞助展示，仅赛事管理员及超级管理员可修改，所有观众通过 SSE 同步。
-func (a *App) updateEventBackground(c *gin.Context) {
-	actor, tournamentID, access := a.managerEvent(c)
+func (a *App) updateTournamentBackground(c *gin.Context) {
+	actor, tournamentID, access := a.managerTournament(c)
 	if !access {
 		return
 	}
-	var req eventBackgroundRequest
+	var req tournamentBackgroundRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.BackgroundID < 0 {
 		fail(c, 400, "背景编号无效")
 		return
@@ -55,7 +55,7 @@ func (a *App) updateEventBackground(c *gin.Context) {
 		return
 	}
 	payload, _ := json.Marshal(req)
-	if _, err := tx.Exec(`INSERT INTO tournament_actions(tournament_id,actor_id,action,payload) VALUES(?,?,?,?)`, tournamentID, nullableInt64(actor.ID), "event_background_updated", string(payload)); err != nil {
+	if _, err := tx.Exec(`INSERT INTO tournament_actions(tournament_id,actor_id,action,payload) VALUES(?,?,?,?)`, tournamentID, nullableInt64(actor.ID), "tournament_background_updated", string(payload)); err != nil {
 		fail(c, 500, "记录赛事背景变更失败")
 		return
 	}

@@ -4,11 +4,11 @@ import (
 	"testing"
 )
 
-func TestTournamentTableNamePreservesExistingEvents(t *testing.T) {
+func TestTournamentTableNamePreservesExistingTournaments(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "random")
 	f.enterKOF(t, id)
-	before, err := f.app.publicEventPayload(id)
+	before, err := f.app.publicTournamentPayload(id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,7 +21,7 @@ func TestTournamentTableNamePreservesExistingEvents(t *testing.T) {
 	}
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='events'`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='tournaments'`)
-	after, err := f.app.publicEventPayload(id)
+	after, err := f.app.publicTournamentPayload(id)
 	if err != nil || string(before) != string(after) {
 		t.Fatalf("主表改名改变了赛事: %s %v", after, err)
 	}
@@ -42,7 +42,7 @@ func TestTournamentRelatedNamesPreserveDataAndReferences(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "random")
 	f.enterKOF(t, id)
-	before, err := f.app.publicEventPayload(id)
+	before, err := f.app.publicTournamentPayload(id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestTournamentRelatedNamesPreserveDataAndReferences(t *testing.T) {
 	if err := migrate(f.app.db); err != nil {
 		t.Fatal(err)
 	}
-	after, err := f.app.publicEventPayload(id)
+	after, err := f.app.publicTournamentPayload(id)
 	if err != nil || string(before) != string(after) {
 		t.Fatalf("表和字段改名改变了公开赛事数据: %s %v", after, err)
 	}

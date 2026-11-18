@@ -16,19 +16,19 @@ type rosterEntryView struct {
 
 func setupRosterView(t *testing.T, f *workflowFixture, id int64) []rosterEntryView {
 	t.Helper()
-	var event struct {
+	var tournament struct {
 		Roster []rosterEntryView `json:"setup_roster"`
 	}
-	if err := json.Unmarshal(f.request(t, 0, "GET", fmt.Sprintf("/api/public/events/%d", id), nil, 200), &event); err != nil {
+	if err := json.Unmarshal(f.request(t, 0, "GET", fmt.Sprintf("/api/public/tournaments/%d", id), nil, 200), &tournament); err != nil {
 		t.Fatal(err)
 	}
-	return event.Roster
+	return tournament.Roster
 }
 
 func TestSetupRosterPreservesEntryOrderAndChoices(t *testing.T) {
 	f := newWorkflowFixture(t)
-	id := createSetupEvent(t, f, 6, "random", "random", nil)
-	path := fmt.Sprintf("/api/events/%d", id)
+	id := createSetupTournament(t, f, 6, "random", "random", nil)
+	path := fmt.Sprintf("/api/tournaments/%d", id)
 	ids := []int64{8, 3, 6, 4, 7, 5}
 	fixed := map[string]string{"8": "B", "3": "A"}
 	f.request(t, 2, "PATCH", path+"/settings", map[string]any{"player_ids": ids, "fixed_assignments": fixed}, 200)
@@ -58,7 +58,7 @@ func TestSetupRosterPreservesEntryOrderAndChoices(t *testing.T) {
 
 func TestArchivePreservesOriginalRoster(t *testing.T) {
 	f := newWorkflowFixture(t)
-	f.request(t, 1, "POST", "/api/events/archive", map[string]any{
+	f.request(t, 1, "POST", "/api/tournaments/archive", map[string]any{
 		"name": "历史原始录入", "start_time": "2026-11-17T19",
 		"player_ids":        []int64{8, 3, 6, 4, 7, 5},
 		"fixed_assignments": map[string]string{"3": "A", "4": "A", "5": "A", "6": "B", "7": "B", "8": "B"},
@@ -69,7 +69,7 @@ func TestArchivePreservesOriginalRoster(t *testing.T) {
 	if got := setupRosterView(t, f, id); !reflect.DeepEqual(got, want) {
 		t.Fatalf("历史录入没有保留顺序和选择: %+v", got)
 	}
-	f.request(t, 1, "PATCH", fmt.Sprintf("/api/events/%d/settings", id), map[string]any{"player_ids": []int64{}}, 400)
+	f.request(t, 1, "PATCH", fmt.Sprintf("/api/tournaments/%d/settings", id), map[string]any{"player_ids": []int64{}}, 400)
 }
 
 func TestRosterEditorAssetsEmbedded(t *testing.T) {

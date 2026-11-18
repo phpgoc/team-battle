@@ -33,7 +33,7 @@ func (a *App) siteSettings(c *gin.Context) {
 	if !a.requireSuperAdmin(c) {
 		return
 	}
-	names, err := a.loadEventNames()
+	names, err := a.loadTournamentNames()
 	if err != nil {
 		fail(c, http.StatusInternalServerError, "读取常用赛事名失败")
 		return
@@ -51,7 +51,7 @@ func (a *App) siteSettings(c *gin.Context) {
 	ok(c, gin.H{"tournament_names": names, "categories": categories, "backgrounds": backgrounds})
 }
 
-func (a *App) createEventName(c *gin.Context) {
+func (a *App) createTournamentName(c *gin.Context) {
 	if !a.requireSuperAdmin(c) {
 		return
 	}
@@ -67,7 +67,7 @@ func (a *App) createEventName(c *gin.Context) {
 	ok(c, gin.H{"ok": true})
 }
 
-func (a *App) updateEventName(c *gin.Context) {
+func (a *App) updateTournamentName(c *gin.Context) {
 	if !a.requireSuperAdmin(c) {
 		return
 	}
@@ -88,7 +88,7 @@ func (a *App) updateEventName(c *gin.Context) {
 	ok(c, gin.H{"ok": true})
 }
 
-func (a *App) deleteEventName(c *gin.Context) {
+func (a *App) deleteTournamentName(c *gin.Context) {
 	if !a.requireSuperAdmin(c) {
 		return
 	}
@@ -238,7 +238,7 @@ func (a *App) requireSuperAdmin(c *gin.Context) bool {
 	return true
 }
 
-func (a *App) loadEventNames() ([]map[string]any, error) {
+func (a *App) loadTournamentNames() ([]map[string]any, error) {
 	rows, err := a.db.Query(`SELECT id,name FROM site_tournament_names ORDER BY sort_order,id`)
 	if err != nil {
 		return nil, err

@@ -214,14 +214,14 @@ func (a *App) populateAvatarURL(u *User) {
 	}
 }
 
-func (a *App) managerEvent(c *gin.Context) (User, int64, bool) {
+func (a *App) managerTournament(c *gin.Context) (User, int64, bool) {
 	actor, err := a.currentUser(c)
 	if err != nil || (!isNonSuperAdmin(actor.Role) && actor.Role != roleSuperAdmin) {
 		fail(c, http.StatusForbidden, "需要赛事管理员权限")
 		return User{}, 0, false
 	}
 	tournamentID, err := parseID(c.Param("id"))
-	if err != nil || !a.canManageEvent(actor.ID, actor.Role, tournamentID) {
+	if err != nil || !a.canManageTournament(actor.ID, actor.Role, tournamentID) {
 		fail(c, http.StatusForbidden, "无权操作该赛事")
 		return User{}, 0, false
 	}
@@ -237,7 +237,7 @@ func (a *App) managerEvent(c *gin.Context) (User, int64, bool) {
 	return actor, tournamentID, true
 }
 
-func (a *App) canManageEvent(userID int64, role string, tournamentID int64) bool {
+func (a *App) canManageTournament(userID int64, role string, tournamentID int64) bool {
 	if role == roleSuperAdmin {
 		return true
 	}
@@ -245,12 +245,12 @@ func (a *App) canManageEvent(userID int64, role string, tournamentID int64) bool
 	return isNonSuperAdmin(role) && a.db.QueryRow(`SELECT COUNT(*) FROM tournaments WHERE id=? AND manager_id=?`, tournamentID, userID).Scan(&exists) == nil && exists == 1
 }
 
-func (a *App) canViewEvent(userID int64, role string, tournamentID int64) bool {
+func (a *App) canViewTournament(userID int64, role string, tournamentID int64) bool {
 	if role == roleSuperAdmin {
-		return a.eventExists(tournamentID)
+		return a.tournamentExists(tournamentID)
 	}
 	if isNonSuperAdmin(role) {
-		if a.canManageEvent(userID, role, tournamentID) {
+		if a.canManageTournament(userID, role, tournamentID) {
 			return true
 		}
 		var exists int
@@ -260,12 +260,12 @@ func (a *App) canViewEvent(userID int64, role string, tournamentID int64) bool {
 	return a.db.QueryRow(`SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND user_id=?`, tournamentID, userID).Scan(&exists) == nil && exists == 1
 }
 
-func (a *App) eventExists(tournamentID int64) bool {
+func (a *App) tournamentExists(tournamentID int64) bool {
 	var count int
 	return a.db.QueryRow(`SELECT COUNT(*) FROM tournaments WHERE id=?`, tournamentID).Scan(&count) == nil && count == 1
 }
 
-func (a *App) isEventPlayer(tournamentID, teamID, userID int64) bool {
+func (a *App) isTournamentPlayer(tournamentID, teamID, userID int64) bool {
 	var count int
 	return a.db.QueryRow(`SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND team_id=? AND user_id=?`, tournamentID, teamID, userID).Scan(&count) == nil && count == 1
 }

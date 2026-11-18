@@ -55,7 +55,7 @@ func TestDemoDataHasConsistentCompleteMatches(t *testing.T) {
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE name='特殊对战1' AND id IN (SELECT tournament_id FROM tournament_players GROUP BY tournament_id HAVING COUNT(*)=8)`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE name='特殊对战2' AND id IN (SELECT tournament_id FROM tournament_players GROUP BY tournament_id HAVING COUNT(*)=8)`)
 	specialID := f.scalar(t, `SELECT id FROM tournaments WHERE name='特殊对战1'`)
-	detail := f.request(t, 0, "GET", fmt.Sprintf("/api/public/events/%d", specialID), nil, 200)
+	detail := f.request(t, 0, "GET", fmt.Sprintf("/api/public/tournaments/%d", specialID), nil, 200)
 	if !bytes.Contains(detail, []byte(`"ace_draw_source":"special"`)) || !bytes.Contains(detail, []byte(`"ace_draw_special":1`)) {
 		t.Fatalf("历史大将战没有显示特殊抽选来源: %s", detail)
 	}

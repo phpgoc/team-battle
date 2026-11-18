@@ -67,11 +67,11 @@ func (e *matchEngine) match(id int64) (engineMatch, error) {
 	err := e.db.QueryRow(`SELECT m.id,m.round_id,m.seq,m.team_a_id,m.team_b_id,m.player_a_id,m.player_b_id,COALESCE(m.winner_team_id,0),COALESCE(m.next_player_id,0),r.stage,m.status FROM matches m JOIN rounds r ON r.id=m.round_id WHERE m.id=? AND m.tournament_id=?`, id, e.tournamentID).Scan(&m.id, &m.roundID, &m.seq, &m.teamA, &m.teamB, &m.playerA, &m.playerB, &m.winner, &m.next, &m.stage, &m.status)
 	return m, err
 }
-func (e *matchEngine) rules() (EventRules, error) {
+func (e *matchEngine) rules() (TournamentRules, error) {
 	var raw string
 	err := e.db.QueryRow(`SELECT rules_json FROM tournaments WHERE id=?`, e.tournamentID).Scan(&raw)
 	if err != nil {
-		return EventRules{}, err
+		return TournamentRules{}, err
 	}
 	return decodeRules(raw)
 }

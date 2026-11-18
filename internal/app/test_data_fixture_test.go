@@ -125,7 +125,7 @@ func seedTestData(db *sql.DB) error {
 	managerID := ids["2"]
 	adminID := ids["admin"]
 	for i, winners := range []string{"aa", "ba", "ab"} {
-		if err := seedCompletedTestEvent(tx, managerID, adminID, playerIDs, []string{"OSL 经典赛", "MSL KOF 夜", "ASL 邀请赛"}[i], time.Now().AddDate(0, 0, -i-1).Format("2006-01-02T15"), winners); err != nil {
+		if err := seedCompletedTestTournament(tx, managerID, adminID, playerIDs, []string{"OSL 经典赛", "MSL KOF 夜", "ASL 邀请赛"}[i], time.Now().AddDate(0, 0, -i-1).Format("2006-01-02T15"), winners); err != nil {
 			return err
 		}
 		if i > 0 {
@@ -142,16 +142,16 @@ func seedTestData(db *sql.DB) error {
 			}
 		}
 	}
-	if err := seedSpecialTestEvent(tx, managerID, adminID, ids, "特殊对战1", time.Now().AddDate(0, 0, -10).Format("2006-01-02T15"), "special:0", true); err != nil {
+	if err := seedSpecialTestTournament(tx, managerID, adminID, ids, "特殊对战1", time.Now().AddDate(0, 0, -10).Format("2006-01-02T15"), "special:0", true); err != nil {
 		return err
 	}
-	if err := seedSpecialTestEvent(tx, managerID, adminID, ids, "特殊对战2", time.Now().AddDate(0, 0, -11).Format("2006-01-02T15"), "special:1", false); err != nil {
+	if err := seedSpecialTestTournament(tx, managerID, adminID, ids, "特殊对战2", time.Now().AddDate(0, 0, -11).Format("2006-01-02T15"), "special:1", false); err != nil {
 		return err
 	}
-	if err := seedLiveTestEvent(tx, managerID, adminID, playerIDs); err != nil {
+	if err := seedLiveTestTournament(tx, managerID, adminID, playerIDs); err != nil {
 		return err
 	}
-	if err := seedWorkflowDemoEvents(tx, managerID, adminID, ids); err != nil {
+	if err := seedWorkflowDemoTournaments(tx, managerID, adminID, ids); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -170,7 +170,7 @@ func readDemoBackground(name string) ([]byte, error) {
 }
 
 // 特殊历史数据包含不对称候选组，便于检查两队抽签人数不同的展示。
-func seedSpecialTestEvent(tx *sql.Tx, managerID, creatorID int64, ids map[string]int64, name, startTime, source string, skewed bool) error {
+func seedSpecialTestTournament(tx *sql.Tx, managerID, creatorID int64, ids map[string]int64, name, startTime, source string, skewed bool) error {
 	teamAPlayers := []int64{ids["2"], ids["4"], ids["5"], ids["6"]}
 	teamBPlayers := []int64{ids["3"], ids["7"], ids["8"], ids["9"]}
 	candidatesA := [][]int64{{teamAPlayers[0]}, {teamAPlayers[1], teamAPlayers[2], teamAPlayers[3]}}
@@ -191,7 +191,7 @@ func seedSpecialTestEvent(tx *sql.Tx, managerID, creatorID int64, ids map[string
 	if err != nil {
 		return err
 	}
-	tournamentID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, name, startTime, statusCompleted)
+	tournamentID, teamA, teamB, err := seedTournamentShell(tx, managerID, creatorID, name, startTime, statusCompleted)
 	if err != nil {
 		return err
 	}
@@ -271,8 +271,8 @@ func seedAceSourceAction(tx *sql.Tx, tournamentID int64, source string) error {
 }
 
 // 用正式比赛引擎生成演示战绩，确保分队、胜者留场、阶段比分与对局一致。
-func seedCompletedTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64, name, startTime, winners string) error {
-	tournamentID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, name, startTime, statusDraft)
+func seedCompletedTestTournament(tx *sql.Tx, managerID, creatorID int64, players []int64, name, startTime, winners string) error {
+	tournamentID, teamA, teamB, err := seedTournamentShell(tx, managerID, creatorID, name, startTime, statusDraft)
 	if err != nil {
 		return err
 	}
@@ -388,8 +388,8 @@ func seedCompletedTestEvent(tx *sql.Tx, managerID, creatorID int64, players []in
 	return fmt.Errorf("测试赛事推进未能结束")
 }
 
-func seedLiveTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64) error {
-	tournamentID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, "GSL 直播赛", time.Now().Format("2006-01-02T15"), statusDraft)
+func seedLiveTestTournament(tx *sql.Tx, managerID, creatorID int64, players []int64) error {
+	tournamentID, teamA, teamB, err := seedTournamentShell(tx, managerID, creatorID, "GSL 直播赛", time.Now().Format("2006-01-02T15"), statusDraft)
 	if err != nil {
 		return err
 	}
@@ -440,8 +440,8 @@ func seedLiveTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64) 
 }
 
 // 不同阶段的实时赛事用于试用队长选举、排阵、KOF、大将战和结束确认。
-func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[string]int64) error {
-	tournamentID, _, _, err := seedEventShell(tx, managerID, creatorID, "待分队示例", time.Now().Format("2006-01-02T15"), statusDraft)
+func seedWorkflowDemoTournaments(tx *sql.Tx, managerID, creatorID int64, ids map[string]int64) error {
+	tournamentID, _, _, err := seedTournamentShell(tx, managerID, creatorID, "待分队示例", time.Now().Format("2006-01-02T15"), statusDraft)
 	if err != nil {
 		return err
 	}
@@ -458,8 +458,8 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 	}
 	// 工作流示例统一使用4v4，避免用3v3抢1分展示不合理的赛事配置。
 	players := []int64{ids["2"], ids["3"], ids["4"], ids["5"], ids["6"], ids["7"], ids["8"], ids["9"]}
-	newEvent := func(name, status string) (int64, int64, int64, error) {
-		tournamentID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, name, time.Now().Format("2006-01-02T15"), status)
+	newTournament := func(name, status string) (int64, int64, int64, error) {
+		tournamentID, teamA, teamB, err := seedTournamentShell(tx, managerID, creatorID, name, time.Now().Format("2006-01-02T15"), status)
 		if err != nil {
 			return 0, 0, 0, err
 		}
@@ -504,7 +504,7 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 		return id, err
 	}
 
-	tournamentID, teamA, teamB, err := newEvent("队长投票示例", statusCaptainVote)
+	tournamentID, teamA, teamB, err := newTournament("队长投票示例", statusCaptainVote)
 	if err != nil {
 		return err
 	}
@@ -515,7 +515,7 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 		return err
 	}
 
-	tournamentID, teamA, teamB, err = newEvent("第一轮排阵示例", statusLineup)
+	tournamentID, teamA, teamB, err = newTournament("第一轮排阵示例", statusLineup)
 	if err != nil {
 		return err
 	}
@@ -532,7 +532,7 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 		}
 	}
 
-	tournamentID, teamA, teamB, err = newEvent("KOF 阶段示例", statusRound2)
+	tournamentID, teamA, teamB, err = newTournament("KOF 阶段示例", statusRound2)
 	if err != nil {
 		return err
 	}
@@ -562,7 +562,7 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 		return err
 	}
 
-	tournamentID, teamA, teamB, err = newEvent("大将战示例", statusAce)
+	tournamentID, teamA, teamB, err = newTournament("大将战示例", statusAce)
 	if err != nil {
 		return err
 	}
@@ -605,7 +605,7 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 		return err
 	}
 
-	tournamentID, teamA, teamB, err = newEvent("结束确认示例", statusFinalConfirm)
+	tournamentID, teamA, teamB, err = newTournament("结束确认示例", statusFinalConfirm)
 	if err != nil {
 		return err
 	}
@@ -637,7 +637,7 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 	return nil
 }
 
-func seedEventShell(tx *sql.Tx, managerID, creatorID int64, name, startTime, status string) (int64, int64, int64, error) {
+func seedTournamentShell(tx *sql.Tx, managerID, creatorID int64, name, startTime, status string) (int64, int64, int64, error) {
 	result, err := tx.Exec(`INSERT INTO tournaments(name,start_time,status,round1_target,round2_target,manager_id,created_by) VALUES(?,?,?,?,?,?,?)`, name, startTime, status, 4, 5, managerID, creatorID)
 	if err != nil {
 		return 0, 0, 0, err

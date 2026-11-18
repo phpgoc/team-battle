@@ -3,7 +3,7 @@ package app
 import "github.com/gin-gonic/gin"
 
 // 首页使用阶段胜场呈现总比分，避免将三个阶段的小分相加造成误解。
-func (a *App) publicEventSummaries(history bool) ([]map[string]any, error) {
+func (a *App) publicTournamentSummaries(history bool) ([]map[string]any, error) {
 	where, order := "e.status NOT IN ('completed','cancelled')", "e.updated_at DESC,e.id DESC"
 	if history {
 		where, order = "e.status='completed'", "e.start_time DESC,e.id DESC"

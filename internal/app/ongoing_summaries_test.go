@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestOngoingSummariesKeepUnconfirmedEvents(t *testing.T) {
+func TestOngoingSummariesKeepUnconfirmedTournaments(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "random")
 	for _, status := range []string{statusDraft, statusCaptainVote, statusLineup, statusRound1, statusRound2, statusAce, statusFinalConfirm, statusCompleted, statusCancelled} {
@@ -14,19 +14,19 @@ func TestOngoingSummariesKeepUnconfirmedEvents(t *testing.T) {
 			t.Fatal(err)
 		}
 		var result struct {
-			Events []struct {
+			Tournaments []struct {
 				ID        int64 `json:"id"`
 				HasRoster bool  `json:"has_roster"`
-			} `json:"events"`
+			} `json:"tournaments"`
 		}
-		if err := json.Unmarshal(f.request(t, 0, "GET", "/api/public/events", nil, 200), &result); err != nil {
+		if err := json.Unmarshal(f.request(t, 0, "GET", "/api/public/tournaments", nil, 200), &result); err != nil {
 			t.Fatal(err)
 		}
 		want := 1
 		if status == statusCompleted || status == statusCancelled {
 			want = 0
 		}
-		if len(result.Events) != want || (want == 1 && (result.Events[0].ID != id || !result.Events[0].HasRoster)) {
+		if len(result.Tournaments) != want || (want == 1 && (result.Tournaments[0].ID != id || !result.Tournaments[0].HasRoster)) {
 			t.Fatalf("未确认赛事应持续留在正在进行分类，status=%s: %+v", status, result)
 		}
 	}

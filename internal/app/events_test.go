@@ -22,12 +22,12 @@ func TestPublicSSEMatchesAcrossIdentitiesAndPushesResults(t *testing.T) {
 	if _, err := f.app.db.Exec(`UPDATE tournaments SET background_id=? WHERE id=?`, backgroundID, id); err != nil {
 		t.Fatal(err)
 	}
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/start", id), nil, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/start", id), nil, 200)
 	server := httptest.NewServer(f.handler)
 	defer server.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
-	path := fmt.Sprintf("/api/public/events/%d/stream", id)
+	path := fmt.Sprintf("/api/public/tournaments/%d/stream", id)
 	connect := func(token string) *bufio.Reader {
 		t.Helper()
 		request, err := http.NewRequestWithContext(ctx, "GET", server.URL+path, nil)
@@ -76,8 +76,8 @@ func TestPublicSSEMatchesAcrossIdentitiesAndPushesResults(t *testing.T) {
 			t.Fatalf("公开推送不应含内部字段 %s", key)
 		}
 	}
-	f.request(t, 0, "PATCH", fmt.Sprintf("/api/events/%d/background", id), map[string]any{"background_id": 0}, 403)
-	f.request(t, 2, "PATCH", fmt.Sprintf("/api/events/%d/background", id), map[string]any{"background_id": 0}, 200)
+	f.request(t, 0, "PATCH", fmt.Sprintf("/api/tournaments/%d/background", id), map[string]any{"background_id": 0}, 403)
+	f.request(t, 2, "PATCH", fmt.Sprintf("/api/tournaments/%d/background", id), map[string]any{"background_id": 0}, 200)
 	updated := read(guest)
 	if updated == initial || updated != read(manager) {
 		t.Fatal("切换背景后访客与管理员应收到相同的 SSE 更新")
@@ -90,20 +90,20 @@ func TestPublicSSEMatchesAcrossIdentitiesAndPushesResults(t *testing.T) {
 	}
 	match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND status='pending'`, id)
 	teams := f.teams(t, id)
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[0]}, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[0]}, 200)
 	updated = read(guest)
 	if updated == initial || updated != read(manager) {
 		t.Fatal("录分后应向两个身份推送相同的新状态")
 	}
-	var event struct {
+	var tournament struct {
 		Status string `json:"status"`
 	}
-	if err := json.Unmarshal([]byte(updated), &event); err != nil || event.Status != statusRound2 {
+	if err := json.Unmarshal([]byte(updated), &tournament); err != nil || tournament.Status != statusRound2 {
 		t.Fatalf("推送未包含录分后的KOF阶段: %s", updated)
 	}
 	// 历史详情仍可读取，但已结束赛事不再建立SSE连接。
 	match = f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND status='pending'`, id)
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[0]}, 200)
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/confirm", id), nil, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[0]}, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/confirm", id), nil, 200)
 	f.request(t, 0, "GET", path, nil, http.StatusNoContent)
 }

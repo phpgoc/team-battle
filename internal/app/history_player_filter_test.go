@@ -20,7 +20,7 @@ func TestHistoryPlayerFilterUsesCachedParticipants(t *testing.T) {
 			assignments[fmt.Sprint(id)] = side
 		}
 		var result struct{ ID int64 }
-		if err := json.Unmarshal(f.request(t, 1, "POST", "/api/events/archive", map[string]any{
+		if err := json.Unmarshal(f.request(t, 1, "POST", "/api/tournaments/archive", map[string]any{
 			"name": name, "start_time": date, "player_ids": roster, "fixed_assignments": assignments,
 			"round1_target": 1, "round2_target": 1,
 			"matches": []archivedMatch{{1, int64(roster[0]), int64(roster[3]), "a"}, {2, int64(roster[0]), int64(roster[3]), "a"}},
@@ -33,9 +33,9 @@ func TestHistoryPlayerFilterUsesCachedParticipants(t *testing.T) {
 	second := archive("选手筛选乙", "2026-11-18T20", []int{3, 4, 5, 6, 7, 9})
 	archive("其他赛事", "2026-11-19T20", []int{2, 4, 5, 6, 7, 9})
 	type listing struct {
-		Events  []struct{ ID int64 } `json:"events"`
-		Players []map[string]any     `json:"players"`
-		Total   int                  `json:"total"`
+		Tournaments []struct{ ID int64 } `json:"tournaments"`
+		Players     []map[string]any     `json:"players"`
+		Total       int                  `json:"total"`
 	}
 	read := func(query string) listing {
 		t.Helper()
@@ -53,20 +53,20 @@ func TestHistoryPlayerFilterUsesCachedParticipants(t *testing.T) {
 		if player == 4 {
 			want = 3
 		}
-		if result.Total != want || len(result.Events) != 1 || len(result.Players) != 8 {
+		if result.Total != want || len(result.Tournaments) != 1 || len(result.Players) != 8 {
 			t.Fatalf("参赛选手筛选及候选列表错误: player=%d %+v", player, result)
 		}
 	}
 	result := read("player_id=3&page=2&page_size=1")
-	if result.Total != 2 || len(result.Events) != 1 || result.Events[0].ID != first {
+	if result.Total != 2 || len(result.Tournaments) != 1 || result.Tournaments[0].ID != first {
 		t.Fatalf("选手筛选后分页错误: %+v", result)
 	}
 	query := url.Values{"player_id": {"3"}, "name": {"选手筛选"}, "from": {"2026-11-18"}, "to": {"2026-11-18"}}
 	result = read(query.Encode())
-	if result.Total != 1 || result.Events[0].ID != second {
+	if result.Total != 1 || result.Tournaments[0].ID != second {
 		t.Fatalf("选手、赛事名与开始日期组合筛选错误: %+v", result)
 	}
-	if result = read("player_id=999999"); result.Total != 0 || len(result.Events) != 0 || len(result.Players) != 8 {
+	if result = read("player_id=999999"); result.Total != 0 || len(result.Tournaments) != 0 || len(result.Players) != 8 {
 		t.Fatalf("空结果不能清空筛选候选: %+v", result)
 	}
 	for _, player := range result.Players {

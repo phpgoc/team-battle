@@ -19,7 +19,7 @@ type workflowFixture struct {
 
 func newWorkflowFixture(t *testing.T) *workflowFixture {
 	t.Helper()
-	db, err := openDatabase(filepath.Join(t.TempDir(), "events.sqlite"))
+	db, err := openDatabase(filepath.Join(t.TempDir(), "tournaments.sqlite"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func (f *workflowFixture) request(t *testing.T, user int, method, path string, b
 }
 func (f *workflowFixture) create(t *testing.T, mode string) int64 {
 	t.Helper()
-	raw := f.request(t, 1, "POST", "/api/events", map[string]any{
+	raw := f.request(t, 1, "POST", "/api/tournaments", map[string]any{
 		"name": "首发验证", "start_time": "2026-11-17T19", "manager_id": 2,
 		"team_a_name": "不可设置的队名", "team_b_name": "另一队名",
 		"round1_target": 1, "round2_target": 1, "player_ids": []int{3, 4, 5, 6, 7, 8},
@@ -94,8 +94,8 @@ func (f *workflowFixture) create(t *testing.T, mode string) int64 {
 	if err := json.Unmarshal(raw, &created); err != nil {
 		t.Fatal(err)
 	}
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/setup-draw", created.ID), nil, 200)
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/captains/confirm", created.ID), map[string]any{"team_a_player_id": 3, "team_b_player_id": 6}, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/setup-draw", created.ID), nil, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/captains/confirm", created.ID), map[string]any{"team_a_player_id": 3, "team_b_player_id": 6}, 200)
 	return created.ID
 }
 func (f *workflowFixture) teams(t *testing.T, id int64) []int64 {
@@ -122,10 +122,10 @@ func (f *workflowFixture) assertCount(t *testing.T, want int64, query string, ar
 }
 func (f *workflowFixture) enterKOF(t *testing.T, id int64) int64 {
 	t.Helper()
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/start", id), map[string]any{}, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/start", id), map[string]any{}, 200)
 	match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=1`, id)
 	teams := f.teams(t, id)
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[0]}, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[0]}, 200)
 	return match
 }
 
@@ -134,7 +134,7 @@ func TestCaptainKOFStarters(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "captain")
 	teams := f.teams(t, id)
-	path := fmt.Sprintf("/api/events/%d/kof/starter", id)
+	path := fmt.Sprintf("/api/tournaments/%d/kof/starter", id)
 	pickA := map[string]any{"team_id": teams[0], "player_id": 3}
 	f.request(t, 3, "POST", path, pickA, 400)
 	first := f.enterKOF(t, id)
@@ -148,7 +148,7 @@ func TestCaptainKOFStarters(t *testing.T) {
 	f.request(t, 3, "POST", path, pickA, 400)
 	f.request(t, 2, "POST", path, map[string]any{"team_id": teams[0], "player_id": 4}, 200)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=2`, id)
-	raw := f.request(t, 0, "GET", fmt.Sprintf("/api/public/events/%d", id), nil, 200)
+	raw := f.request(t, 0, "GET", fmt.Sprintf("/api/public/tournaments/%d", id), nil, 200)
 	var view struct {
 		Starters []struct {
 			PlayerID int64 `json:"player_id"`
@@ -161,7 +161,7 @@ func TestCaptainKOFStarters(t *testing.T) {
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=2 AND player_a_id=4 AND player_b_id=6 AND status='pending'`, id)
 	f.request(t, 1, "POST", path, pickA, 400)
 	// 修正首轮会清空失效首发，下一次进入KOF必须重新派人。
-	f.request(t, 2, "PATCH", fmt.Sprintf("/api/events/%d/matches/%d/result", id, first), map[string]any{"winner_team_id": teams[1]}, 200)
+	f.request(t, 2, "PATCH", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, first), map[string]any{"winner_team_id": teams[1]}, 200)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM player_selections WHERE tournament_id=?`, id)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=2`, id)
 	f.request(t, 1, "POST", path, pickA, 200)
@@ -174,17 +174,17 @@ func TestRandomKOFAndHistoryRules(t *testing.T) {
 	f.enterKOF(t, id)
 	teams := f.teams(t, id)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=2 AND status='pending'`, id)
-	f.request(t, 1, "POST", fmt.Sprintf("/api/events/%d/kof/starter", id), map[string]any{"team_id": teams[0], "player_id": 3}, 400)
+	f.request(t, 1, "POST", fmt.Sprintf("/api/tournaments/%d/kof/starter", id), map[string]any{"team_id": teams[0], "player_id": 3}, 400)
 	match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2`, id)
-	result := fmt.Sprintf("/api/events/%d/matches/%d/result", id, match)
+	result := fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match)
 	f.request(t, 2, "POST", result, map[string]any{"winner_team_id": teams[0]}, 200)
 	f.request(t, 2, "POST", result, map[string]any{"winner_team_id": teams[0]}, 400)
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/confirm", id), map[string]any{}, 200)
-	raw := f.request(t, 0, "GET", fmt.Sprintf("/api/public/events/%d", id), nil, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/confirm", id), map[string]any{}, 200)
+	raw := f.request(t, 0, "GET", fmt.Sprintf("/api/public/tournaments/%d", id), nil, 200)
 	var view struct {
-		Status string     `json:"status"`
-		Rules  EventRules `json:"rules"`
-		Time   string     `json:"start_time"`
+		Status string          `json:"status"`
+		Rules  TournamentRules `json:"rules"`
+		Time   string          `json:"start_time"`
 		Teams  []struct {
 			Name string `json:"name"`
 		} `json:"teams"`
@@ -198,9 +198,9 @@ func TestRandomKOFAndHistoryRules(t *testing.T) {
 	if view.Time != "2026-11-17T19:00:00" || view.Teams[0].Name != "A 队" || view.Teams[1].Name != "B 队" {
 		t.Fatalf("时间或固定队名不正确: %s", raw)
 	}
-	f.request(t, 1, "PATCH", fmt.Sprintf("/api/events/%d/settings", id), map[string]any{"team_a_name": "篡改"}, 400)
+	f.request(t, 1, "PATCH", fmt.Sprintf("/api/tournaments/%d/settings", id), map[string]any{"team_a_name": "篡改"}, 400)
 }
-func TestEventHourAndFixedNames(t *testing.T) {
+func TestTournamentHourAndFixedNames(t *testing.T) {
 	for _, input := range []string{"2026-11-17T08", "2026-11-17T08:39", "2026-11-17T08:39:56", "2026-11-17 08:39:56", "2026-11-17T08:39:56+08:00"} {
 		got, err := normalizeStartTime(input)
 		if err != nil || got != "2026-11-17T08:00:00" {
@@ -212,7 +212,7 @@ func TestEventHourAndFixedNames(t *testing.T) {
 	}
 	f := newWorkflowFixture(t)
 	id := f.create(t, "captain")
-	f.request(t, 2, "PATCH", fmt.Sprintf("/api/events/%d/settings", id), map[string]any{"name": "整点比赛", "start_time": "2026-11-18T21", "round1_target": 1, "round2_target": 1, "team_a_name": "任意队名", "team_b_name": "任意队名2"}, 200)
+	f.request(t, 2, "PATCH", fmt.Sprintf("/api/tournaments/%d/settings", id), map[string]any{"name": "整点比赛", "start_time": "2026-11-18T21", "round1_target": 1, "round2_target": 1, "team_a_name": "任意队名", "team_b_name": "任意队名2"}, 200)
 	view, err := f.app.loadTeams(id)
 	if err != nil || len(view) != 2 || view[0]["name"] != "A 队" || view[1]["name"] != "B 队" {
 		t.Fatalf("队名必须固定: %+v %v", view, err)
@@ -230,5 +230,5 @@ func TestEventHourAndFixedNames(t *testing.T) {
 	if rules, err := decodeRules(`{"round1_mode":"random"}`); err != nil || rules.KOFStarter != "random" {
 		t.Fatal("旧规则未兼容默认随机首发")
 	}
-	f.request(t, 1, "POST", "/api/events", map[string]any{"name": "非法首发", "start_time": "2026-11-18T20", "rules": map[string]any{"kof_starter": "invalid"}}, 400)
+	f.request(t, 1, "POST", "/api/tournaments", map[string]any{"name": "非法首发", "start_time": "2026-11-18T20", "rules": map[string]any{"kof_starter": "invalid"}}, 400)
 }

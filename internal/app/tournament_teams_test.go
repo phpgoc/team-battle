@@ -9,7 +9,7 @@ func TestFixedTeamInitializationPreservesResultsAndSequences(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "random")
 	f.enterKOF(t, id)
-	before, err := f.app.publicEventPayload(id)
+	before, err := f.app.publicTournamentPayload(id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestFixedTeamInitializationPreservesResultsAndSequences(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='teams'`)
-	after, err := f.app.publicEventPayload(id)
+	after, err := f.app.publicTournamentPayload(id)
 	if err != nil || string(before) != string(after) {
 		t.Fatalf("移除队伍表改变了赛事: %s %v", after, err)
 	}
@@ -51,6 +51,6 @@ func TestFixedTeamInitializationPreservesResultsAndSequences(t *testing.T) {
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM captain_votes WHERE id=1001`)
 	// 转换之后仍须能继续合法录分，触发器也应继续维护who_win。
 	match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND status='pending'`, id)
-	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": id*2 - 1}, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": id*2 - 1}, 200)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE id=? AND who_win='a'`, match)
 }

@@ -15,11 +15,11 @@ func (a *App) lineupOptions(c *gin.Context) {
 		return
 	}
 	id, err := parseID(c.Param("id"))
-	if err != nil || !a.eventExists(id) {
+	if err != nil || !a.tournamentExists(id) {
 		fail(c, http.StatusNotFound, "赛事不存在")
 		return
 	}
-	manager := a.canManageEvent(actor.ID, actor.Role, id)
+	manager := a.canManageTournament(actor.ID, actor.Role, id)
 	var captain int
 	if err := a.db.QueryRow(`SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND user_id=? AND active=1 AND is_captain=1`, id, actor.ID).Scan(&captain); err != nil {
 		fail(c, 500, "读取排阵失败")
@@ -57,7 +57,7 @@ func (a *App) lineupOptions(c *gin.Context) {
 // 独立排阵页仅对未开赛的手动排阵赛事开放，管理员可切换双方队伍。
 func (a *App) serveLineupEntry(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
-	if err != nil || !a.eventExists(id) {
+	if err != nil || !a.tournamentExists(id) {
 		c.Status(http.StatusNotFound)
 		return
 	}
@@ -66,7 +66,7 @@ func (a *App) serveLineupEntry(c *gin.Context) {
 		c.Status(http.StatusForbidden)
 		return
 	}
-	manager := a.canManageEvent(actor.ID, actor.Role, id)
+	manager := a.canManageTournament(actor.ID, actor.Role, id)
 	var captain int
 	if err := a.db.QueryRow(`SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND user_id=? AND active=1 AND is_captain=1`, id, actor.ID).Scan(&captain); err != nil {
 		c.Status(http.StatusInternalServerError)

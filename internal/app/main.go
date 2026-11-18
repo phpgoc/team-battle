@@ -55,7 +55,7 @@ type App struct {
 	storageDir  string
 	history     historyCache
 	directory   categoryDirectoryCache
-	broadcast   eventBroadcast
+	broadcast   streamHub
 }
 
 type historyCache struct {
@@ -114,7 +114,7 @@ type archivedMatch struct {
 	WhoWin string `json:"who_win"`
 }
 
-type archiveEventRequest struct {
+type archiveTournamentRequest struct {
 	Round1Target     int               `json:"round1_target"`
 	Round2Target     int               `json:"round2_target"`
 	Matches          []archivedMatch   `json:"matches"`
@@ -143,7 +143,7 @@ type createUserRequest struct {
 	Role        string `json:"role" binding:"required"`
 }
 
-type createEventRequest struct {
+type createTournamentRequest struct {
 	Name             string            `json:"name" binding:"required"`
 	Description      string            `json:"description"`
 	StartTime        string            `json:"start_time"`
@@ -152,40 +152,40 @@ type createEventRequest struct {
 	FixedAssignments map[string]string `json:"fixed_assignments"`
 	Round1Target     int               `json:"round1_target"`
 	Round2Target     int               `json:"round2_target"`
-	Rules            *EventRules       `json:"rules"`
+	Rules            *TournamentRules  `json:"rules"`
 	BackgroundID     int64             `json:"background_id"`
 }
 
-type eventSettingsRequest struct {
-	Correction        *eventResultCorrection `json:"correction"`
-	AcePlayers        *eventAcePlayers       `json:"ace_players"`
-	BackgroundID      *int64                 `json:"background_id"`
-	RandomDrawSeconds *int                   `json:"random_draw_seconds"`
-	AceDrawSeconds    *int                   `json:"ace_draw_seconds"`
-	ManagerID         *int64                 `json:"manager_id"`
-	PlayerIDs         *[]int64               `json:"player_ids"`
-	FixedAssignments  map[string]string      `json:"fixed_assignments"`
-	Name              string                 `json:"name"`
-	StartTime         string                 `json:"start_time"`
-	Description       string                 `json:"description"`
-	Round1Target      int                    `json:"round1_target"`
-	Round2Target      int                    `json:"round2_target"`
-	Rules             *EventRules            `json:"rules"`
+type tournamentSettingsRequest struct {
+	Correction        *tournamentResultCorrection `json:"correction"`
+	AcePlayers        *tournamentAcePlayers       `json:"ace_players"`
+	BackgroundID      *int64                      `json:"background_id"`
+	RandomDrawSeconds *int                        `json:"random_draw_seconds"`
+	AceDrawSeconds    *int                        `json:"ace_draw_seconds"`
+	ManagerID         *int64                      `json:"manager_id"`
+	PlayerIDs         *[]int64                    `json:"player_ids"`
+	FixedAssignments  map[string]string           `json:"fixed_assignments"`
+	Name              string                      `json:"name"`
+	StartTime         string                      `json:"start_time"`
+	Description       string                      `json:"description"`
+	Round1Target      int                         `json:"round1_target"`
+	Round2Target      int                         `json:"round2_target"`
+	Rules             *TournamentRules            `json:"rules"`
 }
 
-type eventAcePlayers struct {
+type tournamentAcePlayers struct {
 	MatchID   int64 `json:"match_id"`
 	PlayerAID int64 `json:"player_a_id"`
 	PlayerBID int64 `json:"player_b_id"`
 }
 
-type eventResultCorrection struct {
+type tournamentResultCorrection struct {
 	MatchID      int64  `json:"match_id"`
 	WinnerTeamID int64  `json:"winner_team_id"`
 	Note         string `json:"note"`
 }
 
-type eventBackgroundRequest struct {
+type tournamentBackgroundRequest struct {
 	BackgroundID int64 `json:"background_id"`
 }
 
@@ -200,7 +200,7 @@ type lineupRequest struct {
 	PlayerIDs []int64 `json:"player_ids"`
 }
 
-type addEventPlayersRequest struct {
+type addTournamentPlayersRequest struct {
 	PlayerIDs []int64 `json:"player_ids"`
 	TeamID    int64   `json:"team_id"`
 }
