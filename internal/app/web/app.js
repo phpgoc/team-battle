@@ -511,7 +511,7 @@
       <div class="board-overview"><div class="board-title"><span class="board-live-mark">TEAM BATTLE</span><h1>${esc(e.name)}</h1><p><time>${esc(displayTime(e.event_time))}</time><span class="board-manager">${t('manager')}: <b>${esc(e.manager_name || '')}</b></span></p></div>
         <div class="board-overview-bottom">${score}${!preMatch(e) ? `<span class="board-status">${t(e.status)}</span>` : ''}</div>
       </div>${pending ? currentMatchMarkup(e, pending, people) : ''}
-    </header><div class="board-arena"><div class="board-center"><div class="board-records"><div class="board-columns"><div class="board-left">${panel('round1')}${panel('round2')}</div><div class="board-right">${panel('ace')}<div class="board-rosters">${e.status === 'round2' && canOperate(e) && !setup ? '<div id="board-kof-controls"></div>' : ''}${roster(teams[0], 'a')}${roster(teams[1], 'b')}</div></div></div>${rulesSummary(e)}</div></div></div>`;
+    </header><div class="board-arena"><div class="board-center"><div class="board-records"><div class="board-columns"><div class="board-left">${panel('round1')}${panel('round2')}</div><div class="board-right">${panel('ace')}<div class="board-rosters">${roster(teams[0], 'a')}${roster(teams[1], 'b')}</div></div></div>${rulesSummary(e)}</div></div></div>`;
   }
   async function renderLineupPage(preserve = false) {
     const e = state.event;
@@ -741,18 +741,17 @@
   async function voteForCaptain(id) { await eventAction('/captain-votes', { target_id: id }); toast(t('voteSaved')); }
   async function assignCaptain(team, player) { await eventAction('/captains/select', { team_id: team, player_id: player }); }
   async function renderKOFSelection(e, manager) {
-    const target = $('#board-kof-controls');
+    const target = $('.board-rosters');
     if (!target || !canOperate(e) || e.status !== 'round2') return;
     const choices = await api('/api/events/' + e.id + '/kof/options');
-    if (!target.isConnected || state.event?.id !== e.id || state.event.status !== 'round2') return;
-    const paint = () => window.TBKOFBoard.render({ root: $('#board-content'), event: state.event, choices, user: state.user, manager, selectedTeam: state.kofTeam, t, action, onVote: voteForCaptain, onCaptain: assignCaptain,
-      onTeam: id => { state.kofTeam = id; paint(); },
+    if (!target.isConnected || state.event?.id !== e.id || state.event.status !== 'round2' || !canOperate(state.event)) return;
+    const paint = () => window.TBKOFBoard.render({ root: $('#board-content'), event: state.event, choices, user: state.user, manager, t, action, onVote: voteForCaptain, onCaptain: assignCaptain,
       onSend: async body => {
         try { await eventAction(choices.match_id ? '/kof/next-player' : '/kof/starter', body); toast(t('reservationSaved')); }
         catch (error) { await renderKOFSelection(state.event, manages(state.event)); throw error; }
       }
     });
-    const snapshot = JSON.stringify(choices) + ':' + state.language + ':' + (state.kofTeam || 0);
+    const snapshot = JSON.stringify(choices) + ':' + state.language;
     if (target.dataset.options === snapshot) return;
     target.dataset.options = snapshot; paint();
   }
@@ -862,7 +861,7 @@
   // 预报名不进入公开推送，赛事页名单旁单独刷新本队报名状态。
   let pollingKOF = false;
   setInterval(async () => {
-    if (pollingKOF || document.hidden || state.editor || state.event?.status !== 'round2' || !$('#board-kof-controls')) return;
+    if (pollingKOF || document.hidden || state.editor || state.event?.status !== 'round2' || !canOperate(state.event) || !$('.board-rosters')) return;
     pollingKOF = true;
     try { await renderKOFSelection(state.event, manages(state.event)); } catch (_) {} finally { pollingKOF = false; }
   }, 3000);

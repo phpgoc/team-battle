@@ -105,7 +105,7 @@ func (e *matchEngine) reserveKOF(matchID, team, player int64, manager bool) erro
 	return e.log("kof_next_reserved", map[string]any{"match_id": matchID, "team_id": team, "player_id": player})
 }
 
-// 预报名只返回给本队和管理员，不进入公开赛事资料或 SSE。
+// 候选身份仅本人可见；本队和管理员只获得占位状态，预报名不进入公开资料或 SSE。
 func (a *App) kofOptions(c *gin.Context) {
 	actor, err := a.currentUser(c)
 	if err != nil {
@@ -167,12 +167,6 @@ func (a *App) kofOptions(c *gin.Context) {
 		if !manager && !containsID(ids, actor.ID) {
 			continue
 		}
-		if current.status == statusFinished {
-			_, loser := current.loser()
-			if team != loser {
-				continue
-			}
-		}
 		var captain int64
 		err = a.db.QueryRow(`SELECT user_id FROM event_players WHERE event_id=? AND team_id=? AND is_captain=1 AND active=1 LIMIT 1`, id, team).Scan(&captain)
 		if err != nil && err != sql.ErrNoRows {
@@ -191,6 +185,12 @@ func (a *App) kofOptions(c *gin.Context) {
 		}
 		candidates := []int64{}
 		for _, player := range ids {
+			if current.status == statusFinished {
+				_, loser := current.loser()
+				if team != loser {
+					break
+				}
+			}
 			if current.status == statusPending && (player == current.playerA || player == current.playerB) {
 				continue
 			}
@@ -206,7 +206,11 @@ func (a *App) kofOptions(c *gin.Context) {
 			}
 			candidates = append(candidates, player)
 		}
-		choices = append(choices, map[string]any{"team_id": team, "captain_id": captain, "player_id": selected, "candidate_ids": candidates})
+		occupied := selected != 0
+		if selected != actor.ID {
+			selected = 0
+		}
+		choices = append(choices, map[string]any{"team_id": team, "captain_id": captain, "player_id": selected, "occupied": occupied, "candidate_ids": candidates})
 	}
 	ok(c, gin.H{"teams": choices, "match_id": matchID})
 }

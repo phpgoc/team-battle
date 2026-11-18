@@ -82,23 +82,74 @@ func TestKOFReservationsAdvanceOnlyAfterResult(t *testing.T) {
 	if err := json.Unmarshal(f.request(t, 4, "GET", options, nil, 200), &own); err != nil || len(own.Teams) != 1 || own.Teams[0].TeamID != teams[0] || own.Teams[0].Player != 4 {
 		t.Fatal("报名查询没有隔离双方队伍")
 	}
+	// 除候选本人外，队友、队长和管理员均只看到占位状态，不能读取候选身份。
+	for _, actor := range []int{1, 2, 5, 6, 7} {
+		var view struct {
+			Teams []struct {
+				Player   int64 `json:"player_id"`
+				Occupied bool  `json:"occupied"`
+			} `json:"teams"`
+		}
+		if err := json.Unmarshal(f.request(t, actor, "GET", options, nil, 200), &view); err != nil {
+			t.Fatal(err)
+		}
+		for _, choice := range view.Teams {
+			want := int64(0)
+			if actor == 7 {
+				want = 7
+			}
+			if !choice.Occupied || choice.Player != want {
+				t.Fatalf("用户%d读取到错误候选: %+v", actor, choice)
+			}
+		}
+	}
 	result := fmt.Sprintf("/api/events/%d/matches/%d/result", id, match)
 	f.request(t, 2, "POST", result, map[string]any{"winner_team_id": teams[0]}, 200)
 	f.request(t, 2, "POST", result, map[string]any{"winner_team_id": teams[0]}, 400)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE event_id=? AND round_no=2 AND seq=2 AND player_a_id=3 AND player_b_id=7 AND status='pending'`, id)
-	f.assertCount(t, 0, `SELECT COUNT(*) FROM kof_reservations WHERE event_id=?`, id)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM kof_reservations WHERE event_id=? AND player_id=4`, id)
 	reserve(8, teams[1], 8, 400) // 旧场次报名无效。
 	second := f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=2 AND seq=2`, id)
 	f.request(t, 6, "POST", path, map[string]any{"match_id": second, "team_id": teams[1], "player_id": 6}, 400)
 	f.request(t, 8, "POST", path, map[string]any{"match_id": second, "team_id": teams[1], "player_id": 8}, 200)
 	f.request(t, 2, "PATCH", result, map[string]any{"winner_team_id": teams[0]}, 400)
-	f.assertCount(t, 1, `SELECT COUNT(*) FROM kof_reservations WHERE event_id=?`, id)
+	f.assertCount(t, 2, `SELECT COUNT(*) FROM kof_reservations WHERE event_id=?`, id)
 	f.request(t, 2, "PATCH", result, map[string]any{"winner_team_id": teams[1]}, 200)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM kof_reservations WHERE event_id=?`, id)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM matches WHERE event_id=? AND round_no=2 AND status='pending'`, id)
 	// 未提前报名时，上一局结束后可由本人补报名并公开对阵。
 	reserve(4, teams[0], 4, 200)
 	reserve(5, teams[0], 5, 400)
+}
+
+func TestKOFWinningQueueSurvivesWhileWaiting(t *testing.T) {
+	f := newWorkflowFixture(t)
+	id, teams, _ := prepareSignupKOF(t, f)
+	starter := fmt.Sprintf("/api/events/%d/kof/starter", id)
+	f.request(t, 2, "POST", starter, map[string]any{"team_id": teams[0], "player_id": 3}, 200)
+	f.request(t, 2, "POST", starter, map[string]any{"team_id": teams[1], "player_id": 6}, 200)
+	first := f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=2`, id)
+	next := fmt.Sprintf("/api/events/%d/kof/next-player", id)
+	f.request(t, 4, "POST", next, map[string]any{"match_id": first, "team_id": teams[0], "player_id": 4}, 200)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, first), map[string]any{"winner_team_id": teams[0]}, 200)
+	f.assertCount(t, 0, `SELECT COUNT(*) FROM matches WHERE event_id=? AND round_no=2 AND status='pending'`, id)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM kof_reservations WHERE match_id=? AND player_id=4`, first)
+	var own struct {
+		Teams []struct {
+			Player     int64   `json:"player_id"`
+			Candidates []int64 `json:"candidate_ids"`
+		} `json:"teams"`
+	}
+	if err := json.Unmarshal(f.request(t, 4, "GET", fmt.Sprintf("/api/events/%d/kof/options", id), nil, 200), &own); err != nil || len(own.Teams) != 1 || own.Teams[0].Player != 4 || len(own.Teams[0].Candidates) != 0 {
+		t.Fatal("等待败方派人时，本人候选应保留但胜方不能重复派人")
+	}
+	f.request(t, 2, "POST", next, map[string]any{"match_id": first, "team_id": teams[0], "player_id": 5}, 400)
+	f.request(t, 2, "POST", next, map[string]any{"match_id": first, "team_id": teams[1], "player_id": 7}, 200)
+	second := f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=2 AND seq=2`, id)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM kof_reservations WHERE match_id=? AND player_id=4`, second)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, second), map[string]any{"winner_team_id": teams[1]}, 200)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE event_id=? AND round_no=2 AND seq=3 AND player_a_id=4 AND player_b_id=7 AND status='pending'`, id)
+	f.assertCount(t, 0, `SELECT COUNT(*) FROM kof_reservations WHERE event_id=?`, id)
 }
 
 func TestCaptainSelectionAndAutomaticRevival(t *testing.T) {

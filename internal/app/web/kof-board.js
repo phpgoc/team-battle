@@ -6,9 +6,8 @@
   window.addEventListener('popstate', () => dialog.close());
 
   // 点击名单位置统一选择队长或KOF出场；权限与候选始终来自最新赛事和私有接口。
-  function bindRows({ root, event, user, manager, choices, selectedTeam, t, action, onVote, onSend, onCaptain }) {
+  function bindRows({ root, event, user, manager, choices, t, action, onVote, onSend, onCaptain }) {
     const ownTeam = event.teams.find(team => team.players.some(player => player.id === user?.id && player.active !== false));
-    const selected = event.teams.find(team => team.id === selectedTeam) || (manager ? event.teams[0] : ownTeam);
     const usable = !['completed', 'cancelled'].includes(event.status);
     root.querySelectorAll('[data-roster-player]').forEach(row => {
       const id = Number(row.dataset.rosterPlayer);
@@ -16,14 +15,15 @@
       const player = team.players.find(player => player.id === id);
       const captain = team.players.find(player => player.is_captain && player.active !== false);
       const choice = choices?.teams.find(choice => choice.team_id === team.id);
+      const occupied = choice?.occupied || Boolean(choice?.player_id);
       const lost = event.status === 'round2' && row.classList.contains('is-lost');
       const vote = usable && !lost && user && ownTeam?.id === team.id && !captain && id !== user.id && player.active !== false;
       const appoint = usable && manager && player.active !== false;
-      const send = usable && !lost && choice && selected?.id === team.id && choice.candidate_ids.includes(id) && (manager || captain?.id === user?.id || (!captain && id === user?.id)) && (!choice.player_id || (manager && choice.player_id !== id));
+      const send = usable && !lost && choice && choice.candidate_ids.includes(id) && (manager || captain?.id === user?.id || (!captain && id === user?.id)) && (!occupied || (manager && choice.player_id !== id));
       row.querySelector('.roster-action-area')?.remove();
       row.querySelector('.kof-player-action')?.remove();
       delete row.dataset.kofSelected; delete row.dataset.rosterVote; delete row.dataset.kofPlayer; delete row.dataset.captainPlayer;
-      if (choice?.player_id === id && selected?.id === team.id) {
+      if (choice?.player_id === id && id === user?.id) {
         row.dataset.kofSelected = 'true';
         row.querySelector('.board-roster-name').insertAdjacentHTML('beforeend', `<span class="kof-player-action kof-reserved-label">${t('reservedPlayer')}</span>`);
       }
@@ -57,20 +57,6 @@
     if (dialog.open && !root.querySelector(`[data-roster-player="${Number(dialog.dataset.player)}"].roster-operable`)) dialog.close();
   }
 
-  window.TBKOFBoard = {
-    bindRows,
-    render(options) {
-      const { root, event, choices, user, manager, selectedTeam, t, onTeam } = options;
-      const toolbar = root.querySelector('#board-kof-controls');
-      if (!toolbar) return;
-      const teams = event.teams.filter(team => manager || team.players.some(player => player.id === user.id && player.active !== false));
-      const team = teams.find(team => team.id === selectedTeam) || teams[0];
-      if (!team) return;
-      const choice = choices.teams.find(choice => choice.team_id === team.id);
-      const teamLabel = team => t(event.teams[0].id === team.id ? 'teamA' : 'teamB');
-      toolbar.innerHTML = `<div class="kof-board-heading"><strong>${t(choices.match_id ? 'nextSlot' : 'kofStarter')}</strong>${manager ? `<select id="kof-board-team" aria-label="${t('lineupTeam')}">${teams.map(candidate => `<option value="${candidate.id}"${candidate.id === team.id ? ' selected' : ''}>${teamLabel(candidate)}</option>`).join('')}</select>` : `<span>${teamLabel(team)}</span>`}</div><p>${t(!choice ? 'kofNoSlotNeeded' : choice.player_id ? 'slotOccupied' : choice.candidate_ids.length ? 'kofClickPlayer' : 'noEligible')}</p>`;
-      toolbar.querySelector('#kof-board-team')?.addEventListener('change', change => onTeam(Number(change.target.value)));
-      bindRows({ ...options, selectedTeam: team.id });
-    }
-  };
+  // 双方名单就是派人入口，管理员可直接操作任一队，不再用独立切队栏限制。
+  window.TBKOFBoard = { bindRows, render: bindRows };
 })();

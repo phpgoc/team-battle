@@ -335,7 +335,7 @@ func (e *matchEngine) record(m engineMatch, winner int64, note string) error {
 	return e.log("match_result_submitted", map[string]any{"match_id": m.id, "winner_team_id": winner})
 }
 func (e *matchEngine) afterResult(m engineMatch) error {
-	// 读取败方的预排，随后清空本局两边的预约；胜方继续留场。
+	// 消耗败方候选；胜方候选在生成下一局时继续保留，直到本队需要换人。
 	var reserved int64
 	if m.stage == stageRound2 {
 		_, loser := m.loser()
@@ -343,7 +343,7 @@ func (e *matchEngine) afterResult(m engineMatch) error {
 		if err != nil && err != sql.ErrNoRows {
 			return err
 		}
-		if _, err := e.db.Exec(`DELETE FROM kof_reservations WHERE match_id=?`, m.id); err != nil {
+		if _, err := e.db.Exec(`DELETE FROM kof_reservations WHERE match_id=? AND team_id=?`, m.id, loser); err != nil {
 			return err
 		}
 	}
@@ -380,6 +380,9 @@ func (e *matchEngine) afterResult(m engineMatch) error {
 			}
 			return e.initialKOF()
 		case stageRound2:
+			if _, err := e.db.Exec(`DELETE FROM kof_reservations WHERE event_id=?`, e.eventID); err != nil {
+				return err
+			}
 			first, err := e.round(stageRound1)
 			if err != nil {
 				return err
@@ -498,7 +501,12 @@ func (e *matchEngine) chooseKOF(m engineMatch, player int64) error {
 	} else {
 		b = player
 	}
-	return e.insertMatch(stageRound2, a, b)
+	if err := e.insertMatch(stageRound2, a, b); err != nil {
+		return err
+	}
+	// 候选跟随胜方进入下一局，不公开，也不因本队继续获胜而丢失。
+	_, err = e.db.Exec(`UPDATE kof_reservations SET match_id=(SELECT id FROM matches WHERE round_id=? AND seq=?) WHERE match_id=? AND team_id=?`, m.roundID, m.seq+1, m.id, m.winner)
+	return err
 }
 func (e *matchEngine) initialKOF() error {
 	// 重走首轮结果时不能沿用此前的队长首发选择。

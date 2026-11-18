@@ -6,23 +6,12 @@
 #roster-actions{width:min(420px,calc(100vw - 32px))}
 .roster-action-list{display:grid;gap:12px}
 .roster-action-list .help{margin:0 0 4px}
-.board-rosters:has(#board-kof-controls){grid-template-rows:auto minmax(0,1fr)}
-#board-kof-controls{grid-column:1/-1;flex:none;border:1px solid #3f5675;border-radius:9px;background:#152338e8;padding:10px 14px;color:#c1d2e8}
-.kof-board-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:17px}
-.kof-board-heading select{font-size:14px;padding:5px 9px;max-width:130px}
-#board-kof-controls p{font-size:14px;margin:7px 0 3px}
-#board-kof-controls small{display:block;font-size:11px;line-height:1.5;color:#94a8c3}
-.kof-reserved-label{font-size:12px;color:#f9cb72;white-space:nowrap}
-.board-roster-player[data-kof-selected=true]{background:#e6ae3612}
+.kof-reserved-label{position:absolute;top:3px;right:6px;font-size:11px;color:#f9cb72;white-space:nowrap;pointer-events:none}
+.board-roster-player[data-kof-selected=true]{position:relative;background:#e6ae3612}
 @media(max-width:1100px){.kof-reserved-label{font-size:10px}}
-/* 较矮桌面压缩提示和空大将战，给可滚动名单保留可操作的高度。 */
+/* 较矮桌面压缩空大将战，为名单保留完整选手行和操作空间。 */
 @media(min-width:1180px) and (max-height:800px){
-  #board-kof-controls{padding:7px 10px}
-  #board-kof-controls small{display:none}
-  #board-kof-controls p{font-size:12px;margin:4px 0 0}
-  .kof-board-heading{font-size:15px}
-  .kof-board-heading select{min-height:30px;padding:3px 8px}
-  .broadcast-board:has(#board-kof-controls) .board-right .board-round-head>div{display:flex;align-items:center;gap:14px}
-  .broadcast-board:has(#board-kof-controls) .board-right .board-round-head h2{margin:0}
-  .broadcast-board:has(#board-kof-controls) .board-right .board-empty{padding:8px}
+  .broadcast-board .board-right>.board-round:has(.board-empty) .board-round-head>div{display:flex;align-items:center;gap:14px}
+  .broadcast-board .board-right>.board-round:has(.board-empty) .board-round-head h2{margin:0}
+  .broadcast-board .board-right>.board-round .board-empty{padding:8px}
 }
