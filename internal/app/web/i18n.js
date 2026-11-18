@@ -1,5 +1,6 @@
 window.TB_I18N = {
   "zh": {
+    "eventRules": "赛事规则",
     "round1Lineup": "第一轮排阵",
     "reservedPlayer": "已安排出场",
     "lineupTeam": "操作队伍",
@@ -273,6 +274,7 @@ window.TB_I18N = {
     "categoryIconFormat": "分类图标只支持 JPG、PNG、GIF 或 WebP"
   },
   "en": {
+    "eventRules": "Event rules",
     "round1Lineup": "Round 1 lineup",
     "reservedPlayer": "Selected to play",
     "lineupTeam": "Team to manage",
@@ -546,6 +548,7 @@ window.TB_I18N = {
     "categoryIconFormat": "Category icons must be JPG, PNG, GIF or WebP."
   },
   "ko": {
+    "eventRules": "대회 규칙",
     "round1Lineup": "1라운드 라인업",
     "reservedPlayer": "출전 예약됨",
     "lineupTeam": "운영할 팀",
