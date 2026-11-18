@@ -387,7 +387,12 @@
   // 姓名和种族作为同一个整体，所有位置均按姓名、种族的顺序显示。
   const boardIdentity = player => `<span class="board-identity">${recordName(player)}${categoryIcon(player)}</span>`;
   function currentPlayerMarkup(e, player, stage, side) { const hasWin = playerHasWin(e, player.id, stage); const hasLoss = stage === 'round2' && playerHasLoss(e, player.id, stage); const stateClass = hasWin ? 'is-record-winner' : 'is-record-new'; return `<div class="current-player ${side === 'b' ? 'current-player-right' : ''} ${stateClass} ${hasLoss ? 'is-lost' : ''}">${avatar(player)}<div><strong>${boardIdentity(player)}</strong></div></div>`; }
-  function currentMatchMarkup(e, match, people) { const a = people.find(p => p.id === match.player_a_id) || { display_name: match.player_a_name }, b = people.find(p => p.id === match.player_b_id) || { display_name: match.player_b_name }; return `<section class="board-current-match"><div class="board-current-head"><span class="board-round-no">${t(match.stage)}</span><span>${t('currentMatch')}</span></div><div class="board-draw-roll" id="draw-roll" aria-live="polite" hidden><span>${t('drawing')}</span><div><strong id="draw-roll-a">${esc(a.display_name)}</strong><b>VS</b><strong id="draw-roll-b">${esc(b.display_name)}</strong></div></div><div class="board-current-fighters">${currentPlayerMarkup(e, a, match.stage, 'a')}<div class="board-current-vs">VS</div>${currentPlayerMarkup(e, b, match.stage, 'b')}</div></section>`; }
+  function currentMatchMarkup(e, match, people) {
+    const a = people.find(p => p.id === match.player_a_id) || { display_name: match.player_a_name }, b = people.find(p => p.id === match.player_b_id) || { display_name: match.player_b_name };
+    const canRecord = editable(e) && !state.setupDraw && match.player_a_id && match.player_b_id && (match.status === 'pending' || (preMatch(e) && match.status === 'planned'));
+    const result = side => canRecord ? `<button type="button" class="board-current-win" data-current-winner="${e.teams[side].id}" data-current-match="${match.id || 0}" data-player-a="${match.player_a_id}" data-player-b="${match.player_b_id}">${t('recordWin')}</button>` : '';
+    return `<section class="board-current-match"><div class="board-current-head"><span class="board-round-no">${t(match.stage)}</span><span>${t('currentMatch')}</span></div><div class="board-draw-roll" id="draw-roll" aria-live="polite" hidden><span>${t('drawing')}</span><div><strong id="draw-roll-a">${esc(a.display_name)}</strong><b>VS</b><strong id="draw-roll-b">${esc(b.display_name)}</strong></div></div><div class="board-current-fighters"><div class="board-current-side">${currentPlayerMarkup(e, a, match.stage, 'a')}${result(0)}</div><div class="board-current-vs">VS</div><div class="board-current-side">${currentPlayerMarkup(e, b, match.stage, 'b')}${result(1)}</div></div></section>`;
+  }
   function aceSourceLabel(e) { if (e.ace_draw_source === 'most_wins') return t('sourceMostWins'); if (e.ace_draw_source === 'most_losses') return t('sourceMostLosses'); if (e.ace_draw_source === 'special') return `${t('specialMatchGroup')}${e.ace_draw_special || 1}`; if (e.ace_draw_source === 'mixed') return t('mixed'); return t('random'); }
   function roundMarkup(round, matches, people, e) { const source = round.stage === 'ace' && e && terminal(e) && e.ace_draw_source ? `<span class="board-ace-source">${t('aceSourceLabel')}: ${aceSourceLabel(e)}</span>` : ''; return `<section class="board-round"><div class="board-round-head"><div><span class="board-round-no">${t(round.stage)}</span><h2>${round.score_a} : ${round.score_b}</h2></div>${source}</div><div class="board-matches">${matches.map(m => matchMarkup(m, people)).join('') || `<div class="board-empty">${t('noMatches')}</div>`}</div></section>`; }
   function aceRulesSummary(e, rules) {
@@ -445,7 +450,7 @@
       }
       return roundMarkup(rounds.find(round => round.stage === stage), matches, people, e);
     };
-    const pending = setup?.step ? { stage: setup.step.kind === 'group' ? 'setupGrouping' : setup.step.kind, player_a_id: setup.step.a, player_b_id: setup.step.b, player_a_name: t('toConfirm'), player_b_name: t('toConfirm') } : !terminal(e) ? (e.matches.find(match => match.status === 'pending' && match.stage === e.status) || waitingKOFMatch(e) || (preMatch(e) && e.rules.round1_mode === 'random' ? plannedMatches(e, 'round1')[0] : null)) : null;
+    const pending = setup?.step ? { stage: setup.step.kind === 'group' ? 'setupGrouping' : setup.step.kind, player_a_id: setup.step.a, player_b_id: setup.step.b, player_a_name: t('toConfirm'), player_b_name: t('toConfirm') } : !terminal(e) ? (e.matches.find(match => match.status === 'pending' && match.stage === e.status) || waitingKOFMatch(e) || (preMatch(e) ? plannedMatches(e, 'round1').find(match => match.player_a_id && match.player_b_id) : null)) : null;
     // 历史赛事继续保留KOF胜负颜色，避免赛事结束后阵容退回无标记状态。
     const recordStage = e.matches.some(match => match.stage === 'round2') ? 'round2' : 'round1';
     const roster = (team, side) => `<aside class="board-roster board-roster-${side}"><div class="board-roster-head"><span>${esc(teamName(e, team))}</span><b>${team.players.filter(player => !setup || setup.visible.has(player.id)).length}</b></div><div class="board-roster-list">${team.players.filter(player => !setup || setup.visible.has(player.id)).map(player => {
@@ -456,7 +461,7 @@
     const score = `<div class="board-score"><div><span>${t('teamA')}</span><strong>${rounds.filter(round => round.winner_team_id === teams[0].id).length}</strong></div><b>VS</b><div><span>${t('teamB')}</span><strong>${rounds.filter(round => round.winner_team_id === teams[1].id).length}</strong></div></div>`;
     return `<header class="board-top${pending ? ' has-current' : ''}">
       <div class="board-overview"><div class="board-title"><span class="board-live-mark">TEAM BATTLE</span><h1>${esc(e.name)}</h1><p><time>${esc(displayTime(e.event_time))}</time><span class="board-manager">${t('manager')}: <b>${esc(e.manager_name || '')}</b></span></p></div>
-        <div class="board-overview-bottom">${score}<span class="board-status">${t(e.status)}</span></div>
+        <div class="board-overview-bottom">${score}${!preMatch(e) ? `<span class="board-status">${t(e.status)}</span>` : ''}</div>
       </div>${pending ? currentMatchMarkup(e, pending, people) : ''}
     </header><div class="board-arena"><div class="board-center"><div class="board-records"><div class="board-columns"><div class="board-left">${panel('round1')}${panel('round2')}</div><div class="board-right">${panel('ace')}<div class="board-rosters">${e.status === 'round2' && canOperate(e) && !setup ? '<div id="board-kof-controls"></div>' : ''}${roster(teams[0], 'a')}${roster(teams[1], 'b')}</div></div></div>${rulesSummary(e)}</div></div></div>`;
   }
@@ -485,11 +490,34 @@
   function bindBoardSettings() {
     $('#roster-actions')?.close();
     const e = state.event, manager = editable(e), toolbar = $('.board-toolbar');
-    // 右上统一使用三横线观赛菜单，入口保持在同一排。
+    // 右上只保留统一的三横线观赛菜单；录分在当前对战区完成。
     $('.board-event-actions', toolbar).innerHTML = `${canArrangeLineup(e) ? `<button type="button" class="board-settings-button" id="board-lineup">${t('round1Lineup')}</button>` : ''}${manager ? `<button type="button" class="board-settings-button" id="board-settings">${t('eventSettings')}</button>` : ''}`;
     if (!manager) { state.operations = false; $('#event-operations').classList.add('hidden'); }
     $('#board-settings')?.addEventListener('click', () => go('/live/' + state.event.id + '/setting'));
     $('#board-lineup')?.addEventListener('click', () => go('/live/' + state.event.id + '/lineup'));
+    $$('[data-current-winner]').forEach(button => button.addEventListener('click', action(async () => {
+      if (state.recordingResult || state.setupDraw || (state.draw?.endAt > Date.now())) return;
+      state.recordingResult = true;
+      $$('[data-current-winner]').forEach(control => control.disabled = true);
+      try {
+        const id = Number(button.dataset.currentMatch), winner = Number(button.dataset.currentWinner);
+        await eventAction(id ? '/matches/' + id + '/result' : '/opening-result', { winner_team_id: winner, player_a_id: Number(button.dataset.playerA), player_b_id: Number(button.dataset.playerB) });
+      } finally {
+        state.recordingResult = false;
+        $$('[data-current-winner]').forEach(control => control.disabled = false);
+      }
+    })));
+    const tools = $('#board-tools');
+    if (tools) {
+      tools.hidden = !manager || !(e.matches.some(match => match.status === 'finished') || ['ace', 'final_confirm'].includes(e.status));
+      tools.onclick = () => {
+        $('.board-menu').open = false;
+        state.operations = true;
+        $('#event-operations').classList.remove('hidden');
+        renderOperations();
+        $('#event-operations').focus({ preventScroll: true });
+      };
+    }
     if (!state.setupDraw) window.TBKOFBoard.bindRows({ root: $('#board-content'), event: state.event, user: state.user, manager: manages(state.event), t, action, onVote: voteForCaptain, onCaptain: assignCaptain });
     if (state.event.status === 'round2' && canOperate(state.event) && !state.setupDraw) renderKOFSelection(state.event, manages(state.event)).catch(error => toast(error.message));
     if (state.setupDraw) $('#board-content')?.setAttribute('data-setup-drawing', 'true');
@@ -530,9 +558,9 @@
   }
   function boardPage() {
     const e = state.event;
-    if (!manages(e)) state.operations = false;
-    app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div class="board-toolbar"><div class="board-toolbar-actions board-event-actions"></div><details class="board-menu"><summary aria-label="${t('displaySettings')}" title="${t('displaySettings')}">☰</summary><div>${picker()}<fieldset class="board-contrast-setting"><legend>${t('contrastSettings')}</legend><label for="board-transparency">${t('panelTransparency')}<output id="board-transparency-value" for="board-transparency">${state.boardTransparency}%</output></label><input id="board-transparency" type="range" min="0" max="100" step="1" value="${state.boardTransparency}"></fieldset>${editable(e) ? `<button id="toggle-operations">${t("eventControls")}</button>` : }<button data-go="/">${t('homeLink')}</button>${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></div><div id="board-content">${boardContent(e)}</div><div id="event-operations" tabindex="-1" class="event-operations${state.operations ? '' : ' hidden'}"></div></main>`;
-    applyEventBackground(e); bindBoardTransparency(); bindCommon(); bindBoardSettings(); $('#toggle-operations')?.addEventListener('click', () => { if (state.setupDraw) return; $('.board-menu').open = false; state.operations = !state.operations; $('#event-operations').classList.toggle('hidden', !state.operations); if (state.operations) renderOperations(); });
+    if (!editable(e)) state.operations = false;
+    app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div class="board-toolbar"><div class="board-toolbar-actions board-event-actions"></div><details class="board-menu"><summary aria-label="${t('displaySettings')}" title="${t('displaySettings')}">☰</summary><div>${picker()}<fieldset class="board-contrast-setting"><legend>${t('contrastSettings')}</legend><label for="board-transparency">${t('panelTransparency')}<output id="board-transparency-value" for="board-transparency">${state.boardTransparency}%</output></label><input id="board-transparency" type="range" min="0" max="100" step="1" value="${state.boardTransparency}"></fieldset><button type="button" id="board-tools" hidden>${t("correctAndConfirm")}</button><button data-go="/">${t('homeLink')}</button>${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></div><div id="board-content">${boardContent(e)}</div><div id="event-operations" tabindex="-1" class="event-operations${state.operations ? '' : ' hidden'}"></div></main>`;
+    applyEventBackground(e); bindBoardTransparency(); bindCommon(); bindBoardSettings();
     if (state.operations) renderOperations();
   }
   function currentPending(event) {
@@ -542,12 +570,48 @@
   function drawCandidates(event, side, previous, next) {
     const team = event.teams[side];
     if (!team) return [];
-    const previousMatch = currentPending(previous);
-    const nextID = side ? next.player_b_id : next.player_a_id;
-    const previousID = previousMatch ? (side ? previousMatch.player_b_id : previousMatch.player_a_id) : 0;
-    // 胜者留场、固定排阵或特殊候选只有一人时，滚动区应立即停在最终人选。
-    if (previousID && previousID === nextID) return [team.players.find(player => player.id === nextID)].filter(Boolean);
-    return team.players.filter(player => player.active !== false);
+    const id = side ? next.player_b_id : next.player_a_id;
+    const final = team.players.filter(player => player.id === id);
+    const players = team.players.filter(player => player.active !== false);
+    if (next.stage === 'round1') {
+      // 已排定的选手直接进入当前对战区，只有未排定的名额才需要转盘。
+      if (event.lineups.some(entry => entry.team_id === team.id && entry.position === next.seq)) return final;
+      const matches = event.matches.filter(match => match.stage === 'round1' && match.seq < next.seq);
+      const last = matches.at(-1), lastID = side ? last?.player_b_id : last?.player_a_id;
+      const eligible = players.filter(player => !event.rules.no_repeat || players.length === 1 || player.id !== lastID);
+      const count = player => matches.filter(match => (side ? match.player_b_id : match.player_a_id) === player.id).length;
+      const minimum = Math.min(...eligible.map(count));
+      return eligible.filter(player => count(player) === minimum);
+    }
+    if (next.stage === 'round2') {
+      if (next.seq === 1) return event.rules.kof_starter === 'captain' ? final : players;
+      const finished = event.matches.filter(match => match.stage === 'round2' && match.seq < next.seq && match.status === 'finished');
+      const last = finished.at(-1);
+      const lost = player => finished.some(match => (side ? match.player_b_id : match.player_a_id) === player.id && match.who_win === (side ? 'a' : 'b'));
+      const lostLast = last && last.who_win === (side ? 'a' : 'b');
+      return lostLast && event.round2_target > players.length && players.every(lost) ? players : final;
+    }
+    if (next.stage === 'ace') {
+      const source = event.ace_draw_source;
+      if (source === 'special') {
+        const ids = event.rules.ace_specials[(event.ace_draw_special || 1) - 1]?.player_ids || [];
+        const special = players.filter(player => ids.includes(player.id));
+        return special.length ? special : players;
+      }
+      if (source === 'most_wins' || source === 'most_losses') {
+        const record = player => {
+          let wins = 0, losses = 0;
+          for (const match of event.matches.filter(match => match.stage !== 'ace' && match.status === 'finished')) {
+            const win = match.player_a_id === player.id ? 'a' : match.player_b_id === player.id ? 'b' : '';
+            if (win) { if (match.who_win === win) wins += 1; else losses += 1; }
+          }
+          return { player, wins, diff: source === 'most_wins' ? wins - losses : losses - wins };
+        };
+        const records = players.map(record).sort((a, b) => b.diff - a.diff || (source === 'most_wins' ? b.wins - a.wins : a.wins - b.wins));
+        return records.filter(item => item.diff === records[0].diff && item.wins === records[0].wins).map(item => item.player);
+      }
+    }
+    return players;
   }
   function startDrawAnimation(previous, next) {
     if (state.setupDraw) return;
@@ -577,6 +641,11 @@
     const bFinal = people.find(player => player.id === match.player_b_id);
     const candidates = continuing ? state.draw.candidates : [drawCandidates(next, 0, previous, match), drawCandidates(next, 1, previous, match)];
     const durationSeconds = Math.max(0, Number(match.stage === 'ace' ? next.rules.ace_draw_seconds : next.rules.random_draw_seconds) || 0);
+    if (!candidates.some(list => list.length > 1) || durationSeconds === 0) {
+      state.draw = { key, candidates, endAt: 0 };
+      roll.hidden = true;
+      return;
+    }
     const interval = 250;
     const endAt = continuing ? state.draw.endAt : Date.now() + durationSeconds * 1000;
     state.draw = { key, candidates, endAt };
@@ -627,20 +696,16 @@
   function renderOperations() {
     const e = state.event, target = $('#event-operations'); if (!target) return;
     if (!manages(e) || terminal(e)) { target.innerHTML = ''; return; }
-    const manager = manages(e), people = e.teams.flatMap(team => team.players);
-    let content = `<div class="operations-heading"><div><span class="eyebrow">${t('eventControls')}</span><h2>${t(e.status)}</h2></div><button class="outline" id="close-operations">${t('close')}</button></div>`;
+    const manager = manages(e);
+    let content = `<div class="operations-heading"><div><span class="eyebrow">${t('correctAndConfirm')}</span><h2>${t(e.status)}</h2></div><button class="outline" id="close-operations">${t('close')}</button></div>`;
     if (canArrangeLineup(e)) content += `<section class="panel section-gap"><div class="panel-body"><a class="primary" href="/live/${e.id}/lineup" id="operations-lineup">${t('round1Lineup')}</a></div></section>`;
-    if (manager && preMatch(e)) content += `<div class="form-footer"><button class="primary accent" id="start-event">${t('start')}</button></div>`;
     const pending = e.matches.find(m => m.status === 'pending' && m.stage === e.status);
-    if (manager && pending) content += `<section class="panel section-gap"><div class="panel-head"><h2>${t(e.status)} · #${pending.seq}</h2></div><div class="panel-body"><div class="fighters"><div class="fighter">${person(people.find(p => p.id === pending.player_a_id))}</div><span class="vs">VS</span><div class="fighter">${person(people.find(p => p.id === pending.player_b_id))}</div></div><div class="result-actions"><button class="win-a" data-winner="${pending.team_a_id}" data-match="${pending.id}">${esc(pending.player_a_name)} · ${t('win')}</button><button class="win-b" data-winner="${pending.team_b_id}" data-match="${pending.id}">${esc(pending.player_b_name)} · ${t('win')}</button></div></div></section>`;
     if (manager && e.status === 'ace' && pending) content += `<section class="panel section-gap"><form id="ace-form" class="panel-body form-grid">${field('teamA', `<select name="player_a_id">${options(e.teams[0].players, pending.player_a_id)}</select>`)}${field('teamB', `<select name="player_b_id">${options(e.teams[1].players, pending.player_b_id)}</select>`)}<button class="outline">${t('overrideAce')}</button></form></section>`;
     if (manager && e.status === 'final_confirm') content += `<section class="panel section-gap"><div class="panel-body"><p>${t('confirmEndHint')}</p><button class="primary accent" id="confirm-end">${t('confirmEnd')}</button></div></section>`;
     if (manager && e.matches.some(m => m.status === 'finished')) content += `<section class="panel section-gap"><div class="panel-head"><h2>${t('correct')}</h2></div><form id="correct-form" class="panel-body form-grid"><p class="notice full">${t('correctHint')}</p>${field('matchNo', `<select name="match_id">${e.matches.filter(m => m.status === 'finished').map(m => `<option value="${m.id}">${t(m.stage)} #${m.seq} · ${esc(m.player_a_name)} / ${esc(m.player_b_name)}</option>`).join('')}</select>`)}${field('winner', `<select name="winner_team_id">${e.teams.map(team => `<option value="${team.id}">${esc(teamName(e, team))}</option>`).join('')}</select>`)}<button class="outline">${t('correct')}</button></form></section>`;
     target.innerHTML = content;
-    $('#close-operations')?.addEventListener('click', () => { state.operations = false; $('#event-operations').classList.add('hidden'); $('#toggle-operations')?.setAttribute('aria-expanded', 'false'); });
+    $('#close-operations')?.addEventListener('click', () => { state.operations = false; $('#event-operations').classList.add('hidden'); });
     $('#operations-lineup')?.addEventListener('click', event => { event.preventDefault(); go('/live/' + e.id + '/lineup'); });
-    $('#start-event')?.addEventListener('click', action(() => eventAction('/start')));
-    $$('[data-winner]').forEach(button => button.onclick = action(() => eventAction('/matches/' + button.dataset.match + '/result', { winner_team_id: Number(button.dataset.winner) })));
     $('#ace-form')?.addEventListener('submit', action(async event => { event.preventDefault(); const f = new FormData(event.target); await eventAction('/ace/confirm', { player_a_id: Number(f.get('player_a_id')), player_b_id: Number(f.get('player_b_id')) }); }));
     $('#correct-form')?.addEventListener('submit', action(async event => { event.preventDefault(); if (!confirm(t('correctHint'))) return; const f = new FormData(event.target); await eventAction('/matches/' + f.get('match_id') + '/result', { winner_team_id: Number(f.get('winner_team_id')) }, 'PATCH'); }));
     $('#confirm-end')?.addEventListener('click', action(async () => { if (confirm(t('confirmEndHint'))) await eventAction('/confirm'); }));

@@ -408,3 +408,19 @@ tr[hidden]{display:none}
 @keyframes setup-arrival{from{opacity:.15}to{opacity:1}}
 #event-form{padding-bottom:85px}
 @media(max-width:600px){.event-editor-actions{left:12px;right:12px;bottom:12px;justify-content:flex-end}.event-editor-actions button{flex:1}}
+
+/* 当前选手下直接录分，按钮不挤压头像、姓名或种族。 */
+.board-current-side{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-width:0;min-height:0}
+.board-current-win{min-height:30px;padding:5px 16px;border:1px solid #d46c58;border-radius:6px;background:#402b30b3;color:#ff9686;font-size:14px;line-height:1.2;cursor:pointer}
+.board-current-win:hover{background:#784137;color:#fff}
+.board-current-win:disabled{opacity:.45;cursor:wait}
+.broadcast-board .board-current-match:has(.board-current-win) .board-current-fighters{margin-top:6px;align-items:stretch}
+.broadcast-board .board-current-match:has(.board-current-win) .current-player{gap:5px}
+.broadcast-board .board-current-match:has(.board-current-win) .board-avatar{width:clamp(76px,7vw,150px);height:clamp(76px,7vw,150px);flex-basis:clamp(76px,7vw,150px)}
+@media(min-width:1180px) and (max-height:800px){.broadcast-board .board-current-match:has(.board-current-win) .board-avatar{width:76px;height:76px;flex-basis:76px}.broadcast-board .board-current-match:has(.board-current-win) .current-player strong{font-size:30px}.board-current-side{gap:5px}}
+.broadcast-board .board-current-vs{align-self:center}
+.broadcast-board .board-current-fighters>.board-current-side:first-child{order:1}
+.broadcast-board .board-current-fighters>.board-current-vs{order:2}
+.broadcast-board .board-current-fighters>.board-current-side:last-child{order:3}
+.broadcast-board .board-current-fighters .board-current-side>.current-player{order:0}
+.board-current-side>.board-current-win{order:1;flex-shrink:0;white-space:nowrap}

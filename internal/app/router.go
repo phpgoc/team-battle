@@ -130,6 +130,7 @@ func (a *App) router() *gin.Engine {
 	api.POST("/events/:id/lineup/submit", a.submitLineup)
 	api.GET("/events/:id/lineup", a.lineupOptions)
 	api.POST("/events/:id/start", a.startEvent)
+	api.POST("/events/:id/opening-result", a.submitOpeningResult)
 	api.POST("/events/:id/matches/:matchID/result", a.submitResult)
 	api.PATCH("/events/:id/matches/:matchID/result", a.correctResult)
 	api.POST("/events/:id/kof/next-player", a.selectKOFPlayer)

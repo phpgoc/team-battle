@@ -36,6 +36,79 @@ func (a *App) startEvent(c *gin.Context) {
 	}
 	ok(c, gin.H{"ok": true})
 }
+
+// 首次录分与开赛在同一事务中完成，校验页面上的首发，避免旧页面把结果记到其他选手。
+func (a *App) submitOpeningResult(c *gin.Context) {
+	actor, id, access := a.managerEvent(c)
+	if !access {
+		return
+	}
+	var req struct {
+		PlayerAID    int64 `json:"player_a_id"`
+		PlayerBID    int64 `json:"player_b_id"`
+		WinnerTeamID int64 `json:"winner_team_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.PlayerAID <= 0 || req.PlayerBID <= 0 {
+		fail(c, 400, "请选择当前对局的胜者")
+		return
+	}
+	err := a.runMatchMutation(id, actor.ID, func(e *matchEngine) error {
+		stage, err := e.status()
+		if err != nil {
+			return err
+		}
+		if !preMatch(stage) {
+			return errors.New("比赛已经推进，请刷新后录分")
+		}
+		teams, err := e.teams()
+		if err != nil {
+			return err
+		}
+		if req.WinnerTeamID != teams[0] && req.WinnerTeamID != teams[1] {
+			return errors.New("胜者队伍无效")
+		}
+		rules, err := e.rules()
+		if err != nil {
+			return err
+		}
+		if rules.Round1Mode == "manual" {
+			var submitted int
+			if err := e.db.QueryRow(`SELECT COUNT(*) FROM teams WHERE event_id=? AND (lineup_submitted=1 OR EXISTS(SELECT 1 FROM lineup_entries l WHERE l.event_id=teams.event_id AND l.team_id=teams.id))`, id).Scan(&submitted); err != nil {
+				return err
+			}
+			if submitted != 2 {
+				return errors.New("请等待双方提交第一轮排阵")
+			}
+		}
+		for index, player := range []int64{req.PlayerAID, req.PlayerBID} {
+			var current int64
+			if err := e.db.QueryRow(`SELECT player_id FROM lineup_entries WHERE event_id=? AND team_id=? AND position=1`, id, teams[index]).Scan(&current); err != nil || current != player {
+				return errors.New("当前对阵已变化，请刷新后录分")
+			}
+		}
+		if err := e.start(); err != nil {
+			return err
+		}
+		var matchID int64
+		if err := e.db.QueryRow(`SELECT id FROM matches WHERE event_id=? AND round_no=1 AND seq=1 AND status='pending'`, id).Scan(&matchID); err != nil {
+			return err
+		}
+		match, err := e.match(matchID)
+		if err != nil {
+			return err
+		}
+		if match.playerA != req.PlayerAID || match.playerB != req.PlayerBID {
+			return errors.New("当前对阵已变化，请刷新后录分")
+		}
+		return e.record(match, req.WinnerTeamID, "")
+	})
+	if err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
+	ok(c, gin.H{"ok": true})
+}
+
 func (a *App) submitResult(c *gin.Context) {
 	actor, id, access := a.managerEvent(c)
 	if !access {

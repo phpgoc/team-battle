@@ -289,6 +289,16 @@ func (a *App) submitLineup(c *gin.Context) {
 		if _, err := e.db.Exec(`UPDATE teams SET lineup_submitted=1 WHERE event_id=? AND id=?`, id, req.TeamID); err != nil {
 			return err
 		}
+		// 双方提交后补齐随机空位并公开，首局可直接录分，无需额外的开赛按钮。
+		var submitted int
+		if err := e.db.QueryRow(`SELECT COUNT(*) FROM teams WHERE event_id=? AND (lineup_submitted=1 OR EXISTS(SELECT 1 FROM lineup_entries l WHERE l.event_id=teams.event_id AND l.team_id=teams.id))`, id).Scan(&submitted); err != nil {
+			return err
+		}
+		if submitted == 2 {
+			if err := e.fillLineups(false); err != nil {
+				return err
+			}
+		}
 		return e.log("lineup_submitted", req)
 	})
 	if err != nil {

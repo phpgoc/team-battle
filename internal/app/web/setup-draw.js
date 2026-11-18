@@ -9,7 +9,7 @@
       const progress = { visible, round1: 0, kof: false, step: null };
       const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
       const draw = () => { if (isActive()) render(progress); };
-      const slots = () => [...document.querySelectorAll('.board-current-fighters > .current-player')];
+      const slots = () => [...document.querySelectorAll('.board-current-fighters .current-player')];
       const paint = ids => {
         slots().forEach((slot, index) => {
           const player = byID(ids[index]);

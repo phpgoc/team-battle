@@ -193,7 +193,8 @@ func (e *matchEngine) fillLineups(force bool) error {
 	if !force && setupEntries > 0 {
 		return nil
 	}
-	if force || rules.Round1Mode == "random" {
+	// 已公开的随机排阵同样是正式结果，仅显式重新抽签时才清空。
+	if force {
 		if _, err := e.db.Exec(`DELETE FROM lineup_entries WHERE event_id=?`, e.eventID); err != nil {
 			return err
 		}

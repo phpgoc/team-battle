@@ -64,7 +64,7 @@ func TestManualLineupsRevealAfterBothSubmissions(t *testing.T) {
 	// 全部随机补位同样算提交，不能一直等不到另一方确认。
 	f.request(t, 6, "POST", fmt.Sprintf("/api/events/%d/lineup/submit", id), map[string]any{"team_id": teams[1], "player_ids": []int{}}, 200)
 	data := read(f.request(t, 0, "GET", public, nil, 200))
-	if len(data.Lineups) != 2 || !data.Teams[0].Submitted || !data.Teams[1].Submitted {
+	if len(data.Lineups) != 6 || !data.Teams[0].Submitted || !data.Teams[1].Submitted {
 		t.Fatalf("双方提交后未公开排阵: %+v", data)
 	}
 	// 兼容旧数据库中已有排阵但没有提交标记的赛事。
@@ -72,7 +72,7 @@ func TestManualLineupsRevealAfterBothSubmissions(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.request(t, 6, "POST", fmt.Sprintf("/api/events/%d/lineup/submit", id), map[string]any{"team_id": teams[1], "player_ids": []int{8, 6}}, 200)
-	if len(read(f.request(t, 0, "GET", public, nil, 200)).Lineups) != 4 {
+	if len(read(f.request(t, 0, "GET", public, nil, 200)).Lineups) != 6 {
 		t.Fatal("旧排阵未被识别为已提交")
 	}
 }

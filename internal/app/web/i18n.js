@@ -1,5 +1,7 @@
 window.TB_I18N = {
   "zh": {
+    "recordWin": "录入获胜",
+    "correctAndConfirm": "修正比分与结束确认",
     "eventRules": "赛事规则",
     "contrastSettings": "对比度设置",
     "displaySettings": "显示设置",
@@ -282,6 +284,8 @@ window.TB_I18N = {
     "categoryIconFormat": "分类图标只支持 JPG、PNG、GIF 或 WebP"
   },
   "en": {
+    "recordWin": "Record win",
+    "correctAndConfirm": "Correct scores and confirm finish",
     "eventRules": "Event rules",
     "contrastSettings": "Contrast settings",
     "displaySettings": "Display settings",
@@ -564,6 +568,8 @@ window.TB_I18N = {
     "categoryIconFormat": "Category icons must be JPG, PNG, GIF or WebP."
   },
   "ko": {
+    "recordWin": "승리 기록",
+    "correctAndConfirm": "점수 정정 및 종료 확인",
     "eventRules": "대회 규칙",
     "contrastSettings": "대비 설정",
     "displaySettings": "화면 설정",
