@@ -29,7 +29,7 @@ func TestDrawTimingDefaultsAndMutableSettings(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "random")
 	rules := mustTournamentRules(f.app.db, id)
-	if rules.RandomDrawSeconds != 5 || rules.AceDrawSeconds != 5 {
+	if rules.RandomDrawSeconds != 4 || rules.AceDrawSeconds != 5 {
 		t.Fatalf("默认抽选时长不正确: %+v", rules)
 	}
 	path := fmt.Sprintf("/api/tournaments/%d/draw-settings", id)

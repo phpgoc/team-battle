@@ -11,7 +11,7 @@
 
 ## 数据与缓存
 
-- 核心表为 users、tournaments、tournament_players、tournament_setup_roster、captain_votes、lineup_entries、rounds、matches、tournament_actions、categories、site_tournament_names。赛事外键 tournament_id，开始时间 start_time。
+- 核心表为 users、tournaments、tournament_players、tournament_setup_roster、captain_votes、lineup_entries、rounds、matches、tournament_actions、categories、site_tournament_names、config。赛事外键 tournament_id，开始时间 start_time。config 为 key/value 网站设置，创建赛事时取默认值快照，不回写已有赛事。
 - 启动幂等初始化；旧表列在事务内原位迁移，保留数据、关联与自增上限，冲突回滚。1.0 前补版本迁移机制。WAL，每条连接通过 DSN 启用外键与5秒锁等待，写事务 immediate。
 - 不设 teams 表，固定 A/B 队 ID 为 tournamentID*2-1、tournamentID*2，通过统一函数计算；排阵提交状态存赛事表。rounds 是轮次，matches 是单局，历史与实时共用；round_no=1/2/3，a_id、b_id、who_win 与规范字段同步，胜负为0/a/b。
 - 状态修改原子提交，成功后写审计、失效缓存并广播；不得持锁等待动画。审计包含操作者、时间、动作和数据。
@@ -33,7 +33,7 @@
 - 创建和历史录入必填赛事名、开始时间（年月日小时）与赛事管理员，可选任意有效账号，包括超管；不能默认或清空管理员。选手可后补；开赛6–12人，实时允许两队人数不同，历史录入偶数A=B、奇数A=B+1。
 - 设置名单逐个搜索添加，按顺序保存A/B/随机意向至 tournament_setup_roster，不用实际分组覆盖；分组前可增删，分组后锁定。设置页固定底栏，只有一组保存/返回，保存默认回比赛。
 - 分组抽签前可改第一轮/KOF规则；首场录分前可改大将规则；进行中仅背景和两种抽签时长可变，另可修正结果、调整当前大将、确认结束。
-- 第一轮默认抢4，KOF默认抢5，目标1–99。第一轮人工/随机排阵，KOF随机/队长首发。rules_json兼容缺省值，两种转盘时长默认5秒。
+- 第一轮默认抢4，KOF默认抢5，目标1–99。第一轮人工/随机排阵，KOF随机/队长首发。新赛事转盘默认4/5秒，可在网站设置修改；rules_json旧记录缺省仍为5/5秒，不受网站配置影响。
 - setup-draw 原子完成分组、随机首轮排阵及随机KOF首发；排阵 source=setup_draw，首发 kof_initial_a/b，开赛沿用，不二次抽签。奇数末位随末轮进入A队；重复抽签拒绝。
 - 人工排阵只在分组后赛前手动模式开放 /live/:id/lineup，队长管本队，管理员可选双方。槽位=min(本队人数,总人数/2向下取整)，其余随机补；单方只公开已排阵状态，双方提交才公开人选，私有接口校验权限。
 - 首轮随机避免连续同一人并尽量先轮完所有人。管理员在当前对战位录胜者，首局 opening-result 原子开赛录分，无单独开始按钮；已排下一局直接上移，仅新随机抽人播放转盘。

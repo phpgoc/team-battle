@@ -227,7 +227,16 @@
 
   async function siteSettingsPage() {
     const data = await api('/api/site-settings');
+    const defaults = data.tournament_defaults;
     shell(`<div class="page-head"><h1>${t('siteSettings')}</h1></div><div class="settings-columns"><section class="panel"><div class="panel-head"><h2>${t('names')}</h2></div><div class="panel-body"><form id="name-form" class="inline-form">${input('name', '', 'text', 'required')}<button class="primary">${t('add')}</button></form>${data.tournament_names.map(n => `<form class="inline-form item-form" data-name="${n.id}">${input('name', n.name, 'text', 'required')}<button class="outline">${t('save')}</button><button type="button" class="link danger" data-delete-name="${n.id}">${t('delete')}</button></form>`).join('')}</div></section><section class="panel"><div class="panel-head"><h2>${t('categories')}</h2></div><div class="panel-body"><form id="category-form" class="field">${field('categoryName', input('name', '', 'text', 'required'))}${field('icon', '<input type="file" name="icon" accept="image/jpeg,image/png,image/gif,image/webp" required>')}<p class="help">${t('imageHint')}</p><button class="primary">${t('add')}</button></form>${data.categories.map(c => `<form class="category-edit item-form" data-category="${c.id}">${c.icon_url ? `<img class="category-icon-preview" src="${esc(c.icon_url)}" alt="">` : `<span>${t('noIcon')}</span>`}${input('name', c.name, 'text', 'required')}<input type="file" name="icon" accept="image/jpeg,image/png,image/gif,image/webp"><button class="outline">${t('save')}</button><button type="button" class="link danger" data-delete-category="${c.id}">${t('delete')}</button></form>`).join('')}</div></section></div>`, 'siteSettings');
+    $('.settings-columns').insertAdjacentHTML('beforebegin', `<section class="panel section-gap"><div class="panel-head"><h2>${t('tournamentDefaults')}</h2></div><form id="tournament-defaults-form" class="panel-body inline-form">${field('randomDrawSeconds', input('random_draw_seconds', defaults.random_draw_seconds, 'number', 'min="0" step="1" required'))}${field('aceDrawSeconds', input('ace_draw_seconds', defaults.ace_draw_seconds, 'number', 'min="0" step="1" required'))}<button class="primary">${t('save')}</button><p class="help full">${t('tournamentDefaultsHint')}</p></form></section>`);
+    $('#tournament-defaults-form').onsubmit = action(async event => {
+      event.preventDefault();
+      const f = new FormData(event.target);
+      await post('/api/site-settings/tournament-defaults', { random_draw_seconds: Number(f.get('random_draw_seconds')), ace_draw_seconds: Number(f.get('ace_draw_seconds')) }, 'PATCH');
+      await siteSettingsPage();
+      toast(t('saved'));
+    });
     $('#name-form').onsubmit = action(async event => { event.preventDefault(); await post('/api/site-settings/tournament-names', Object.fromEntries(new FormData(event.target))); await siteSettingsPage(); });
     $('#category-form').onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/categories', { method: 'POST', body: new FormData(event.target) }); await siteSettingsPage(); });
     $$('[data-name]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); await post('/api/site-settings/tournament-names/' + form.dataset.name, Object.fromEntries(new FormData(form)), 'PATCH'); await siteSettingsPage(); }));
@@ -407,11 +416,14 @@
     const roundSetupEditable = mode === 'create' || (canEditSettings(source) && !hasGrouping(source));
     const aceSettingsEditable = mode === 'create' || canEditSettings(source);
     const timingEditable = mode === 'create' || (mode !== 'roster' && manages(source) && !terminal(source));
-    const e = preserve && state.ruleDraft && !readonly ? { ...source, rules: state.ruleDraft } : source;
+    let e = preserve && state.ruleDraft && !readonly ? { ...source, rules: state.ruleDraft } : source;
     const [users, catalog] = await Promise.all([
       state.user.role === 'superadmin' ? api('/api/users') : terminal(e) ? Promise.resolve({ users: e.teams.flatMap(team => team.players) }) : api('/api/tournaments/' + e.id + '/eligible-users'),
       state.user.role === 'superadmin' ? api('/api/site-settings') : api('/api/settings/catalog')
     ]);
+    if (mode === 'create' && !(preserve && state.ruleDraft)) {
+      e = { ...e, rules: { ...defaultRules(), ...catalog.tournament_defaults } };
+    }
     // 将已录入资料补入目录，停用账号也不能在查看或保存时悄悄消失。
     const directory = new Map(users.users.filter(u => u.role !== 'superadmin').map(user => [user.id, user]));
     for (const player of [...(e.teams || []).flatMap(team => team.players), ...(e.setup_roster || [])]) {

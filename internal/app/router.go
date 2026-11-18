@@ -107,6 +107,7 @@ func (a *App) router() *gin.Engine {
 	api.POST("/tournaments/:id/players", a.addTournamentPlayers)
 	api.GET("/tournaments/:id/eligible-users", a.eligibleTournamentUsers)
 	api.GET("/site-settings", a.siteSettings)
+	api.PATCH("/site-settings/tournament-defaults", a.updateTournamentDefaults)
 	api.POST("/site-settings/backgrounds", a.createBackground)
 	api.PATCH("/site-settings/backgrounds/:backgroundID", a.updateBackground)
 	api.DELETE("/site-settings/backgrounds/:backgroundID", a.deleteBackground)

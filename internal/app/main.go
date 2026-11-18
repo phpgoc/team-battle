@@ -3,6 +3,7 @@ package app
 import (
 	"database/sql"
 	"embed"
+	"encoding/json"
 	"flag"
 	"log"
 	mathrand "math/rand"
@@ -154,7 +155,7 @@ type createTournamentRequest struct {
 	FixedAssignments map[string]string `json:"fixed_assignments"`
 	Round1Target     int               `json:"round1_target"`
 	Round2Target     int               `json:"round2_target"`
-	Rules            *TournamentRules  `json:"rules"`
+	Rules            json.RawMessage   `json:"rules"`
 	BackgroundID     int64             `json:"background_id"`
 }
 

@@ -38,6 +38,8 @@ func migrate(db *sql.DB) error {
 	}
 	statements := []string{
 		`PRAGMA foreign_keys = ON`,
+		`CREATE TABLE IF NOT EXISTS config(key TEXT PRIMARY KEY,value TEXT NOT NULL)`,
+		`INSERT OR IGNORE INTO config(key,value) VALUES('random_draw_seconds','4'),('ace_draw_seconds','5')`,
 		`CREATE TABLE IF NOT EXISTS users (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			username TEXT NOT NULL UNIQUE,

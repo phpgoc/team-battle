@@ -48,7 +48,12 @@ func (a *App) siteSettings(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "读取背景失败")
 		return
 	}
-	ok(c, gin.H{"tournament_names": names, "categories": categories, "backgrounds": backgrounds})
+	defaults, err := loadTournamentDefaults(a.db)
+	if err != nil {
+		fail(c, 500, "读取默认赛事设置失败")
+		return
+	}
+	ok(c, gin.H{"tournament_names": names, "categories": categories, "backgrounds": backgrounds, "tournament_defaults": defaults})
 }
 
 func (a *App) createTournamentName(c *gin.Context) {

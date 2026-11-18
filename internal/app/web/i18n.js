@@ -1,5 +1,7 @@
 window.TB_I18N = {
   "zh": {
+    "tournamentDefaults": "新赛事默认设置",
+    "tournamentDefaultsHint": "仅作为之后创建赛事的默认值，已有赛事不变。",
     "unassignedPlayers": "参赛选手 · 待分队",
     "selectManager": "请选择赛事管理员",
     "profileTournamentLocked": "参加的赛事尚未关闭，暂不能修改个人资料，密码仍可修改。",
@@ -341,6 +343,8 @@ window.TB_I18N = {
     "categoryIconFormat": "分类图标只支持 JPG、PNG、GIF 或 WebP"
   },
   "en": {
+    "tournamentDefaults": "New tournament defaults",
+    "tournamentDefaultsHint": "Only applies to new tournaments. Existing tournaments stay unchanged.",
     "specialSideFallback": "Leave this side empty to draw from its entire team.",
     "specialOtherTeam": "Assigned to the other team; excluded on this side",
     "confirmRecordWin": "Confirm match winner",
@@ -652,6 +656,8 @@ window.TB_I18N = {
     "categoryIconFormat": "Category icons must be JPG, PNG, GIF or WebP."
   },
   "ko": {
+    "tournamentDefaults": "새 대회 기본 설정",
+    "tournamentDefaultsHint": "이후 생성하는 대회의 기본값에만 적용되며, 기존 대회는 변경되지 않습니다.",
     "specialSideFallback": "후보를 선택하지 않으면 해당 팀 전체에서 추첨합니다.",
     "specialOtherTeam": "상대 팀에 배정되어 이쪽 추첨에서 제외됨",
     "confirmRecordWin": "승리 기록 확인",

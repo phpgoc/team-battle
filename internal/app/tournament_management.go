@@ -260,8 +260,19 @@ func (a *App) createTournament(c *gin.Context) {
 		return
 	}
 	rules := defaultRules()
-	if req.Rules != nil {
-		rules = *req.Rules
+	defaults, err := loadTournamentDefaults(a.db)
+	if err != nil {
+		fail(c, 500, "读取网站默认设置失败")
+		return
+	}
+	rules.RandomDrawSeconds, rules.AceDrawSeconds = defaults.RandomDrawSeconds, defaults.AceDrawSeconds
+	if len(req.Rules) > 0 && string(req.Rules) != "null" {
+		// 用创建时默认值补齐未提交的字段，保留显式设置的零秒。
+		type creationRules TournamentRules
+		if err := json.Unmarshal(req.Rules, (*creationRules)(&rules)); err != nil {
+			fail(c, 400, "赛事规则格式不正确")
+			return
+		}
 	}
 	if err := rules.validate(); err != nil {
 		fail(c, http.StatusBadRequest, err.Error())
