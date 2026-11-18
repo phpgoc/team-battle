@@ -23,15 +23,22 @@
   .broadcast-board .board-rules{grid-template-columns:repeat(3,minmax(0,1fr));column-gap:14px}
 }
 @media(min-width:1180px) and (min-height:620px){
-  .broadcast-board{--roster-avatar-size:clamp(46px,3.4vw,64px);--current-avatar-size:clamp(112px,7vw,160px);--rules-height:104px}
+  .broadcast-board{--roster-avatar-size:clamp(46px,3.4vw,64px);--current-avatar-size:clamp(112px,7vw,160px);--current-match-height:clamp(190px,25dvh,300px);--rules-height:104px}
+  /* 对阵尚未确定时保留同样的对战区高度，阶段切换不挤动下方布局。 */
+  .broadcast-board .board-top{height:var(--current-match-height);min-height:var(--current-match-height);margin-bottom:10px}
   .broadcast-board .board-top.has-current{gap:16px;align-items:center;margin-bottom:10px}
-  .broadcast-board .board-current-match{height:clamp(190px,25dvh,300px);padding:4px 16px}
+  .broadcast-board .board-top .board-overview{height:100%;min-height:0;gap:8px}
+  .broadcast-board .board-top .board-title{display:flex;flex-direction:column;justify-content:center;min-height:0;flex:0 1 auto}
+  .broadcast-board .board-title h1,.broadcast-board .board-title>p:not(.board-subtitle),.broadcast-board .board-overview-bottom{flex:none}
+  .broadcast-board .board-title .board-subtitle{flex:0 1 auto}
+  .broadcast-board .board-current-match{height:var(--current-match-height);padding:4px 16px}
   .broadcast-board .board-current-fighters{height:100%;gap:14px}
   .broadcast-board .current-player{gap:6px}
   .broadcast-board .board-current-fighters .board-avatar,.broadcast-board .board-current-match:has(.board-current-win) .board-avatar{width:var(--current-avatar-size);height:var(--current-avatar-size);flex-basis:var(--current-avatar-size)}
   .broadcast-board .board-records{gap:10px}
   .broadcast-board .board-round-head{padding:9px 12px}
   .broadcast-board .board-right>.board-round .board-round-head{padding:4px 10px;gap:3px}
+  .broadcast-board .board-right>.board-round{min-height:96px}
   .broadcast-board .board-right>.board-round .board-round-head>div{flex-direction:column;gap:0}
   .broadcast-board .board-right>.board-round .board-round-no{font-size:16px;line-height:1.2}
   .broadcast-board .board-right>.board-round h2{font-size:32px;line-height:1.05}
@@ -72,6 +79,7 @@
 }
 @media(min-width:1180px) and (min-height:620px) and (max-height:740px){
   .broadcast-board{--roster-avatar-size:34px;--current-avatar-size:92px;--rules-height:90px}
+  .broadcast-board .board-roster-list{padding-top:0;padding-bottom:0}
   .broadcast-board .board-roster-head{font-size:17px;padding:5px 8px}
   .broadcast-board .board-roster-name{font-size:18px}
   .broadcast-board .board-roster-player .board-category-icon{width:18px;height:18px;flex-basis:18px}
