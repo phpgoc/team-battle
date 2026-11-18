@@ -427,3 +427,9 @@ tr[hidden]{display:none}
 .board-ace-waiting{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;font-size:clamp(16px,1.3vw,24px)}
 .board-ace-waiting p{margin:0;line-height:1.6}
 .board-ace-waiting button{font-size:20px;padding:12px 28px}
+.background-edit{grid-template-columns:58px minmax(0,1fr)}
+.background-file-actions{display:flex;align-items:center;gap:10px;min-width:0}
+.background-file-actions input[type=file]{flex:1;width:0;min-width:0}
+.background-file-actions button{flex-shrink:0;width:auto}
+.background-edit .background-file-actions{grid-column:2/-1}
+@media(max-width:760px){.background-edit{grid-template-columns:48px minmax(0,1fr)}.background-edit .background-file-actions{grid-column:1/-1}.background-file-actions{gap:8px}}
