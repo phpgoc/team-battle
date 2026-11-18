@@ -81,6 +81,10 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 		return nil, err
 	}
 	event["teams"] = teams
+	directory, err := a.userDirectory()
+	if err != nil {
+		return nil, err
+	}
 	setup := []map[string]any{}
 	setupRows, err := a.db.Query(`SELECT user_id,fixed_team FROM event_setup_roster WHERE event_id=? ORDER BY position,user_id`, eventID)
 	if err != nil {
@@ -93,7 +97,8 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 			setupRows.Close()
 			return nil, err
 		}
-		setup = append(setup, map[string]any{"id": id, "fixed_team": side})
+		player := directory[id]
+		setup = append(setup, map[string]any{"id": id, "fixed_team": side, "username": player.Username, "display_name": player.DisplayName, "avatar_url": player.AvatarURL, "category_name": player.CategoryName, "category_icon": player.CategoryIcon, "selectable": player.Status == "active" && !player.IsDeleted && isNonSuperAdmin(player.Role)})
 	}
 	if err := setupRows.Err(); err != nil {
 		setupRows.Close()

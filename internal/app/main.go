@@ -16,7 +16,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-//go:embed web/index.html web/styles.css web/app.js web/i18n.js web/player-records.js web/setup-draw.js
+//go:embed web/index.html web/styles.css web/app.js web/i18n.js web/player-records.js web/setup-draw.js web/roster-editor.js web/roster-editor.css
 var webFS embed.FS
 
 const (

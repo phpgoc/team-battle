@@ -1,0 +1,39 @@
+/* 设置页只展示录入顺序和原始选择，不按实际队伍分栏。 */
+.roster-add{display:flex;align-items:flex-end;gap:12px;margin:20px 0 8px;max-width:680px}
+.roster-search{position:relative;flex:1;min-width:0;display:grid;gap:8px}
+.roster-search>input{width:100%;min-width:0}
+.roster-add>.primary{flex:none;min-width:88px;justify-content:center}
+.roster-suggestions{position:absolute;z-index:4;top:calc(100% + 6px);left:0;right:0;max-height:290px;overflow:auto;background:white;border:1px solid var(--line);border-radius:9px;box-shadow:0 12px 30px #14213d1a;padding:5px}
+.roster-suggestions[hidden],.roster-empty[hidden]{display:none}
+.roster-suggestions>button{display:block;width:100%;text-align:left;padding:10px;border-radius:6px;background:transparent;color:var(--ink)}
+.roster-suggestions>button:hover,.roster-suggestions>button[aria-selected=true]{background:#edf4fb}
+.roster-suggestions>.help{padding:8px 10px}
+.roster-suggestions .board-avatar,.roster-entry .board-avatar{width:38px;height:38px;flex-basis:38px;object-fit:cover}
+.roster-suggestions .board-category-icon,.roster-entry .board-category-icon{width:22px;height:22px;flex-basis:22px;object-fit:contain}
+.roster-feedback:empty{display:none}
+.roster-list-heading,.roster-entry{display:grid;grid-template-columns:minmax(0,1fr) 150px 60px;align-items:center;gap:18px}
+.roster-list-heading{font-size:11px;color:var(--muted);padding:18px 14px 10px;border-bottom:1px solid var(--line)}
+.roster-entries{list-style:none;padding:0;margin:0;counter-reset:roster}
+.roster-entry{padding:13px 14px;border-bottom:1px solid #edf1f5;counter-increment:roster}
+.roster-entry:last-child{border-bottom:0}
+.roster-entry-person{display:flex;align-items:center;gap:14px;min-width:0}
+.roster-entry-person:before{content:counter(roster,decimal-leading-zero);font-size:11px;color:#96a2b2;min-width:20px}
+.roster-entry-person>.person{flex:1;min-width:0}
+.roster-entry .person .board-category-icon{margin-left:2px}
+.roster-entry>select{width:100%;min-width:0}
+.roster-entry>[data-remove-player]{padding:9px 0;font-size:12px}
+[data-roster-editable=false] .roster-list-heading,[data-roster-editable=false] .roster-entry{grid-template-columns:minmax(0,1fr) 150px}
+.roster-empty{padding:12px 14px}
+.special-candidates>.candidate-grid{margin-top:16px}
+@media(max-width:620px){
+  .roster-list-heading,.roster-entry{grid-template-columns:minmax(0,1fr) 94px 32px;gap:8px;padding-left:0;padding-right:0}
+  [data-roster-editable=false] .roster-list-heading,[data-roster-editable=false] .roster-entry{grid-template-columns:minmax(0,1fr) 94px}
+  .roster-entry-person{gap:5px}
+  .roster-entry-person:before{display:none}
+  .roster-entry .person{gap:6px;flex-wrap:wrap}
+  .roster-entry .person>span:not(.board-avatar){flex:1;min-width:40px}
+  .roster-entry .person strong{font-size:12px}
+  .roster-entry .board-avatar{width:30px;height:30px;flex-basis:30px}
+  .roster-entry .person .board-category-icon{width:18px;height:18px;flex-basis:18px;margin-left:36px}
+  .roster-entry>select{padding-left:6px;padding-right:4px;font-size:12px}
+}

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const app = document.getElementById('app');
-  const state = { user: null, language: localStorage.getItem('tb_language') || 'zh', event: null, stream: null, operations: false, editor: null, roster: {}, users: [], page: 1, filters: {}, connection: '', drawTimer: null, drawToken: 0, draw: null };
+  const state = { user: null, language: localStorage.getItem('tb_language') || 'zh', event: null, stream: null, operations: false, editor: null, roster: {}, rosterOrder: [], users: [], page: 1, filters: {}, connection: '', drawTimer: null, drawToken: 0, draw: null };
   const langs = { zh: '中文', en: 'English', ko: '한국어' };
   const t = key => window.TB_I18N[state.language]?.[key] || window.TB_I18N.zh[key] || key;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -94,6 +94,7 @@
         else if (item.selected) { for (const option of el.options) option.selected = item.selected.includes(option.value); }
         else { el.value = item.value; el.checked = item.checked; }
       }
+      form.dispatchEvent(new Event('formrestored'));
     }
   }
   function bindCommon() {
@@ -216,37 +217,30 @@
     for (const kind of ['name', 'category', 'background']) $$(`[data-delete-${kind}]`).forEach(button => button.onclick = action(async () => { if (!confirm(t('deleteConfirm'))) return; const id = button.getAttribute('data-delete-' + kind); const path = kind === 'name' ? 'event-names' : kind === 'category' ? 'categories' : 'backgrounds'; await api('/api/site-settings/' + path + '/' + id, { method: 'DELETE' }); await siteSettingsPage(); }));
   }
 
-  function rosterMarkup(users, assignments, editable = true) {
-    const disabled = editable ? '' : ' disabled';
-    return `<section class="panel section-gap editor-section" id="event-roster"><div class="panel-head"><h2>${t('players')}</h2><span id="roster-count"></span></div><div class="panel-body"><p class="help">${t('rosterHint')}</p><div class="roster-tools"><input id="player-search" aria-label="${t('searchPlayers')}" placeholder="${t('searchPlayers')}"${disabled}><button type="button" class="outline" id="all-random"${disabled}>${t('allRandom')}</button></div><div class="roster-summary" id="roster-summary"></div><div class="roster-preview" id="roster-preview"></div><div class="roster-cards">${users.map(u => `<article class="roster-card" data-player-card="${u.id}" data-search="${esc((u.username + ' ' + u.display_name + ' ' + (u.category_name || '')).toLowerCase())}">${person(u)}<div class="team-switch">${['', 'R', 'A', 'B'].map(value => `<label><input type="radio" name="pick_${u.id}" value="${value}"${(assignments[u.id] || '') === value ? ' checked' : ''}${disabled}><span>${value === '' ? t('notSelected') : value === 'R' ? t('randomTeam') : t(value === 'A' ? 'teamA' : 'teamB')}</span></label>`).join('')}</div></article>`).join('') || `<div class="empty">${t('emptyPlayers')}</div>`}</div></div></section>`;
+  const rosterContext = () => ({ t, esc, person });
+  function rosterMarkup(users, assignments, editable = true, allowRandom = true) {
+    const entries = state.rosterOrder.filter(id => assignments[id]).map(id => [id, assignments[id]]);
+    return window.TBRosterEditor.markup({ ...rosterContext(), users, entries, editable, allowRandom });
   }
-  function rosterValue(form) { const formData = new FormData(form); const ids = [], fixed = {}; for (const user of state.users) { const pick = formData.get('pick_' + user.id); if (pick) { ids.push(user.id); if (pick !== 'R') fixed[user.id] = pick; } } return { player_ids: ids, fixed_assignments: fixed }; }
+  const rosterValue = form => window.TBRosterEditor.value(form);
   function bindRoster(form) {
-    const update = () => { const roster = rosterValue(form); state.roster = Object.fromEntries(roster.player_ids.map(id => [id, roster.fixed_assignments[id] || 'R'])); const count = team => Object.values(state.roster).filter(v => v === team).length; $('#roster-count').textContent = `${t('selected')} ${roster.player_ids.length} / 12`; $('#roster-summary').innerHTML = ['A', 'B', 'R'].map(team => `<span class="roster-total ${team.toLowerCase()}">${t(team === 'A' ? 'teamA' : team === 'B' ? 'teamB' : 'unassigned')} <b>${count(team)}</b></span>`).join(''); $$('[data-player-card]').forEach(card => { card.dataset.team = state.roster[card.dataset.playerCard] || ''; });
+    window.TBRosterEditor.bind($('#event-roster', form), { ...rosterContext(), users: state.users, onChange: () => {
+      const entries = $$('[data-roster-player]', form).map(row => [Number(row.dataset.rosterPlayer), $('select', row).value]);
+      state.roster = Object.fromEntries(entries);
+      state.rosterOrder = entries.map(([id]) => id);
       $$('[data-special-candidates]', form).forEach(container => {
         const selected = $$('input:checked', container).map(el => Number(el.value));
         container.innerHTML = specialCandidatesMarkup(selected);
       });
-      $('#roster-count').classList.toggle('danger', roster.player_ids.length > 12);
-      $('#roster-preview').innerHTML = ['A', 'B', 'R'].map(team => {
-        const players = state.users.filter(user => state.roster[user.id] === team);
-        return `<section class="roster-preview-team ${team.toLowerCase()}"><h3>${t(team === 'A' ? 'teamA' : team === 'B' ? 'teamB' : 'unassigned')}</h3><div>${players.map(user => `<span>${categoryIcon(user)}${esc(user.display_name)}</span>`).join('') || `<small>${t('noneSelected')}</small>`}</div></section>`;
-      }).join('');
       refreshSpecialCounts();
-    };
-    $$('[name^="pick_"]', form).forEach(el => el.addEventListener('change', update));
-    $('#player-search').oninput = event => { const text = event.target.value.trim().toLowerCase(); $$('[data-player-card]').forEach(card => card.hidden = !card.dataset.search.includes(text)); };
-    $('#all-random').onclick = () => { for (const user of state.users) if (state.roster[user.id]) $(`[name="pick_${user.id}"][value="R"]`, form).checked = true; update(); };
-    update();
+      form.dispatchEvent(new Event('rosterchange'));
+    } });
   }
   const defaultRules = () => ({ round1_mode: 'manual', kof_starter: 'random', no_repeat: true, random_draw_seconds: 5, ace_draw_seconds: 5, ace_most_wins: 20, ace_most_losses: 20, ace_specials: [] });
   function specialCandidatesMarkup(selected = []) {
-    const available = state.users.filter(u => state.roster[u.id]);
+    const available = state.rosterOrder.map(id => state.users.find(user => user.id === id)).filter(Boolean);
     if (!available.length) return `<p class="help">${t('selectPlayersFirst')}</p>`;
-    return ['A', 'B', 'R'].map(team => {
-      const users = available.filter(u => state.roster[u.id] === team);
-      return users.length ? `<div class="candidate-team"><h4>${t(team === 'A' ? 'teamA' : team === 'B' ? 'teamB' : 'unassigned')}</h4><div class="candidate-grid">${users.map(u => `<label class="candidate-card"><input type="checkbox" name="special_ids" value="${u.id}"${selected.includes(u.id) ? ' checked' : ''}><span class="candidate-person">${person(u)}</span></label>`).join('')}</div></div>` : '';
-    }).join('');
+    return `<div class="candidate-grid">${available.map(u => `<label class="candidate-card"><input type="checkbox" name="special_ids" value="${u.id}"${selected.includes(u.id) ? ' checked' : ''}><span class="candidate-person">${person(u)}</span></label>`).join('')}</div>`;
   }
   function specialMarkup(group = { player_ids: [], probability: 0 }) {
     return `<section class="special-rule"><div class="special-rule-head"><h3 data-special-title></h3><span data-special-count></span><button type="button" class="link danger" data-remove-special>${t('delete')}</button></div><div class="special-probability">${field('probability', input('special_probability', group.probability, 'number', 'min="0" max="100" required'))}<p class="help">${t('candidateHint')}</p></div><div class="special-candidates" data-special-candidates>${specialCandidatesMarkup(group.player_ids)}</div></section>`;
@@ -315,16 +309,26 @@
       mode === 'create' ? api('/api/users') : terminal(e) ? Promise.resolve({ users: e.teams.flatMap(team => team.players) }) : api('/api/events/' + e.id + '/eligible-users'),
       state.user.role === 'superadmin' ? api('/api/site-settings') : api('/api/settings/catalog')
     ]);
-    state.users = users.users.filter(u => u.role !== 'superadmin');
+    // 将已录入资料补入目录，停用账号也不能在查看或保存时悄悄消失。
+    const directory = new Map(users.users.filter(u => u.role !== 'superadmin').map(user => [user.id, user]));
+    for (const player of [...(e.teams || []).flatMap(team => team.players), ...(e.setup_roster || [])]) {
+      if (player.display_name && !directory.has(player.id)) directory.set(player.id, player);
+    }
+    state.users = [...directory.values()];
     const backgrounds = catalog.backgrounds || [];
-    if (!preserve || readonly) state.roster = hasGrouping(e) ? Object.fromEntries((e.teams || []).flatMap((team, i) => team.players.filter(p => p.active !== false).map(p => [p.id, i ? 'B' : 'A']))) : Object.fromEntries((e.setup_roster || []).map(p => [p.id, p.fixed_team || 'R']));
+    if (!preserve || readonly) {
+      // 设置页只还原录入意向；旧赛事未保存意向时，不用实际分队猜测原始选择。
+      const entries = e.setup_roster?.length ? e.setup_roster.map(p => [p.id, p.fixed_team || 'R']) : (e.teams || []).flatMap(team => team.players.filter(p => p.active !== false)).sort((a, b) => a.id - b.id).map(p => [p.id, '?']);
+      state.roster = Object.fromEntries(entries);
+      state.rosterOrder = entries.map(([id]) => id);
+    }
     const managerDefault = mode === 'create' || state.users.some(u => u.id === e.manager_id) ? 0 : e.manager_id;
     const managerField = state.user.role === 'superadmin' ? field('manager', '<select name="manager_id"><option value="' + managerDefault + '">' + t('managerDefault') + '</option>' + options(state.users, e.manager_id) + '</select>') : '';
     const createBackground = mode === 'create' ? field('background', `<select name="background_id">${backgroundOptions(backgrounds, e.background_id)}</select>`) : '';
     const basic = mode !== 'roster' ? '<section class="panel editor-section" id="event-basics"><div class="panel-head"><h2>' + t('basicInfo') + '</h2><span>' + t('requiredBasics') + '</span></div><div class="panel-body form-grid">' + field('name', '<input name="name" list="event-names" value="' + esc(e.name || '') + '" required><datalist id="event-names">' + (catalog.event_names || []).map(n => '<option value="' + esc(n.name) + '">').join('') + '</datalist>', true) + field('time', eventTimeInput(e.event_time || localTime())) + managerField + createBackground + field('description', '<textarea name="description" rows="2">' + esc(e.description || '') + '</textarea>', true) + '</div></section>' : '';
     const backgroundPanel = mode === 'create' || mode === 'roster' ? '' : eventBackgroundMarkup(e, backgrounds, manages(e) && !terminal(e));
     const settingsHint = readonly ? 'settingsLocked' : mode === 'create' ? 'requiredHint' : roundSetupEditable ? 'settingsResetHint' : 'roundSetupLocked';
-    const content = '<div class="page-head"><div><h1>' + t(mode === 'create' ? 'createEvent' : mode === 'roster' ? 'editRoster' : 'eventSettings') + '</h1><p class="subtitle">' + t(settingsHint) + '</p></div></div>' + (mode === 'roster' ? '' : editorJumps()) + '<form id="event-form"><fieldset class="event-settings-fields">' + basic + rosterMarkup(state.users, state.roster, mode === 'create' || mode === 'roster' || !hasGrouping(e)) + (mode === 'roster' ? '' : rulesMarkup(e, roundSetupEditable, aceSettingsEditable)) + '</fieldset>' + (mode === 'roster' ? '' : drawTimingMarkup(e, timingEditable)) + backgroundPanel + '<div class="event-editor-actions">' + (mode === 'create' ? '' : '<button type="button" class="outline" id="back-board">' + t('backToMatch') + '</button>') + (!terminal(e) ? '<button type="submit" class="primary accent">' + t(mode === 'create' ? 'createEvent' : 'save') + '</button>' : '') + '</div></form>';
+    const content = '<div class="page-head"><div><h1>' + t(mode === 'create' ? 'createEvent' : mode === 'roster' ? 'editRoster' : 'eventSettings') + '</h1><p class="subtitle">' + t(settingsHint) + '</p></div></div>' + (mode === 'roster' ? '' : editorJumps()) + '<form id="event-form"><fieldset class="event-settings-fields">' + basic + rosterMarkup(state.users, state.roster, roundSetupEditable) + (mode === 'roster' ? '' : rulesMarkup(e, roundSetupEditable, aceSettingsEditable)) + '</fieldset>' + (mode === 'roster' ? '' : drawTimingMarkup(e, timingEditable)) + backgroundPanel + '<div class="event-editor-actions">' + (mode === 'create' ? '' : '<button type="button" class="outline" id="back-board">' + t('backToMatch') + '</button>') + (!terminal(e) ? '<button type="submit" class="primary accent">' + t(mode === 'create' ? 'createEvent' : 'save') + '</button>' : '') + '</div></form>';
     if (mode === 'create') shell(content, 'createEvent'); else {
       app.innerHTML = '<main class="event-editor-page"><div class="editor-language">' + picker() + '</div>' + content + '</main>';
       bindCommon(); $('#back-board').onclick = () => go(hasRoster(state.event) ? '/live/' + state.event.id : '/');
@@ -628,13 +632,14 @@
     if (setting) state.editor = 'settings';
     if (state.editor) await eventEditor(state.editor, preserve); else boardPage();
     if (terminal(state.event)) { closeStream(); return; }
+    if (!hasRoster(state.event)) return;
     if (state.stream) return;
     const stream = new EventSource('/api/public/events/' + id + '/stream'); state.stream = stream;
     stream.onopen = () => { state.connection = 'connected'; if ($('#connection-state')) $('#connection-state').textContent = t('connected'); };
     stream.onerror = () => { state.connection = 'reconnecting'; if ($('#connection-state')) $('#connection-state').textContent = t('reconnecting'); };
     stream.onmessage = message => {
       const data = JSON.parse(message.data); const previous = state.event; const changed = JSON.stringify(state.event) !== JSON.stringify(data); const variantChanged = boardVariant(state.event) !== boardVariant(data); const settingsLocked = canEditSettings(state.event) && !canEditSettings(data); state.event = data;
-      if (state.editor && settingsLocked) { eventEditor(state.editor).catch(error => toast(error.message)); }
+      if (state.editor && (settingsLocked || (!hasGrouping(previous) && hasGrouping(data)))) { eventEditor(state.editor).catch(error => toast(error.message)); }
       if (variantChanged && !state.editor) { boardPage(); }
       if (changed && !state.editor) applyEventBackground(data);
       if (changed && state.editor) {
@@ -650,14 +655,18 @@
   function bindPastMatchRemoval() { $$('[data-remove-match]').forEach(button => button.onclick = () => button.closest('.past-match').remove()); }
   async function archivePage(preserve = false) {
     const [directory, backgrounds] = await Promise.all([api('/api/users'), api('/api/backgrounds')]);
-    state.users = directory.users.filter(u => u.role !== 'superadmin'); if (!preserve) state.roster = {};
-    shell(`<div class="page-head"><div><h1>${t('archive')}</h1><p class="subtitle">${t('pastHint')}</p></div></div><form id="archive-form"><section class="panel"><div class="panel-body form-grid">${field('name', input('name', '', 'text', 'required'), true)}${field('time', eventTimeInput())}${field('background', `<select name="background_id">${backgroundOptions(backgrounds.backgrounds || [])}</select>`)}${field('aceSource', `<select name="ace_source"><option value="random">${t('random')}</option><option value="most_wins">${t('sourceMostWins')}</option><option value="most_losses">${t('sourceMostLosses')}</option><option value="special:0">${t('specialMatchGroup')}1</option><option value="special:1">${t('specialMatchGroup')}2</option></select>`)}</div></section>${rosterMarkup(state.users, state.roster)}<section class="panel section-gap"><div class="panel-head"><h2>${t('results')}</h2></div><div class="panel-body"><div id="past-matches">${pastMatchRow()}</div><button type="button" class="outline" id="add-match">${t('addMatch')}</button></div></section><div class="form-footer"><button class="primary accent">${t('pastSave')}</button></div></form>`, 'archive');
+    state.users = directory.users.filter(u => u.role !== 'superadmin'); if (!preserve) { state.roster = {}; state.rosterOrder = []; }
+    shell(`<div class="page-head"><div><h1>${t('archive')}</h1><p class="subtitle">${t('pastHint')}</p></div></div><form id="archive-form"><section class="panel"><div class="panel-body form-grid">${field('name', input('name', '', 'text', 'required'), true)}${field('time', eventTimeInput())}${field('background', `<select name="background_id">${backgroundOptions(backgrounds.backgrounds || [])}</select>`)}${field('aceSource', `<select name="ace_source"><option value="random">${t('random')}</option><option value="most_wins">${t('sourceMostWins')}</option><option value="most_losses">${t('sourceMostLosses')}</option><option value="special:0">${t('specialMatchGroup')}1</option><option value="special:1">${t('specialMatchGroup')}2</option></select>`)}</div></section>${rosterMarkup(state.users, state.roster, true, false)}<section class="panel section-gap"><div class="panel-head"><h2>${t('results')}</h2></div><div class="panel-body"><div id="past-matches">${pastMatchRow()}</div><button type="button" class="outline" id="add-match">${t('addMatch')}</button></div></section><div class="form-footer"><button class="primary accent">${t('pastSave')}</button></div></form>`, 'archive');
     bindRoster($('#archive-form'));
-    // 过去赛事直接指定两队，避免历史对局被重新随机分配。
-    $$('[name^="pick_"][value="R"]').forEach(el => el.closest('label').remove()); $('#all-random').remove();
     bindPastMatchRemoval();
     $('#add-match').onclick = () => { $('#past-matches').insertAdjacentHTML('beforeend', pastMatchRow()); bindPastMatchRemoval(); };
-    $$('[name^="pick_"]').forEach(el => el.addEventListener('change', () => { for (const side of ['a', 'b']) $$(`[name="past_${side}"]`).forEach(select => { const chosen = select.value; select.innerHTML = options(state.users.filter(u => state.roster[u.id] === side.toUpperCase()), chosen); }); }));
+    $('#archive-form').addEventListener('rosterchange', () => {
+      for (const side of ['a', 'b']) $$(`[name="past_${side}"]`).forEach(select => {
+        const chosen = select.value;
+        select.innerHTML = options(state.users.filter(u => state.roster[u.id] === side.toUpperCase()), chosen);
+        select.value = chosen;
+      });
+    });
     $('#archive-form').onsubmit = action(async event => { event.preventDefault(); const f = new FormData(event.target); const matches = $$('.past-match').map(row => ({ round: Number($('[name="past_round"]', row).value), a_id: Number($('[name="past_a"]', row).value), b_id: Number($('[name="past_b"]', row).value), who_win: $('[name="past_winner"]', row).value })); if (!confirm(t('confirmEndHint'))) return; const result = await post('/api/events/archive', { name: f.get('name'), event_time: eventTimeValue(f), background_id: Number(f.get('background_id') || 0), ace_source: f.get('ace_source'), ...rosterValue(event.target), matches }); go('/live/' + result.id); });
   }
   async function renderRoute(preserve = false) {
@@ -691,6 +700,17 @@
   setInterval(checkSession, 10000);
   window.addEventListener('focus', checkSession);
   document.addEventListener('visibilitychange', checkSession);
+  // 分队前公开SSE尚不可连接，轮询检查其他管理端是否已抽签，及时锁定录入控件。
+  let checkingGrouping = false;
+  setInterval(async () => {
+    if (checkingGrouping || document.hidden || !state.editor || !state.event || hasRoster(state.event) || terminal(state.event)) return;
+    const id = state.event.id, token = state.drawToken;
+    checkingGrouping = true;
+    try {
+      const event = await api('/api/public/events/' + id);
+      if (state.drawToken === token && state.event?.id === id && state.editor && hasRoster(event)) await openEvent(id, false, true);
+    } catch (_) {} finally { checkingGrouping = false; }
+  }, 3000);
   // 预报名不进入公开推送，操作面板单独刷新本队报名状态。
   let pollingKOF = false;
   setInterval(async () => {

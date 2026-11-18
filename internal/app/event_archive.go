@@ -104,6 +104,10 @@ func (a *App) archiveEvent(c *gin.Context) {
 		team, _ := result.LastInsertId()
 		teams = append(teams, team)
 	}
+	if err := saveSetupRoster(tx, id, req.PlayerIDs, req.FixedAssignments); err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
 	if err := assignPlayers(tx, id, teams[0], teams[1], req.PlayerIDs, req.FixedAssignments, a.rng); err != nil {
 		fail(c, 400, err.Error())
 		return
