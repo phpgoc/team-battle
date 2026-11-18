@@ -7,7 +7,7 @@ import (
 )
 
 func TestAccountAllProfileFieldsShareCooldown(t *testing.T) {
-	for _, actor := range []int{1, 2} {
+	for _, actor := range []int{2} {
 		for _, field := range []string{"username", "display_name", "category_id", "avatar"} {
 			t.Run(fmt.Sprintf("账号%d先修改%s", actor, field), func(t *testing.T) {
 				f := newWorkflowFixture(t)
@@ -35,10 +35,6 @@ func TestAccountAllProfileFieldsShareCooldown(t *testing.T) {
 					f.request(t, actor, "PATCH", "/api/auth/profile", change, 400)
 				}
 				f.accountForm(t, actor, "POST", "/api/auth/avatar", nil, true, 400)
-				// 超级管理员不能通过账号管理中的本人入口绕过冷却。
-				if actor == 1 {
-					f.request(t, 1, "PATCH", "/api/users/1", map[string]any{"display_name": "绕过限制"}, 400)
-				}
 				f.request(t, actor, "PATCH", "/api/auth/profile", map[string]any{"username": before.Username, "display_name": before.DisplayName, "category_id": before.CategoryID, "new_password": "new-password", "new_password_confirm": "new-password"}, 200)
 				after, err := f.app.userByID(int64(actor))
 				if err != nil || before != after {

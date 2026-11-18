@@ -1,5 +1,6 @@
 window.TB_I18N = {
   "zh": {
+    "profileTournamentLocked": "参加的赛事尚未关闭，暂不能修改个人资料，密码仍可修改。",
     "kofRevivalNoRepeat": "KOF复活不重复",
     "kofRevivalNoRepeatHint": "每人复活一次后，再从全队开始下一轮随机复活。",
     "aceRuleStep": "抽中规则",

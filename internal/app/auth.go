@@ -79,7 +79,15 @@ func (a *App) me(c *gin.Context) {
 		fail(c, http.StatusUnauthorized, "未登录")
 		return
 	}
-	ok(c, gin.H{"user": user})
+	blocked := false
+	if user.Role != roleSuperAdmin {
+		blocked, err = hasOpenParticipation(a.db, user.ID)
+		if err != nil {
+			fail(c, 500, "检查参赛状态失败")
+			return
+		}
+	}
+	ok(c, gin.H{"user": user, "profile_edit_blocked": blocked})
 }
 
 func (a *App) updateProfile(c *gin.Context) {

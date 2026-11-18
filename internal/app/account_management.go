@@ -1,6 +1,6 @@
 package app
 
-// 账号资料统一保存；本人除密码外的资料共享七天冷却，管理员代改他人资料不占用本人次数。
+// 普通账号本人资料共享七天冷却，超管修改资料不受限制。
 import (
 	"errors"
 	"io"
@@ -27,6 +27,13 @@ func profileChangeAllowed(changedAt string, now time.Time) bool {
 	}
 	last, err := time.Parse(time.RFC3339Nano, changedAt)
 	return err == nil && !now.Before(last.Add(profileChangeInterval))
+}
+
+// 待分组名单也属于参赛意向，赛事确认结束或取消后才解除资料锁定。
+func hasOpenParticipation(db sqlRunner, userID int64) (bool, error) {
+	var exists bool
+	err := db.QueryRow(`SELECT EXISTS(SELECT 1 FROM tournaments t WHERE t.status NOT IN ('completed','cancelled') AND (EXISTS(SELECT 1 FROM tournament_players p WHERE p.tournament_id=t.id AND p.user_id=? AND p.active=1) OR EXISTS(SELECT 1 FROM tournament_setup_roster s WHERE s.tournament_id=t.id AND s.user_id=?)))`, userID, userID).Scan(&exists)
+	return exists, err
 }
 
 func readAvatarUpload(c *gin.Context, required bool) (*avatarUpload, error) {
@@ -193,7 +200,7 @@ func (a *App) saveAccountChange(c *gin.Context, actor, target User, req profileR
 	profileChanged := username != target.Username || displayName != target.DisplayName || role != target.Role || category != target.CategoryID || avatar != nil
 	profileChangedAt := target.ProfileChangedAt
 	nameChangedAt, avatarChangedAt := target.DisplayNameChangedAt, target.AvatarChangedAt
-	if self && profileChanged {
+	if self && profileChanged && actor.Role != roleSuperAdmin {
 		if !profileChangeAllowed(profileChangedAt, now) {
 			fail(c, 400, "个人资料共享7天修改冷却，密码不受限制")
 			return
@@ -239,6 +246,17 @@ func (a *App) saveAccountChange(c *gin.Context, actor, target User, req profileR
 		return
 	}
 	defer tx.Rollback()
+	if self && profileChanged && actor.Role != roleSuperAdmin {
+		blocked, err := hasOpenParticipation(tx, target.ID)
+		if err != nil {
+			fail(c, 500, "检查参赛状态失败")
+			return
+		}
+		if blocked {
+			fail(c, 403, "参加的赛事尚未关闭，暂不能修改个人资料，密码不受限制")
+			return
+		}
+	}
 	_, err = tx.Exec(`UPDATE users SET username=?,display_name=?,role=?,category_id=?,display_name_changed_at=?,avatar_changed_at=?,profile_changed_at=? WHERE id=? AND is_deleted=0`, username, displayName, role, nullableInt64(category), nameChangedAt, avatarChangedAt, profileChangedAt, target.ID)
 	if err == nil && len(hash) > 0 {
 		_, err = tx.Exec(`UPDATE users SET password_hash=? WHERE id=?`, string(hash), target.ID)

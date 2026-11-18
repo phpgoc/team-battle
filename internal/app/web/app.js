@@ -158,12 +158,13 @@
     return limited && next && next > new Date() ? next : null;
   }
   function profileFields(user, categories, managed = false, creating = false) {
-    const limited = !creating && user.id === state.user.id;
+    const limited = !creating && user.id === state.user.id && state.user.role !== 'superadmin';
     const next = profileLimit(user.profile_changed_at, limited);
-    const disabled = next ? ' disabled' : '';
+    const blocked = limited && state.profileEditBlocked;
+    const disabled = next || blocked ? ' disabled' : '';
     const editableLogin = creating || user.id === state.user.id;
     const dateText = date => new Intl.DateTimeFormat({ zh: 'zh-CN', en: 'en-GB', ko: 'ko-KR' }[state.language], { dateStyle: 'medium', timeStyle: 'short' }).format(date);
-    const limitHint = limited ? '<p class="notice full">' + t('profileWeekly') + (next ? ' ' + t('availableOn') + ' ' + esc(dateText(next)) : '') + '</p>' : '';
+    const limitHint = limited ? '<p class="notice full">' + t(blocked ? 'profileTournamentLocked' : 'profileWeekly') + (next ? ' ' + t('availableOn') + ' ' + esc(dateText(next)) : '') + '</p>' : '';
     const section = (title, contents) => `<fieldset class="profile-section full"><legend>${t(title)}</legend><div class="form-grid">${contents}</div></fieldset>`;
     const identity = field('avatar', `<div class="avatar-upload"><div id="avatar-preview">${user.avatar_url ? `<img class="account-avatar-preview" src="${esc(user.avatar_url)}" alt="">` : `<span class="account-avatar-empty">${t('noAvatar')}</span>`}</div><div><input type="file" name="avatar" accept="image/jpeg,image/png,image/gif,image/webp" aria-label="${t('avatar')}"${disabled}><p class="help">${t('imageHint')}</p></div></div>`, true)
       + field('displayName', input('display_name', user.display_name || '', 'text', (creating ? '' : 'required') + disabled), true);
@@ -199,6 +200,7 @@
   async function accountPage() {
     const [catalog, current] = await Promise.all([api('/api/settings/catalog'), api('/api/auth/me')]);
     state.user = current.user;
+    state.profileEditBlocked = current.profile_edit_blocked;
     shell(`<div class="page-head"><h1>${t('settings')}</h1><button type="button" class="outline" data-player-record="${state.user.id}">${t('myRecords')}</button></div><section class="panel"><form id="account-form" class="panel-body form-grid">${profileFields(state.user, catalog.categories)}<button type="submit" class="primary accent">${t('save')}</button></form></section>`, 'settings');
     bindProfileForm($('#account-form'), '/api/auth/profile', 'PATCH', async result => { state.user = result.user; await accountPage(); toast(t('saved')); });
   }

@@ -60,7 +60,7 @@ func TestAccountUsernameOwnership(t *testing.T) {
 	f.request(t, 0, "POST", "/api/auth/login", map[string]any{"username": "user2", "password": "new-pass"}, 401)
 	f.request(t, 0, "POST", "/api/auth/login", map[string]any{"username": "renamed", "password": "new-pass"}, 200)
 	f.request(t, 1, "PATCH", "/api/auth/profile", map[string]any{"username": "renamed-admin"}, 200)
-	f.request(t, 1, "PATCH", "/api/users/1", map[string]any{"username": "admin-again"}, 400)
+	f.request(t, 1, "PATCH", "/api/users/1", map[string]any{"username": "admin-again"}, 200)
 	f.request(t, 2, "PATCH", "/api/auth/profile", map[string]any{"role": "superadmin"}, 403)
 	f.assertCount(t, 1, "SELECT COUNT(*) FROM users WHERE id=2 AND role='user'")
 	var listed struct {
@@ -69,7 +69,7 @@ func TestAccountUsernameOwnership(t *testing.T) {
 	if err := json.Unmarshal(f.request(t, 1, "GET", "/api/users", nil, 200), &listed); err != nil {
 		t.Fatal(err)
 	}
-	if listed.Users[0].Username != "renamed-admin" || listed.Users[1].Username != "renamed" {
+	if listed.Users[0].Username != "admin-again" || listed.Users[1].Username != "renamed" {
 		t.Fatal("账号目录未更新登录名")
 	}
 }
@@ -89,11 +89,7 @@ func TestAccountWeeklyChangesAndAtomicSave(t *testing.T) {
 	// 管理员可以连续代改资料、头像和密码，不能更改他人的登录名。
 	for i := 0; i < 2; i++ {
 		f.accountForm(t, 1, "PATCH", "/api/users/2", map[string]string{"display_name": fmt.Sprint("管理员修改", i), "new_password": "admin-pass", "new_password_confirm": "admin-pass", "category_id": "0"}, true, 200)
-		want := 200
-		if i > 0 {
-			want = 400
-		}
-		f.accountForm(t, 1, "PATCH", "/api/auth/profile", map[string]string{"display_name": fmt.Sprint("管理自己", i)}, true, want)
+		f.accountForm(t, 1, "PATCH", "/api/auth/profile", map[string]string{"display_name": fmt.Sprint("管理自己", i)}, true, 200)
 	}
 	f.request(t, 0, "POST", "/api/auth/login", map[string]any{"username": "new-user", "password": "admin-pass"}, 200)
 	old := time.Now().UTC().Add(-profileChangeInterval - time.Second).Format(time.RFC3339Nano)
