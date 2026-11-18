@@ -456,7 +456,7 @@
     const score = `<div class="board-score"><div><span>${t('teamA')}</span><strong>${rounds.filter(round => round.winner_team_id === teams[0].id).length}</strong></div><b>VS</b><div><span>${t('teamB')}</span><strong>${rounds.filter(round => round.winner_team_id === teams[1].id).length}</strong></div></div>`;
     return `<header class="board-top${pending ? ' has-current' : ''}">
       <div class="board-overview"><div class="board-title"><span class="board-live-mark">TEAM BATTLE</span><h1>${esc(e.name)}</h1><p><time>${esc(displayTime(e.event_time))}</time><span class="board-manager">${t('manager')}: <b>${esc(e.manager_name || '')}</b></span></p></div>
-        <div class="board-overview-bottom">${score}<div class="board-heading-actions"><span class="board-status">${t(e.status)}</span>${canArrangeLineup(e) ? '<button class="board-settings-button" id="board-lineup">' + t('round1Lineup') + '</button>' : ''}${manages(e) && !terminal(e) ? `<button class="board-settings-button" id="board-settings">${t('eventSettings')}</button>` : ''}</div></div>
+        <div class="board-overview-bottom">${score}<span class="board-status">${t(e.status)}</span></div>
       </div>${pending ? currentMatchMarkup(e, pending, people) : ''}
     </header><div class="board-arena"><div class="board-center"><div class="board-records"><div class="board-columns"><div class="board-left">${panel('round1')}${panel('round2')}</div><div class="board-right">${panel('ace')}<div class="board-rosters">${e.status === 'round2' && canOperate(e) && !setup ? '<div id="board-kof-controls"></div>' : ''}${roster(teams[0], 'a')}${roster(teams[1], 'b')}</div></div></div>${rulesSummary(e)}</div></div></div>`;
   }
@@ -484,6 +484,20 @@
   function canOperate(e) { return boardVariant(e) !== 'spectator'; }
   function bindBoardSettings() {
     $('#roster-actions')?.close();
+    const e = state.event, manager = editable(e), toolbar = $('.board-toolbar');
+    // 所有看板入口共用一行；管理员最右侧三横线直接打开比赛操作。
+    $('.board-event-actions', toolbar).innerHTML = `${canArrangeLineup(e) ? `<button type="button" class="board-settings-button" id="board-lineup">${t('round1Lineup')}</button>` : ''}${manager ? `<button type="button" class="board-settings-button" id="board-settings">${t('eventSettings')}</button>` : ''}`;
+    $('.board-operator-action', toolbar).innerHTML = manager ? `<button type="button" class="board-icon-button" id="toggle-operations" aria-label="${t('eventControls')}" title="${t('eventControls')}" aria-controls="event-operations" aria-expanded="${state.operations}">☰</button>` : '';
+    $('.board-menu summary', toolbar).textContent = manager ? '⚙' : '☰';
+    $('#toggle-operations')?.addEventListener('click', () => {
+      if (state.setupDraw) return;
+      $('.board-menu').open = false;
+      state.operations = !state.operations;
+      $('#toggle-operations').setAttribute('aria-expanded', String(state.operations));
+      $('#event-operations').classList.toggle('hidden', !state.operations);
+      if (state.operations) { renderOperations(); $('#event-operations').focus({ preventScroll: true }); }
+    });
+    if (!manager) { state.operations = false; $('#event-operations').classList.add('hidden'); }
     $('#board-settings')?.addEventListener('click', () => go('/live/' + state.event.id + '/setting'));
     $('#board-lineup')?.addEventListener('click', () => go('/live/' + state.event.id + '/lineup'));
     if (!state.setupDraw) window.TBKOFBoard.bindRows({ root: $('#board-content'), event: state.event, user: state.user, manager: manages(state.event), t, action, onVote: voteForCaptain, onCaptain: assignCaptain });
@@ -527,8 +541,8 @@
   function boardPage() {
     const e = state.event;
     if (!manages(e)) state.operations = false;
-    app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div id="board-content">${boardContent(e)}</div><div id="event-operations" tabindex="-1" class="event-operations${state.operations ? '' : ' hidden'}"></div><div class="board-toolbar">${manages(e) && !terminal(e) ? `<button class="board-settings-button" id="toggle-operations">${t('eventControls')}</button>` : ''}<details class="board-menu"><summary aria-label="${t('displaySettings')}">☰</summary><div>${picker()}<fieldset class="board-contrast-setting"><legend>${t('contrastSettings')}</legend><label for="board-transparency">${t('panelTransparency')}<output id="board-transparency-value" for="board-transparency">${state.boardTransparency}%</output></label><input id="board-transparency" type="range" min="0" max="100" step="1" value="${state.boardTransparency}"></fieldset><button data-go="/">${t('homeLink')}</button>${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></div></main>`;
-    applyEventBackground(e); bindBoardTransparency(); bindCommon(); bindBoardSettings(); $('#toggle-operations')?.addEventListener('click', () => { if (state.setupDraw) return; state.operations = !state.operations; $('#event-operations').classList.toggle('hidden', !state.operations); if (state.operations) { renderOperations(); $('#event-operations').focus({ preventScroll: true }); } });
+    app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div class="board-toolbar"><div class="board-toolbar-actions board-event-actions"></div><details class="board-menu"><summary aria-label="${t('displaySettings')}" title="${t('displaySettings')}">☰</summary><div>${picker()}<fieldset class="board-contrast-setting"><legend>${t('contrastSettings')}</legend><label for="board-transparency">${t('panelTransparency')}<output id="board-transparency-value" for="board-transparency">${state.boardTransparency}%</output></label><input id="board-transparency" type="range" min="0" max="100" step="1" value="${state.boardTransparency}"></fieldset><button data-go="/">${t('homeLink')}</button>${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details><div class="board-toolbar-actions board-operator-action"></div></div><div id="board-content">${boardContent(e)}</div><div id="event-operations" tabindex="-1" class="event-operations${state.operations ? '' : ' hidden'}"></div></main>`;
+    applyEventBackground(e); bindBoardTransparency(); bindCommon(); bindBoardSettings();
     if (state.operations) renderOperations();
   }
   function currentPending(event) {
@@ -633,7 +647,7 @@
     if (manager && e.status === 'final_confirm') content += `<section class="panel section-gap"><div class="panel-body"><p>${t('confirmEndHint')}</p><button class="primary accent" id="confirm-end">${t('confirmEnd')}</button></div></section>`;
     if (manager && e.matches.some(m => m.status === 'finished')) content += `<section class="panel section-gap"><div class="panel-head"><h2>${t('correct')}</h2></div><form id="correct-form" class="panel-body form-grid"><p class="notice full">${t('correctHint')}</p>${field('matchNo', `<select name="match_id">${e.matches.filter(m => m.status === 'finished').map(m => `<option value="${m.id}">${t(m.stage)} #${m.seq} · ${esc(m.player_a_name)} / ${esc(m.player_b_name)}</option>`).join('')}</select>`)}${field('winner', `<select name="winner_team_id">${e.teams.map(team => `<option value="${team.id}">${esc(teamName(e, team))}</option>`).join('')}</select>`)}<button class="outline">${t('correct')}</button></form></section>`;
     target.innerHTML = content;
-    $('#close-operations')?.addEventListener('click', () => { state.operations = false; $('#event-operations').classList.add('hidden'); });
+    $('#close-operations')?.addEventListener('click', () => { state.operations = false; $('#event-operations').classList.add('hidden'); $('#toggle-operations')?.setAttribute('aria-expanded', 'false'); });
     $('#operations-lineup')?.addEventListener('click', event => { event.preventDefault(); go('/live/' + e.id + '/lineup'); });
     $('#start-event')?.addEventListener('click', action(() => eventAction('/start')));
     $$('[data-winner]').forEach(button => button.onclick = action(() => eventAction('/matches/' + button.dataset.match + '/result', { winner_team_id: Number(button.dataset.winner) })));
