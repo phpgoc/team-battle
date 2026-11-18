@@ -51,13 +51,39 @@ func (a *App) updateEventSettings(c *gin.Context) {
 		return
 	}
 	err := a.runMatchMutation(eventID, actor.ID, func(e *matchEngine) error {
-		if err := requireEditableSettings(e.db, eventID); err != nil {
-			return err
-		}
 		tx := e.db.(*sql.Tx)
 		beforeRules, err := e.rules()
 		if err != nil {
 			return err
+		}
+		// 所有设置共用一个事务，进行中仅接受抽签时长和赛事背景。
+		if req.BackgroundID != nil {
+			valid, err := backgroundExists(tx, *req.BackgroundID)
+			if err != nil || *req.BackgroundID < 0 || !valid {
+				return errors.New("背景不存在")
+			}
+			if _, err := tx.Exec(`UPDATE events SET background_id=? WHERE id=?`, nullableInt64(*req.BackgroundID), eventID); err != nil {
+				return err
+			}
+		}
+		if err := requireEditableSettings(e.db, eventID); err != nil {
+			if req.Name != "" || req.EventTime != "" || req.Description != "" || req.ManagerID != nil || req.PlayerIDs != nil || req.Rules != nil || req.Round1Target != 0 || req.Round2Target != 0 {
+				return err
+			}
+			rules := beforeRules
+			if req.RandomDrawSeconds != nil {
+				rules.RandomDrawSeconds = *req.RandomDrawSeconds
+			}
+			if req.AceDrawSeconds != nil {
+				rules.AceDrawSeconds = *req.AceDrawSeconds
+			}
+			if err := rules.validate(); err != nil {
+				return err
+			}
+			if err := saveRules(tx, eventID, rules); err != nil {
+				return err
+			}
+			return e.log("event_settings_updated", req)
 		}
 		var beforeRound1Target, beforeRound2Target int
 		if err := tx.QueryRow(`SELECT round1_target,round2_target FROM events WHERE id=?`, eventID).Scan(&beforeRound1Target, &beforeRound2Target); err != nil {
@@ -70,6 +96,12 @@ func (a *App) updateEventSettings(c *gin.Context) {
 		rules := beforeRules
 		if req.Rules != nil {
 			rules = *req.Rules
+		}
+		if req.RandomDrawSeconds != nil {
+			rules.RandomDrawSeconds = *req.RandomDrawSeconds
+		}
+		if req.AceDrawSeconds != nil {
+			rules.AceDrawSeconds = *req.AceDrawSeconds
 		}
 		if err := rules.validate(); err != nil {
 			return err

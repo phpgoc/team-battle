@@ -289,9 +289,9 @@
     form.addEventListener('change', refresh);
     refresh();
   }
-  function drawTimingMarkup(e, editableTiming, separateSave) {
+  function drawTimingMarkup(e, editableTiming) {
     const rules = { ...defaultRules(), ...e.rules };
-    return `<section class="panel section-gap draw-timing-panel editor-section" id="event-timing"><div class="panel-head"><h2>${t('drawTiming')}</h2><span>${t('drawTimingMutable')}</span></div><div class="panel-body form-grid">${field('randomDrawSeconds', input('random_draw_seconds', rules.random_draw_seconds, 'number', 'min="0" step="1" required' + (editableTiming ? '' : ' disabled')))}${field('aceDrawSeconds', input('ace_draw_seconds', rules.ace_draw_seconds, 'number', 'min="0" step="1" required' + (editableTiming ? '' : ' disabled')))}<p class="help full">${t('drawTimingHint')}</p>${separateSave ? '<button type="button" class="primary accent" id="save-draw-settings">' + t('save') + '</button>' : ''}</div></section>`;
+    return `<section class="panel section-gap draw-timing-panel editor-section" id="event-timing"><div class="panel-head"><h2>${t('drawTiming')}</h2><span>${t('drawTimingMutable')}</span></div><div class="panel-body form-grid">${field('randomDrawSeconds', input('random_draw_seconds', rules.random_draw_seconds, 'number', 'min="0" step="1" required' + (editableTiming ? '' : ' disabled')))}${field('aceDrawSeconds', input('ace_draw_seconds', rules.ace_draw_seconds, 'number', 'min="0" step="1" required' + (editableTiming ? '' : ' disabled')))}<p class="help full">${t('drawTimingHint')}</p></div></section>`;
   }
   function editorJumps() {
     const sections = [['basics', 'basicInfo'], ['roster', 'players'], ['round1', 'round1'], ['round2', 'round2'], ['ace', 'ace'], ['timing', 'drawTiming']];
@@ -301,7 +301,7 @@
     return `<option value="0"${Number(selected) ? '' : ' selected'}>${t('noBackground')}</option>` + backgrounds.map(background => `<option value="${background.id}"${Number(background.id) === Number(selected) ? ' selected' : ''}>${esc(background.name)}</option>`).join('');
   }
   function eventBackgroundMarkup(e, backgrounds, editable) {
-    return `<section class="panel section-gap event-background-panel"><div class="panel-head"><h2>${t('background')}</h2><span>${esc(e.background_name || t('noBackground'))}</span></div><div class="panel-body"><form id="event-background-form" class="inline-form"><select name="background_id"${editable ? '' : ' disabled'}>${backgroundOptions(backgrounds, e.background_id)}</select>${editable ? `<button class="primary accent">${t('save')}</button>` : ''}</form><p class="help">${t('eventBackgroundHint')}</p></div></section>`;
+    return `<section class="panel section-gap event-background-panel"><div class="panel-head"><h2>${t('background')}</h2><span>${esc(e.background_name || t('noBackground'))}</span></div><div class="panel-body"><div class="inline-form"><select name="background_id"${editable ? '' : ' disabled'}>${backgroundOptions(backgrounds, e.background_id)}</select></div><p class="help">${t('eventBackgroundHint')}</p></div></section>`;
   }
   async function eventEditor(mode = 'create', preserve = false) {
     const source = mode === 'create' ? {} : state.event;
@@ -324,7 +324,7 @@
     const basic = mode !== 'roster' ? '<section class="panel editor-section" id="event-basics"><div class="panel-head"><h2>' + t('basicInfo') + '</h2><span>' + t('requiredBasics') + '</span></div><div class="panel-body form-grid">' + field('name', '<input name="name" list="event-names" value="' + esc(e.name || '') + '" required><datalist id="event-names">' + (catalog.event_names || []).map(n => '<option value="' + esc(n.name) + '">').join('') + '</datalist>', true) + field('time', eventTimeInput(e.event_time || localTime())) + managerField + createBackground + field('description', '<textarea name="description" rows="2">' + esc(e.description || '') + '</textarea>', true) + '</div></section>' : '';
     const backgroundPanel = mode === 'create' || mode === 'roster' ? '' : eventBackgroundMarkup(e, backgrounds, manages(e) && !terminal(e));
     const settingsHint = readonly ? 'settingsLocked' : mode === 'create' ? 'requiredHint' : roundSetupEditable ? 'settingsResetHint' : 'roundSetupLocked';
-    const content = '<div class="page-head"><div><h1>' + t(mode === 'create' ? 'createEvent' : mode === 'roster' ? 'editRoster' : 'eventSettings') + '</h1><p class="subtitle">' + t(settingsHint) + '</p></div>' + (mode === 'create' ? '' : '<button class="outline" id="back-board">' + t('close') + '</button>') + '</div>' + (mode === 'roster' ? '' : editorJumps()) + '<form id="event-form"><fieldset class="event-settings-fields">' + basic + rosterMarkup(state.users, state.roster, mode === 'create' || mode === 'roster' || !hasGrouping(e)) + (mode === 'roster' ? '' : rulesMarkup(e, roundSetupEditable, aceSettingsEditable)) + '</fieldset>' + (mode === 'roster' ? '' : drawTimingMarkup(e, timingEditable, readonly && timingEditable)) + (readonly ? '' : '<div class="form-footer"><button class="primary accent">' + t(mode === 'create' ? 'createEvent' : 'save') + '</button></div>') + '</form>' + backgroundPanel;
+    const content = '<div class="page-head"><div><h1>' + t(mode === 'create' ? 'createEvent' : mode === 'roster' ? 'editRoster' : 'eventSettings') + '</h1><p class="subtitle">' + t(settingsHint) + '</p></div></div>' + (mode === 'roster' ? '' : editorJumps()) + '<form id="event-form"><fieldset class="event-settings-fields">' + basic + rosterMarkup(state.users, state.roster, mode === 'create' || mode === 'roster' || !hasGrouping(e)) + (mode === 'roster' ? '' : rulesMarkup(e, roundSetupEditable, aceSettingsEditable)) + '</fieldset>' + (mode === 'roster' ? '' : drawTimingMarkup(e, timingEditable)) + backgroundPanel + '<div class="event-editor-actions">' + (mode === 'create' ? '' : '<button type="button" class="outline" id="back-board">' + t('backToMatch') + '</button>') + (!terminal(e) ? '<button type="submit" class="primary accent">' + t(mode === 'create' ? 'createEvent' : 'save') + '</button>' : '') + '</div></form>';
     if (mode === 'create') shell(content, 'createEvent'); else {
       app.innerHTML = '<main class="event-editor-page"><div class="editor-language">' + picker() + '</div>' + content + '</main>';
       bindCommon(); $('#back-board').onclick = () => go(hasRoster(state.event) ? '/live/' + state.event.id : '/');
@@ -335,9 +335,8 @@
     $('.event-settings-fields', form).disabled = readonly;
     form.onsubmit = action(async event => {
       event.preventDefault();
-      if (mode !== 'create' && !canEditSettings(state.event)) throw Error(t('settingsLocked'));
       const f = new FormData(form);
-      const body = mode === 'roster' ? rosterValue(form) : {
+      const body = readonly ? { random_draw_seconds: Number(f.get('random_draw_seconds')), ace_draw_seconds: Number(f.get('ace_draw_seconds')), background_id: Number(f.get('background_id') || 0) } : mode === 'roster' ? rosterValue(form) : {
         name: f.get('name'), event_time: eventTimeValue(f), description: f.get('description'),
         ...(state.user.role === 'superadmin' ? { manager_id: Number(f.get('manager_id') || 0) } : {}),
         round1_target: Number(f.get('round1_target')), round2_target: Number(f.get('round2_target')), background_id: Number(f.get('background_id') || 0),
@@ -352,13 +351,6 @@
         toast(t('saved'));
       }
     });
-    $('#event-background-form')?.addEventListener('submit', action(async event => { event.preventDefault(); const backgroundID = Number(new FormData(event.target).get('background_id') || 0); await post('/api/events/' + e.id + '/background', { background_id: backgroundID }, 'PATCH'); state.event = await api('/api/public/events/' + e.id); applyEventBackground(state.event); await eventEditor('settings'); toast(t('backgroundSaved')); }));
-    $('#save-draw-settings')?.addEventListener('click', action(async () => {
-      const body = { random_draw_seconds: Number($('[name="random_draw_seconds"]', form).value), ace_draw_seconds: Number($('[name="ace_draw_seconds"]', form).value) };
-      await post('/api/events/' + e.id + '/draw-settings', body, 'PATCH');
-      state.event.rules = { ...state.event.rules, ...body };
-      toast(t('saved'));
-    }));
   }
 
   function playerHasWin(e, playerID, stage) { return e.matches.some(m => m.stage === stage && m.status === 'finished' && ((m.player_a_id === playerID && m.who_win === 'a') || (m.player_b_id === playerID && m.who_win === 'b'))); }
@@ -591,8 +583,6 @@
       if (state.editor && settingsLocked) { eventEditor(state.editor).catch(error => toast(error.message)); }
       if (variantChanged && !state.editor) { boardPage(); }
       if (changed && state.editor) {
-        const backgroundSelect = $('#event-background-form select');
-        if (backgroundSelect) backgroundSelect.value = String(data.background_id || 0);
         const backgroundName = $('.event-background-panel .panel-head span');
         if (backgroundName) backgroundName.textContent = data.background_name || t('noBackground');
       }
