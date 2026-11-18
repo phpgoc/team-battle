@@ -8,6 +8,7 @@ import (
 	"errors"
 	mathrand "math/rand"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -78,6 +79,15 @@ func (a *App) publicHistory(c *gin.Context) {
 	name := strings.TrimSpace(c.Query("name"))
 	from := strings.TrimSpace(c.Query("from"))
 	to := strings.TrimSpace(c.Query("to"))
+	playerID := int64(0)
+	if raw := strings.TrimSpace(c.Query("player_id")); raw != "" {
+		var err error
+		playerID, err = strconv.ParseInt(raw, 10, 64)
+		if err != nil || playerID < 0 {
+			fail(c, http.StatusBadRequest, "选手编号无效")
+			return
+		}
+	}
 	page := queryInt(c.Query("page"), 1)
 	pageSize := queryInt(c.Query("page_size"), 20)
 	if page < 1 {
@@ -92,7 +102,23 @@ func (a *App) publicHistory(c *gin.Context) {
 		return
 	}
 	filtered := make([]map[string]any, 0, len(items))
+	participants := map[int64]bool{}
 	for _, item := range items {
+		for _, id := range item["player_ids"].([]int64) {
+			participants[id] = true
+		}
+		entered := playerID == 0
+		if playerID != 0 {
+			for _, id := range item["player_ids"].([]int64) {
+				if id == playerID {
+					entered = true
+					break
+				}
+			}
+		}
+		if !entered {
+			continue
+		}
 		itemName, _ := item["name"].(string)
 		eventTime, _ := item["event_time"].(string)
 		eventTime = strings.ReplaceAll(eventTime, "T", " ")
@@ -116,7 +142,24 @@ func (a *App) publicHistory(c *gin.Context) {
 	if end > total {
 		end = total
 	}
-	ok(c, gin.H{"events": filtered[start:end], "page": page, "page_size": pageSize, "total": total})
+	directory, err := a.userDirectory()
+	if err != nil {
+		fail(c, http.StatusInternalServerError, "读取选手失败")
+		return
+	}
+	// 筛选候选来自完整历史，使用内存目录补充公开姓名，不暴露登录名。
+	playerIDs := make([]int64, 0, len(participants))
+	for id := range participants {
+		playerIDs = append(playerIDs, id)
+	}
+	sort.Slice(playerIDs, func(i, j int) bool { return playerIDs[i] < playerIDs[j] })
+	players := make([]gin.H, 0, len(playerIDs))
+	for _, id := range playerIDs {
+		if user, exists := directory[id]; exists {
+			players = append(players, gin.H{"id": id, "display_name": user.DisplayName, "category_name": user.CategoryName})
+		}
+	}
+	ok(c, gin.H{"events": filtered[start:end], "players": players, "page": page, "page_size": pageSize, "total": total})
 }
 
 func (a *App) historyItems() ([]map[string]any, error) {
@@ -130,6 +173,32 @@ func (a *App) historyItems() ([]map[string]any, error) {
 	items, err := a.publicEventSummaries(true)
 	if err != nil {
 		return nil, err
+	}
+	// 批量读取历史参赛ID并随摘要缓存，筛选时无需逐场查询或关联账号表。
+	rows, err := a.db.Query(`SELECT p.event_id,p.user_id FROM event_players p JOIN events e ON e.id=p.event_id WHERE e.status='completed' AND p.active=1 ORDER BY p.event_id,p.user_id`)
+	if err != nil {
+		return nil, err
+	}
+	participants := map[int64][]int64{}
+	for rows.Next() {
+		var eventID, userID int64
+		if err := rows.Scan(&eventID, &userID); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		participants[eventID] = append(participants[eventID], userID)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+	for _, item := range items {
+		ids := participants[item["id"].(int64)]
+		if ids == nil {
+			ids = []int64{}
+		}
+		item["player_ids"] = ids
 	}
 	a.history.mu.Lock()
 	a.history.items = items
