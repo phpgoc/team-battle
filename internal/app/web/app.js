@@ -485,18 +485,8 @@
   function bindBoardSettings() {
     $('#roster-actions')?.close();
     const e = state.event, manager = editable(e), toolbar = $('.board-toolbar');
-    // 所有看板入口共用一行；管理员最右侧三横线直接打开比赛操作。
+    // 右上统一使用三横线观赛菜单，入口保持在同一排。
     $('.board-event-actions', toolbar).innerHTML = `${canArrangeLineup(e) ? `<button type="button" class="board-settings-button" id="board-lineup">${t('round1Lineup')}</button>` : ''}${manager ? `<button type="button" class="board-settings-button" id="board-settings">${t('eventSettings')}</button>` : ''}`;
-    $('.board-operator-action', toolbar).innerHTML = manager ? `<button type="button" class="board-icon-button" id="toggle-operations" aria-label="${t('eventControls')}" title="${t('eventControls')}" aria-controls="event-operations" aria-expanded="${state.operations}">☰</button>` : '';
-    $('.board-menu summary', toolbar).textContent = manager ? '⚙' : '☰';
-    $('#toggle-operations')?.addEventListener('click', () => {
-      if (state.setupDraw) return;
-      $('.board-menu').open = false;
-      state.operations = !state.operations;
-      $('#toggle-operations').setAttribute('aria-expanded', String(state.operations));
-      $('#event-operations').classList.toggle('hidden', !state.operations);
-      if (state.operations) { renderOperations(); $('#event-operations').focus({ preventScroll: true }); }
-    });
     if (!manager) { state.operations = false; $('#event-operations').classList.add('hidden'); }
     $('#board-settings')?.addEventListener('click', () => go('/live/' + state.event.id + '/setting'));
     $('#board-lineup')?.addEventListener('click', () => go('/live/' + state.event.id + '/lineup'));
@@ -541,8 +531,8 @@
   function boardPage() {
     const e = state.event;
     if (!manages(e)) state.operations = false;
-    app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div class="board-toolbar"><div class="board-toolbar-actions board-event-actions"></div><details class="board-menu"><summary aria-label="${t('displaySettings')}" title="${t('displaySettings')}">☰</summary><div>${picker()}<fieldset class="board-contrast-setting"><legend>${t('contrastSettings')}</legend><label for="board-transparency">${t('panelTransparency')}<output id="board-transparency-value" for="board-transparency">${state.boardTransparency}%</output></label><input id="board-transparency" type="range" min="0" max="100" step="1" value="${state.boardTransparency}"></fieldset><button data-go="/">${t('homeLink')}</button>${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details><div class="board-toolbar-actions board-operator-action"></div></div><div id="board-content">${boardContent(e)}</div><div id="event-operations" tabindex="-1" class="event-operations${state.operations ? '' : ' hidden'}"></div></main>`;
-    applyEventBackground(e); bindBoardTransparency(); bindCommon(); bindBoardSettings();
+    app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div class="board-toolbar"><div class="board-toolbar-actions board-event-actions"></div><details class="board-menu"><summary aria-label="${t('displaySettings')}" title="${t('displaySettings')}">☰</summary><div>${picker()}<fieldset class="board-contrast-setting"><legend>${t('contrastSettings')}</legend><label for="board-transparency">${t('panelTransparency')}<output id="board-transparency-value" for="board-transparency">${state.boardTransparency}%</output></label><input id="board-transparency" type="range" min="0" max="100" step="1" value="${state.boardTransparency}"></fieldset>${editable(e) ? `<button id="toggle-operations">${t("eventControls")}</button>` : }<button data-go="/">${t('homeLink')}</button>${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></div><div id="board-content">${boardContent(e)}</div><div id="event-operations" tabindex="-1" class="event-operations${state.operations ? '' : ' hidden'}"></div></main>`;
+    applyEventBackground(e); bindBoardTransparency(); bindCommon(); bindBoardSettings(); $('#toggle-operations')?.addEventListener('click', () => { if (state.setupDraw) return; $('.board-menu').open = false; state.operations = !state.operations; $('#event-operations').classList.toggle('hidden', !state.operations); if (state.operations) renderOperations(); });
     if (state.operations) renderOperations();
   }
   function currentPending(event) {

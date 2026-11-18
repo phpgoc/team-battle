@@ -388,11 +388,9 @@ tr[hidden]{display:none}
 .board-toolbar-actions{display:flex;align-items:center;flex-wrap:nowrap;gap:8px;min-width:0}
 .board-toolbar-actions:empty{display:none}
 .board-toolbar .board-event-actions{flex:0 1 auto}
-.board-toolbar .board-operator-action{flex:none}
 .broadcast-board .board-toolbar .board-menu{position:relative;inset:auto;font-size:13px;flex:none}
 .board-toolbar .board-settings-button{height:38px;min-height:38px;min-width:0;padding:0 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
-.broadcast-board .board-menu summary,.board-toolbar .board-icon-button{box-sizing:border-box;width:38px;min-width:38px;height:38px;min-height:38px;padding:0;border:1px solid #43536d;border-radius:8px;background:#172338dd;color:#d2deef;opacity:.9;font-size:21px;letter-spacing:0;display:grid;place-items:center;line-height:1;cursor:pointer}
-.board-toolbar .board-icon-button:hover,.board-toolbar .board-icon-button[aria-expanded=true]{background:#29415f;opacity:1}
+.broadcast-board .board-menu summary{box-sizing:border-box;width:38px;min-width:38px;height:38px;min-height:38px;padding:0;border:1px solid #43536d;border-radius:8px;background:#172338dd;color:#d2deef;opacity:.9;font-size:21px;letter-spacing:0;display:grid;place-items:center;line-height:1;cursor:pointer}
 .broadcast-board .board-menu>div{top:46px;bottom:auto;width:240px;max-width:calc(100vw - 32px);max-height:calc(100dvh - 82px);overflow:auto}
 @media(max-width:600px){.board-toolbar,.board-toolbar-actions{gap:6px}.board-toolbar .board-settings-button{padding:0 8px;font-size:12px}}
 /* 设置操作固定在视口底部，页面只保留一次保存入口。 */
