@@ -240,51 +240,57 @@ func (a *App) confirmAce(c *gin.Context) {
 		fail(c, 400, "请选择双方大将")
 		return
 	}
-	err := a.runMatchMutation(id, actor.ID, func(e *matchEngine) error {
-		s, err := e.status()
-		if err != nil {
-			return err
-		}
-		if s != stageAce {
-			return errors.New("当前不是大将战阶段")
-		}
-		teams, err := e.teams()
-		if err != nil {
-			return err
-		}
-		idsA, err := e.players(teams[0])
-		if err != nil {
-			return err
-		}
-		idsB, err := e.players(teams[1])
-		if err != nil {
-			return err
-		}
-		if !containsID(idsA, req.PlayerAID) || !containsID(idsB, req.PlayerBID) {
-			return errors.New("大将必须属于对应队伍")
-		}
-		r, err := e.round(stageAce)
-		if err != nil {
-			return err
-		}
-		var matchID int64
-		err = e.db.QueryRow(`SELECT id FROM matches WHERE round_id=? AND status='pending'`, r.id).Scan(&matchID)
-		if err == sql.ErrNoRows {
-			return errors.New("请先在实时赛事页抽取大将")
-		} else if err != nil {
-			return err
-		} else {
-			if _, err := e.db.Exec(`UPDATE matches SET player_a_id=?,player_b_id=? WHERE id=?`, req.PlayerAID, req.PlayerBID, matchID); err != nil {
-				return err
-			}
-		}
-		return e.log("ace_players_overridden", req)
-	})
+	err := a.runMatchMutation(id, actor.ID, func(e *matchEngine) error { return e.overrideAce(req, 0) })
 	if err != nil {
 		fail(c, 400, err.Error())
 		return
 	}
 	ok(c, gin.H{"ok": true})
+}
+
+// 设置页和原调整接口共用校验，设置页同时核对对局ID以拒绝过期选择。
+func (e *matchEngine) overrideAce(req aceRequest, expectedMatchID int64) error {
+	s, err := e.status()
+	if err != nil {
+		return err
+	}
+	if s != stageAce {
+		return errors.New("当前不是大将战阶段")
+	}
+	teams, err := e.teams()
+	if err != nil {
+		return err
+	}
+	idsA, err := e.players(teams[0])
+	if err != nil {
+		return err
+	}
+	idsB, err := e.players(teams[1])
+	if err != nil {
+		return err
+	}
+	if !containsID(idsA, req.PlayerAID) || !containsID(idsB, req.PlayerBID) {
+		return errors.New("大将必须属于对应队伍")
+	}
+	r, err := e.round(stageAce)
+	if err != nil {
+		return err
+	}
+	var matchID int64
+	err = e.db.QueryRow(`SELECT id FROM matches WHERE round_id=? AND status='pending'`, r.id).Scan(&matchID)
+	if err == sql.ErrNoRows {
+		return errors.New("请先在实时赛事页抽取大将")
+	} else if err != nil {
+		return err
+	} else {
+		if expectedMatchID != 0 && matchID != expectedMatchID {
+			return errors.New("当前大将对局已变化，请重新选择")
+		}
+		if _, err := e.db.Exec(`UPDATE matches SET player_a_id=?,player_b_id=? WHERE id=?`, req.PlayerAID, req.PlayerBID, matchID); err != nil {
+			return err
+		}
+	}
+	return e.log("ace_players_overridden", req)
 }
 func (a *App) cancelEvent(c *gin.Context) {
 	actor, id, access := a.managerEvent(c)

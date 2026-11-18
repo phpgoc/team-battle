@@ -158,6 +158,7 @@ type createEventRequest struct {
 
 type eventSettingsRequest struct {
 	Correction        *eventResultCorrection `json:"correction"`
+	AcePlayers        *eventAcePlayers       `json:"ace_players"`
 	BackgroundID      *int64                 `json:"background_id"`
 	RandomDrawSeconds *int                   `json:"random_draw_seconds"`
 	AceDrawSeconds    *int                   `json:"ace_draw_seconds"`
@@ -170,6 +171,12 @@ type eventSettingsRequest struct {
 	Round1Target      int                    `json:"round1_target"`
 	Round2Target      int                    `json:"round2_target"`
 	Rules             *EventRules            `json:"rules"`
+}
+
+type eventAcePlayers struct {
+	MatchID   int64 `json:"match_id"`
+	PlayerAID int64 `json:"player_a_id"`
+	PlayerBID int64 `json:"player_b_id"`
 }
 
 type eventResultCorrection struct {

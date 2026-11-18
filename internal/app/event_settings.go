@@ -52,6 +52,9 @@ func (a *App) updateEventSettings(c *gin.Context) {
 	}
 	err := a.runMatchMutation(tournamentID, actor.ID, func(e *matchEngine) error {
 		tx := e.db.(*sql.Tx)
+		if req.AcePlayers != nil && (req.Correction != nil || req.AcePlayers.MatchID <= 0) {
+			return errors.New("请先保存比分修正，再调整当前大将对阵")
+		}
 		beforeRules, err := e.rules()
 		if err != nil {
 			return err
@@ -92,7 +95,15 @@ func (a *App) updateEventSettings(c *gin.Context) {
 					return err
 				}
 			}
+			if req.AcePlayers != nil {
+				if err := e.overrideAce(aceRequest{PlayerAID: req.AcePlayers.PlayerAID, PlayerBID: req.AcePlayers.PlayerBID}, req.AcePlayers.MatchID); err != nil {
+					return err
+				}
+			}
 			return e.log("event_settings_updated", req)
+		}
+		if req.AcePlayers != nil {
+			return errors.New("当前不是大将战阶段")
 		}
 		if req.Correction != nil {
 			return errors.New("只能修正已录入对局的合法胜者")

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const app = document.getElementById('app');
-  const state = { user: null, language: localStorage.getItem('tb_language') || 'zh', boardTransparency: readBoardTransparency(), event: null, stream: null, operations: false, editor: null, roster: {}, rosterOrder: [], users: [], page: 1, filters: {}, connection: '', drawTimer: null, drawToken: 0, draw: null };
+  const state = { user: null, language: localStorage.getItem('tb_language') || 'zh', boardTransparency: readBoardTransparency(), event: null, stream: null, editor: null, roster: {}, rosterOrder: [], users: [], page: 1, filters: {}, connection: '', drawTimer: null, drawToken: 0, draw: null };
   const langs = { zh: '中文', en: 'English', ko: '한국어' };
   const pagePaths = { home: '/', createEvent: '/events/new', accounts: '/accounts', archive: '/events/archive', siteSettings: '/site-settings', backgrounds: '/backgrounds', settings: '/account' };
   const pageForPath = (path = location.pathname) => Object.keys(pagePaths).find(page => pagePaths[page] === path) || (/^\/accounts\/(new|[1-9]\d*)$/.test(path) ? 'accounts' : null);
@@ -43,7 +43,7 @@
   function toast(message) { const box = $('#toast'); box.textContent = message; box.classList.remove('hidden'); clearTimeout(state.toastTimer); state.toastTimer = setTimeout(() => box.classList.add('hidden'), 4000); }
   async function api(url, options = {}) { const headers = { ...options.headers }; if (options.body !== undefined && !(options.body instanceof FormData)) headers['Content-Type'] = 'application/json'; const res = await fetch(url, { ...options, headers }); const data = await res.json().catch(() => ({})); if (!res.ok) { if (res.status === 401 && state.user) { sessionEnded(); throw new Error(t('sessionReplaced')); } const errorKey = Object.keys(window.TB_I18N.zh).find(key => window.TB_I18N.zh[key] === data.error); throw new Error(errorKey ? t(errorKey) : data.error || t('requestFailed')); } return data; }
   function sessionEnded() {
-    state.user = null; state.editor = null; state.operations = false;
+    state.user = null; state.editor = null;
     if ((pageForPath() && pageForPath() !== 'home') || location.pathname.endsWith('/setting') || location.pathname.endsWith('/lineup')) go('/login?return=' + encodeURIComponent(location.pathname + location.search));
     else renderRoute().catch(error => toast(error.message));
     toast(t('sessionReplaced'));
@@ -81,7 +81,7 @@
       return target.origin === location.origin && (pageForPath(target.pathname) || /^\/live\/[1-9]\d*(\/(setting|lineup))?$/.test(target.pathname)) ? target.pathname + target.search + target.hash : '/';
     } catch (_) { return '/'; }
   }
-  function go(url) { window.TBConfirm.cancel(); closeStream(); state.editor = null; state.ruleDraft = null; state.operations = false; history.pushState({}, '', url); renderRoute().catch(error => toast(error.message)); }
+  function go(url) { window.TBConfirm.cancel(); closeStream(); state.editor = null; state.ruleDraft = null; history.pushState({}, '', url); renderRoute().catch(error => toast(error.message)); }
   // 语言只改变当前视图的文案，保留表单值和路由。
   const formKey = (form, index) => form.id || ['name', 'category', 'kofReserve'].map(key => form.dataset[key] ? `${key}:${form.dataset[key]}` : '').find(Boolean) || `form:${index}`;
   const fieldType = el => el.dataset.passwordField ? 'password' : el.type;
@@ -334,6 +334,21 @@
   function eventBackgroundMarkup(e, backgrounds, editable) {
     return `<section class="panel section-gap event-background-panel"><div class="panel-head"><h2>${t('background')}</h2><span>${esc(e.background_name || t('noBackground'))}</span></div><div class="panel-body"><div class="inline-form"><select name="background_id"${editable ? '' : ' disabled'}>${backgroundOptions(backgrounds, e.background_id)}</select></div><p class="help">${t('eventBackgroundHint')}</p></div></section>`;
   }
+  // 大将调整与结束确认只出现在赛事设置，不加入公共观赛菜单。
+  function eventManagementMarkup(e) {
+    const pending = e.status === 'ace' && e.matches.find(match => match.stage === 'ace' && match.status === 'pending');
+    const snapshot = JSON.stringify([editable(e), e.status, pending?.id, pending?.player_a_id, pending?.player_b_id]);
+    let content = '';
+    if (editable(e) && pending) content = `<section class="panel section-gap editor-section"><div class="panel-head"><h2>${t('overrideAce')}</h2></div><div class="panel-body form-grid"><input type="hidden" name="ace_match_id" value="${pending.id}">${field('teamA', `<select name="ace_player_a_id">${options(e.teams[0].players.filter(player => player.active !== false), pending.player_a_id)}</select>`)}${field('teamB', `<select name="ace_player_b_id">${options(e.teams[1].players.filter(player => player.active !== false), pending.player_b_id)}</select>`)}<p class="help full">${t('aceSettingsSaveHint')}</p></div></section>`;
+    if (editable(e) && e.status === 'final_confirm') content = `<section class="panel section-gap editor-section"><div class="panel-head"><h2>${t('confirmEnd')}</h2></div><div class="panel-body"><p class="help">${t('confirmEndHint')}</p><button type="button" class="primary accent" id="confirm-end">${t('confirmEnd')}</button></div></section>`;
+    return `<div id="event-management" data-snapshot="${esc(snapshot)}">${content}</div>`;
+  }
+  function refreshEventManagement(e) {
+    const panel = $('#event-management');
+    if (!panel || state.editor !== 'settings') return;
+    const template = document.createElement('template'); template.innerHTML = eventManagementMarkup(e);
+    if (panel.dataset.snapshot !== template.content.firstElementChild.dataset.snapshot) panel.replaceWith(template.content);
+  }
   function resultCorrectionMarkup(e) {
     if (!editable(e)) return '';
     const matches = e.matches.filter(match => match.status === 'finished');
@@ -410,12 +425,21 @@
     const backgroundPanel = mode === 'create' || mode === 'roster' ? '' : eventBackgroundMarkup(e, backgrounds, manages(e) && !terminal(e));
     const correctionPanel = mode === 'settings' ? resultCorrectionMarkup(e) : '';
     const settingsHint = terminal(e) ? 'readOnly' : readonly ? 'settingsLocked' : mode === 'create' ? 'requiredHint' : roundSetupEditable ? 'settingsResetHint' : 'roundSetupLocked';
-    const content = '<div class="page-head"><div><h1>' + t(mode === 'create' ? 'createEvent' : mode === 'roster' ? 'editRoster' : 'eventSettings') + '</h1><p class="subtitle">' + t(settingsHint) + '</p></div></div>' + (mode === 'roster' ? '' : editorJumps(!!correctionPanel)) + '<form id="event-form"><fieldset class="event-settings-fields">' + basic + rosterMarkup(state.users, state.roster, roundSetupEditable) + (mode === 'roster' ? '' : rulesMarkup(e, roundSetupEditable, aceSettingsEditable)) + '</fieldset>' + (mode === 'roster' ? '' : drawTimingMarkup(e, timingEditable)) + backgroundPanel + correctionPanel + '<div class="event-editor-actions">' + (mode === 'create' ? '' : '<button type="button" class="outline" id="back-board">' + t('backToMatch') + '</button>') + (!terminal(e) ? '<button type="submit" class="primary accent">' + t(mode === 'create' ? 'createEvent' : 'save') + '</button>' : '') + '</div></form>';
+    const content = '<div class="page-head"><div><h1>' + t(mode === 'create' ? 'createEvent' : mode === 'roster' ? 'editRoster' : 'eventSettings') + '</h1><p class="subtitle">' + t(settingsHint) + '</p></div></div>' + (mode === 'roster' ? '' : editorJumps(!!correctionPanel)) + '<form id="event-form"><fieldset class="event-settings-fields">' + basic + rosterMarkup(state.users, state.roster, roundSetupEditable) + (mode === 'roster' ? '' : rulesMarkup(e, roundSetupEditable, aceSettingsEditable)) + '</fieldset>' + (mode === 'roster' ? '' : drawTimingMarkup(e, timingEditable)) + backgroundPanel + correctionPanel + (mode === 'settings' ? eventManagementMarkup(e) : '') + '<div class="event-editor-actions">' + (mode === 'create' ? '' : '<button type="button" class="outline" id="back-board">' + t('backToMatch') + '</button>') + (!terminal(e) ? '<button type="submit" class="primary accent">' + t(mode === 'create' ? 'createEvent' : 'save') + '</button>' : '') + '</div></form>';
     if (mode === 'create') shell(content, 'createEvent'); else {
       app.innerHTML = '<main class="event-editor-page"><div class="editor-language">' + picker() + '</div>' + content + '</main>';
       bindCommon(); $('#back-board').onclick = () => go(hasRoster(state.event) ? '/live/' + state.event.id : '/');
     }
     const form = $('#event-form');
+    form.addEventListener('click', click => {
+      if (!click.target.closest('#confirm-end') || form.dataset.busy) return;
+      click.preventDefault();
+      action(async () => {
+        const values = new FormData(form), current = state.event;
+        if (Number(values.get('correction_match_id')) || Number(values.get('background_id') || 0) !== Number(current.background_id || 0) || Number(values.get('random_draw_seconds')) !== current.rules.random_draw_seconds || Number(values.get('ace_draw_seconds')) !== current.rules.ace_draw_seconds) throw Error(t('saveSettingsBeforeConfirm'));
+        await confirmEventEnd();
+      })(click);
+    });
     form.addEventListener('click', click => {
       const button = click.target.closest('[data-correct-match]');
       if (!button) return;
@@ -448,6 +472,16 @@
         rules: rulesValue(form), ...(!hasGrouping(e) ? rosterValue(form) : {})
       };
       const correctionMatch = state.event?.matches.find(match => match.id === Number(f.get('correction_match_id')) && match.status === 'finished');
+      const aceMatchID = Number(f.get('ace_match_id'));
+      if (aceMatchID) {
+        const current = state.event.matches.find(match => match.id === aceMatchID && match.stage === 'ace' && match.status === 'pending');
+        if (!current || state.event.status !== 'ace') throw Error(t('resultChanged'));
+        const playerA = Number(f.get('ace_player_a_id')), playerB = Number(f.get('ace_player_b_id'));
+        if (current.player_a_id !== playerA || current.player_b_id !== playerB) {
+          if (correctionMatch) throw Error(t('saveCorrectionBeforeAce'));
+          body.ace_players = { match_id: aceMatchID, player_a_id: playerA, player_b_id: playerB };
+        }
+      }
       if (correctionMatch && correctionMatch.winner_team_id !== Number(f.get('correction_winner_team_id'))) {
         const snapshot = JSON.stringify(state.event.matches);
         if (!(await window.TBConfirm.ask(t('correctHint'), { title: t('correct'), match: { stage: t(correctionMatch.stage), seq: correctionMatch.seq, a: correctionMatch.player_a_name, b: correctionMatch.player_b_name, winner: Number(f.get('correction_winner_team_id')) === e.teams[0].id ? 'a' : 'b' } }))) return;
@@ -528,7 +562,6 @@
     if (!manages(e)) return;
     const session = { id: e.id, progress: null };
     state.setupDraw = session;
-    state.operations = false; $('#event-operations')?.classList.add('hidden');
     const active = () => state.setupDraw === session && state.event?.id === e.id && !state.editor && manages(state.event) && preMatch(state.event);
     try {
       await window.TBSetupDraw.play({ steps, event: e, translate: t, isActive: active, playerMarkup: player => `${avatar(player)}<div><strong>${boardIdentity(player)}</strong></div>`, render: progress => {
@@ -599,7 +632,6 @@
     const e = state.event, manager = editable(e), toolbar = $('.board-toolbar');
     // 右上只保留统一的三横线观赛菜单；录分在当前对战区完成。
     $('.board-event-actions', toolbar).innerHTML = `${canArrangeLineup(e) ? `<button type="button" class="board-settings-button" id="board-lineup">${t('round1Lineup')}</button>` : ''}${manager ? `<button type="button" class="board-settings-button" id="board-settings">${t('eventSettings')}</button>` : ''}`;
-    if (!manager) { state.operations = false; $('#event-operations').classList.add('hidden'); }
     $('#board-settings')?.addEventListener('click', () => go('/live/' + state.event.id + '/setting'));
     $('#board-lineup')?.addEventListener('click', () => go('/live/' + state.event.id + '/lineup'));
     $('#draw-ace')?.addEventListener('click', action(async () => {
@@ -629,19 +661,6 @@
         $$('[data-current-winner]').forEach(control => control.disabled = state.draw?.endAt > Date.now());
       }
     })));
-    const tools = $('#board-tools');
-    if (tools) {
-      tools.hidden = !manager || !(e.status === 'final_confirm' || (e.status === 'ace' && e.matches.some(match => match.stage === 'ace' && match.status === 'pending')));
-      tools.textContent = t(e.status === 'final_confirm' ? 'confirmEnd' : 'overrideAce');
-      tools.onclick = action(async () => {
-        $('.board-menu').open = false;
-        if (state.event.status === 'final_confirm') { await confirmEventEnd(); return; }
-        state.operations = true;
-        $('#event-operations').classList.remove('hidden');
-        renderOperations();
-        $('#event-operations').focus({ preventScroll: true });
-      });
-    }
     if (!state.setupDraw) window.TBKOFBoard.bindRows({ root: $('#board-content'), event: state.event, user: state.user, manager: manages(state.event), t, action, onVote: voteForCaptain, onCaptain: assignCaptain });
     if (state.event.status === 'round2' && canOperate(state.event) && !state.setupDraw) renderKOFSelection(state.event, manages(state.event)).catch(error => toast(error.message));
     if (state.setupDraw) $('#board-content')?.setAttribute('data-setup-drawing', 'true');
@@ -682,10 +701,8 @@
   }
   function boardPage() {
     const e = state.event;
-    if (!editable(e)) state.operations = false;
-    app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div class="board-toolbar"><div class="board-toolbar-actions board-event-actions"></div><details class="board-menu"><summary aria-label="${t('displaySettings')}" title="${t('displaySettings')}">☰</summary><div>${picker()}<fieldset class="board-contrast-setting"><legend>${t('contrastSettings')}</legend><label for="board-transparency">${t('panelTransparency')}<output id="board-transparency-value" for="board-transparency">${state.boardTransparency}%</output></label><input id="board-transparency" type="range" min="0" max="100" step="1" value="${state.boardTransparency}"></fieldset><button type="button" id="board-tools" hidden>${t("correctAndConfirm")}</button><button data-go="/">${t('homeLink')}</button>${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></div><div id="board-content">${boardContent(e)}</div><div id="event-operations" tabindex="-1" class="event-operations${state.operations ? '' : ' hidden'}"></div></main>`;
+    app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div class="board-toolbar"><div class="board-toolbar-actions board-event-actions"></div><details class="board-menu"><summary aria-label="${t('displaySettings')}" title="${t('displaySettings')}">☰</summary><div>${picker()}<fieldset class="board-contrast-setting"><legend>${t('contrastSettings')}</legend><label for="board-transparency">${t('panelTransparency')}<output id="board-transparency-value" for="board-transparency">${state.boardTransparency}%</output></label><input id="board-transparency" type="range" min="0" max="100" step="1" value="${state.boardTransparency}"></fieldset><button data-go="/">${t('homeLink')}</button>${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></div><div id="board-content">${boardContent(e)}</div></main>`;
     applyEventBackground(e); bindBoardTransparency(); bindCommon(); bindBoardSettings();
-    if (state.operations) renderOperations();
   }
   function currentPending(event) {
     if (!event || terminal(event)) return null;
@@ -770,7 +787,6 @@
     const endAt = startedAt + plan.duration;
     state.draw = { key, candidates, plan, startedAt, endAt };
     const board = $('.broadcast-board');
-    if (!continuing && plan.duration) { state.operations = false; $('#event-operations')?.classList.add('hidden'); }
     const update = () => {
       // 导航、纠错或人选被覆盖后，旧动画不能继续占住新对战区。
       const current = currentPending(state.event);
@@ -832,23 +848,11 @@
       // 确认期间仍接收推送，录分已改变时必须重新核对，不能封存旧结果。
       const current = state.event;
       if (current?.id !== e.id || !editable(current) || current.status !== 'final_confirm' || results(current) !== snapshot) { toast(t('resultChanged')); return; }
-      await eventAction('/confirm');
+      await post('/api/events/' + e.id + '/confirm');
+      state.editor = null;
+      history.replaceState({}, '', '/live/' + e.id);
+      await refreshEvent();
     } finally { state.confirmingEnd = false; }
-  }
-  function renderOperations() {
-    const e = state.event, target = $('#event-operations'); if (!target) return;
-    if (!manages(e) || terminal(e)) { target.innerHTML = ''; return; }
-    const manager = manages(e);
-    let content = `<div class="operations-heading"><div><span class="eyebrow">${t('correctAndConfirm')}</span><h2>${t(e.status)}</h2></div><button class="outline" id="close-operations">${t('close')}</button></div>`;
-    if (canArrangeLineup(e)) content += `<section class="panel section-gap"><div class="panel-body"><a class="primary" href="/live/${e.id}/lineup" id="operations-lineup">${t('round1Lineup')}</a></div></section>`;
-    const pending = e.matches.find(m => m.status === 'pending' && m.stage === e.status);
-    if (manager && e.status === 'ace' && pending) content += `<section class="panel section-gap"><form id="ace-form" class="panel-body form-grid">${field('teamA', `<select name="player_a_id">${options(e.teams[0].players, pending.player_a_id)}</select>`)}${field('teamB', `<select name="player_b_id">${options(e.teams[1].players, pending.player_b_id)}</select>`)}<button class="outline">${t('overrideAce')}</button></form></section>`;
-    if (manager && e.status === 'final_confirm') content += `<section class="panel section-gap"><div class="panel-body"><p>${t('confirmEndHint')}</p><button class="primary accent" id="confirm-end">${t('confirmEnd')}</button></div></section>`;
-    target.innerHTML = content;
-    $('#close-operations')?.addEventListener('click', () => { state.operations = false; $('#event-operations').classList.add('hidden'); });
-    $('#operations-lineup')?.addEventListener('click', event => { event.preventDefault(); go('/live/' + e.id + '/lineup'); });
-    $('#ace-form')?.addEventListener('submit', action(async event => { event.preventDefault(); const f = new FormData(event.target); await eventAction('/ace/confirm', { player_a_id: Number(f.get('player_a_id')), player_b_id: Number(f.get('player_b_id')) }); }));
-    $('#confirm-end')?.addEventListener('click', action(confirmEventEnd));
   }
   async function openEvent(id, preserve = false, setting = false) {
     if (state.event?.id !== Number(id)) state.event = null;
@@ -880,8 +884,9 @@
         const backgroundName = $('.event-background-panel .panel-head span');
         if (backgroundName) backgroundName.textContent = data.background_name || t('noBackground');
         refreshResultCorrection(data);
+        refreshEventManagement(data);
       }
-      if (changed && !state.editor && $('#board-content') && !state.setupDraw) { $('#board-content').innerHTML = boardContent(data); applyEventBackground(data); bindBoardSettings(); startDrawAnimation(previous, data); if (state.operations) { const forms = captureForms(); renderOperations(); restoreForms(forms); } }
+      if (changed && !state.editor && $('#board-content') && !state.setupDraw) { $('#board-content').innerHTML = boardContent(data); applyEventBackground(data); bindBoardSettings(); startDrawAnimation(previous, data); }
       if (terminal(data)) { closeStream(); if (!state.editor) boardPage(); }
     };
   }
@@ -918,7 +923,7 @@
     if (page === 'archive') return archivePage(preserve);
     return homePage();
   }
-  window.addEventListener('popstate', () => { closeStream(); state.editor = null; state.operations = false; renderRoute().catch(error => toast(error.message)); });
+  window.addEventListener('popstate', () => { closeStream(); state.editor = null; renderRoute().catch(error => toast(error.message)); });
   // 由接口的401响应处理会话失效，不为检查登录状态发起轮询。
   // 分队前公开SSE尚不可连接，轮询检查其他管理端是否已抽签，及时锁定录入控件。
   let checkingGrouping = false;
