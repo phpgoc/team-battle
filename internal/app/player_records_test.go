@@ -46,7 +46,7 @@ func TestPlayerRecordsIncludeBothSidesAndOpponentCategories(t *testing.T) {
 			matches = []archivedMatch{{1, 6, 3, "b"}, {2, 7, 3, "a"}, {3, 8, 3, "a"}}
 		}
 		f.request(t, 1, "POST", "/api/tournaments/archive", map[string]any{
-			"name": "战绩统计", "start_time": "2026-11-17T19", "player_ids": []int{3, 4, 5, 6, 7, 8},
+			"manager_id": 1, "name": "战绩统计", "start_time": "2026-11-17T19", "player_ids": []int{3, 4, 5, 6, 7, 8},
 			"fixed_assignments": assignments, "matches": matches,
 		}, 200)
 	}

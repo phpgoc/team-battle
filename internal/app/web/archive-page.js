@@ -19,7 +19,7 @@
   }
 
   function create(time) {
-    return { step: 0, name: '', start_time: time, background_id: 0, round1_target: 4, round2_target: 5, kof_revival_no_repeat: false, ace_source: 'random', entries: [], matches: { 1: [], 2: [], 3: [] }, picks: {}, signature: '' };
+    return { step: 0, manager_id: 0, name: '', start_time: time, background_id: 0, round1_target: 4, round2_target: 5, kof_revival_no_repeat: false, ace_source: 'random', entries: [], matches: { 1: [], 2: [], 3: [] }, picks: {}, signature: '' };
   }
 
   function render(ctx) {
@@ -36,7 +36,7 @@
     const stageSummary = stage => `<div class="archive-stage-summary"><span>${roundName(stage)}</span><strong>A ${score(d.matches[stage]).join(' : ')} B</strong><span>${label(winner(d.matches[stage]))} ${t('win')}</span></div>`;
     let body;
     if (d.step === 0) {
-      body = `<section class="panel"><div class="panel-body form-grid">${field('name', input('name', d.name, 'text', 'required'), true)}${field('time', startTimeInput(d.start_time))}${field('background', `<select name="background_id">${backgroundOptions(backgrounds, d.background_id)}</select>`)}${field('round1Target', input('round1_target', d.round1_target, 'number', 'min="1" max="99" required'))}${field('round2Target', input('round2_target', d.round2_target, 'number', 'min="1" max="99" required'))}<div class="full" data-kof-revival-rule><label class="check"><input name="kof_revival_no_repeat" type="checkbox"${d.kof_revival_no_repeat ? ' checked' : ''}>${t('kofRevivalNoRepeat')}</label><p class="help">${t('kofRevivalNoRepeatHint')}</p></div></div></section>` + window.TBRosterEditor.markup({ users, entries: d.entries, editable: true, allowRandom: false, t, esc, person });
+      body = `<section class="panel"><div class="panel-body form-grid">${field('name', input('name', d.name, 'text', 'required'), true)}${field('time', startTimeInput(d.start_time))}${field('manager', `<select name="manager_id" required><option value="">${t('selectManager')}</option>${ctx.managers.map(user => `<option value="${user.id}"${d.manager_id === user.id ? ' selected' : ''}>${esc(user.display_name)} (${esc(user.username)})</option>`).join('')}</select>`)}${field('background', `<select name="background_id">${backgroundOptions(backgrounds, d.background_id)}</select>`)}${field('round1Target', input('round1_target', d.round1_target, 'number', 'min="1" max="99" required'))}${field('round2Target', input('round2_target', d.round2_target, 'number', 'min="1" max="99" required'))}<div class="full" data-kof-revival-rule><label class="check"><input name="kof_revival_no_repeat" type="checkbox"${d.kof_revival_no_repeat ? ' checked' : ''}>${t('kofRevivalNoRepeat')}</label><p class="help">${t('kofRevivalNoRepeatHint')}</p></div></div></section>` + window.TBRosterEditor.markup({ users, entries: d.entries, editable: true, allowRandom: false, t, esc, person });
     } else if (d.step === 4) {
       const stages = [1, 2, ...(needsAce(d) ? [3] : [])];
       const wins = stages.filter(stage => winner(d.matches[stage]) === 'a').length;
@@ -55,7 +55,7 @@
     const form = document.getElementById('archive-form');
     const readBasics = () => {
       const values = new FormData(form);
-      d.name = String(values.get('name') || ''); d.start_time = startTimeValue(values); d.background_id = Number(values.get('background_id'));
+      d.name = String(values.get('name') || ''); d.start_time = startTimeValue(values); d.background_id = Number(values.get('background_id')); d.manager_id = Number(values.get('manager_id'));
       d.round1_target = Number(values.get('round1_target')); d.round2_target = Number(values.get('round2_target'));
       d.kof_revival_no_repeat = values.has('kof_revival_no_repeat');
       refreshRevivalRule();
@@ -107,7 +107,7 @@
       } else if (d.step === 4) {
         if (![1, 2, ...(needsAce(d) ? [3] : [])].every(stage => finished(d, stage))) throw Error(t('archiveIncomplete'));
         if (!(await window.TBConfirm.ask(t('confirmEndHint')))) return;
-        await ctx.onSave({ name: d.name, start_time: d.start_time, background_id: d.background_id, round1_target: d.round1_target, round2_target: d.round2_target, kof_revival_no_repeat: d.kof_revival_no_repeat, ace_source: d.ace_source, player_ids: d.entries.map(([id]) => id), fixed_assignments: Object.fromEntries(d.entries), matches: [1, 2, 3].flatMap(stage => d.matches[stage]) });
+        await ctx.onSave({ name: d.name, manager_id: d.manager_id, start_time: d.start_time, background_id: d.background_id, round1_target: d.round1_target, round2_target: d.round2_target, kof_revival_no_repeat: d.kof_revival_no_repeat, ace_source: d.ace_source, player_ids: d.entries.map(([id]) => id), fixed_assignments: Object.fromEntries(d.entries), matches: [1, 2, 3].flatMap(stage => d.matches[stage]) });
       } else {
         if (finished(d, round)) return;
         const side = event.submitter?.value;

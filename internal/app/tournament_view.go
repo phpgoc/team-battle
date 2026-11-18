@@ -62,7 +62,7 @@ func (a *App) buildTournament(tournamentID int64, includePrivate bool) (map[stri
 	tournament["manager_id"] = managerID
 	// 管理员可能不在参赛名单中，通过账号目录读取公开显示名。
 	tournament["manager_name"] = ""
-	if manager, err := a.cachedUser(managerID); err == nil && !manager.IsDeleted && isNonSuperAdmin(manager.Role) {
+	if manager, err := a.cachedUser(managerID); err == nil && !manager.IsDeleted {
 		tournament["manager_name"] = manager.DisplayName
 	}
 	tournament["created_at"] = createdAt

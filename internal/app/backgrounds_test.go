@@ -92,7 +92,7 @@ func TestBackgroundManagementAndPublicTournamentSelection(t *testing.T) {
 	}
 	f.request(t, 2, http.MethodPatch, path, map[string]any{"background_id": backgroundID + 999}, http.StatusBadRequest)
 	f.request(t, 1, http.MethodPost, "/api/tournaments/archive", map[string]any{
-		"name": "带背景历史赛事", "start_time": "2026-11-17T19", "background_id": backgroundID,
+		"manager_id": 1, "name": "带背景历史赛事", "start_time": "2026-11-17T19", "background_id": backgroundID,
 		"player_ids":        []int{3, 4, 5, 6, 7, 8},
 		"fixed_assignments": map[string]string{"3": "A", "4": "A", "5": "A", "6": "B", "7": "B", "8": "B"},
 		"matches": []map[string]any{

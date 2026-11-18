@@ -115,6 +115,7 @@ type archivedMatch struct {
 }
 
 type archiveTournamentRequest struct {
+	ManagerID          int64             `json:"manager_id"`
 	KOFRevivalNoRepeat bool              `json:"kof_revival_no_repeat"`
 	Round1Target       int               `json:"round1_target"`
 	Round2Target       int               `json:"round2_target"`

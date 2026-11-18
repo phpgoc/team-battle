@@ -272,14 +272,9 @@ func (a *App) createTournament(c *gin.Context) {
 		}
 	}
 	rulesJSON, _ := json.Marshal(rules)
-	if req.ManagerID == 0 {
-		req.ManagerID = actor.ID
-	} else {
-		var managerRole string
-		if err := a.db.QueryRow(`SELECT role FROM users WHERE id=? AND status='active' AND is_deleted=0`, req.ManagerID).Scan(&managerRole); err != nil || !isNonSuperAdmin(managerRole) {
-			fail(c, http.StatusBadRequest, "赛事管理员账号无效")
-			return
-		}
+	if err := validateTournamentManager(a.db, req.ManagerID); err != nil {
+		fail(c, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	transaction, err := a.db.Begin()

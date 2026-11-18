@@ -32,7 +32,7 @@ func TestArchiveValidatesTeamSizes(t *testing.T) {
 						fixed[fmt.Sprint(id)] = side
 					}
 					body := map[string]any{
-						"name": "历史人数校验", "start_time": "2026-11-17T19",
+						"manager_id": 1, "name": "历史人数校验", "start_time": "2026-11-17T19",
 						"player_ids": ids, "fixed_assignments": fixed,
 						"round1_target": 1, "round2_target": 1,
 						"matches": []archivedMatch{{1, 3, int64(countA + 3), "a"}, {2, 3, int64(countA + 3), "a"}},
@@ -75,7 +75,7 @@ func TestArchiveValidatesTargetsAndKOFBeforeSaving(t *testing.T) {
 	f := newWorkflowFixture(t)
 	base := func() map[string]any {
 		return map[string]any{
-			"name": "分轮历史录入", "start_time": "2026-11-17T19",
+			"manager_id": 1, "name": "分轮历史录入", "start_time": "2026-11-17T19",
 			"player_ids":        []int64{3, 4, 5, 6, 7, 8},
 			"fixed_assignments": map[string]string{"3": "A", "4": "A", "5": "A", "6": "B", "7": "B", "8": "B"},
 			"round1_target":     2, "round2_target": 4,
@@ -118,7 +118,7 @@ func TestArchiveValidatesTargetsAndKOFBeforeSaving(t *testing.T) {
 func TestArchiveTiedRoundsRequireAce(t *testing.T) {
 	f := newWorkflowFixture(t)
 	body := map[string]any{
-		"name": "大将决胜历史", "start_time": "2026-11-17T19", "round1_target": 2, "round2_target": 2,
+		"manager_id": 1, "name": "大将决胜历史", "start_time": "2026-11-17T19", "round1_target": 2, "round2_target": 2,
 		"player_ids": []int64{3, 4, 5, 6, 7, 8}, "ace_source": "most_losses",
 		"fixed_assignments": map[string]string{"3": "A", "4": "A", "5": "A", "6": "B", "7": "B", "8": "B"},
 		"matches":           []archivedMatch{{1, 3, 6, "a"}, {1, 4, 7, "a"}, {2, 3, 6, "b"}, {2, 4, 6, "b"}},

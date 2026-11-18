@@ -33,6 +33,10 @@ func (a *App) archiveTournament(c *gin.Context) {
 		fail(c, 400, "背景不存在")
 		return
 	}
+	if err := validateTournamentManager(a.db, req.ManagerID); err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
 	scores := [3][2]int{}
 	grouped := [3][]archivedMatch{}
 	for _, m := range req.Matches {
@@ -99,7 +103,7 @@ func (a *App) archiveTournament(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback()
-	r, err := tx.Exec(`INSERT INTO tournaments(name,description,start_time,status,round1_target,round2_target,manager_id,created_by,background_id) VALUES(?,?,?,'completed',?,?,?,?,?)`, strings.TrimSpace(req.Name), req.Description, startTime, targets[0], targets[1], actor.ID, actor.ID, nullableInt64(req.BackgroundID))
+	r, err := tx.Exec(`INSERT INTO tournaments(name,description,start_time,status,round1_target,round2_target,manager_id,created_by,background_id) VALUES(?,?,?,'completed',?,?,?,?,?)`, strings.TrimSpace(req.Name), req.Description, startTime, targets[0], targets[1], req.ManagerID, actor.ID, nullableInt64(req.BackgroundID))
 	if err != nil {
 		fail(c, 400, err.Error())
 		return

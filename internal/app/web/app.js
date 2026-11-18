@@ -407,7 +407,7 @@
     const timingEditable = mode === 'create' || (mode !== 'roster' && manages(source) && !terminal(source));
     const e = preserve && state.ruleDraft && !readonly ? { ...source, rules: state.ruleDraft } : source;
     const [users, catalog] = await Promise.all([
-      mode === 'create' ? api('/api/users') : terminal(e) ? Promise.resolve({ users: e.teams.flatMap(team => team.players) }) : api('/api/tournaments/' + e.id + '/eligible-users'),
+      state.user.role === 'superadmin' ? api('/api/users') : terminal(e) ? Promise.resolve({ users: e.teams.flatMap(team => team.players) }) : api('/api/tournaments/' + e.id + '/eligible-users'),
       state.user.role === 'superadmin' ? api('/api/site-settings') : api('/api/settings/catalog')
     ]);
     // 将已录入资料补入目录，停用账号也不能在查看或保存时悄悄消失。
@@ -424,8 +424,8 @@
       state.roster = Object.fromEntries(entries);
       state.rosterOrder = entries.map(([id]) => id);
     }
-    const managerDefault = mode === 'create' || state.users.some(u => u.id === e.manager_id) ? 0 : e.manager_id;
-    const managerField = state.user.role === 'superadmin' ? field('manager', '<select name="manager_id"><option value="' + managerDefault + '">' + t('managerDefault') + '</option>' + options(state.users, e.manager_id) + '</select>') : '';
+    const managers = users.users.filter(user => user.status === 'active' && !user.is_deleted);
+    const managerField = state.user.role === 'superadmin' ? field('manager', '<select name="manager_id" required><option value="">' + t('selectManager') + '</option>' + options(managers, e.manager_id) + '</select>') : '';
     const createBackground = mode === 'create' ? field('background', `<select name="background_id">${backgroundOptions(backgrounds, e.background_id)}</select>`) : '';
     const basic = mode !== 'roster' ? '<section class="panel editor-section" id="event-basics"><div class="panel-head"><h2>' + t('basicInfo') + '</h2><span>' + t('requiredBasics') + '</span></div><div class="panel-body form-grid">' + field('name', '<input name="name" list="tournament-names" value="' + esc(e.name || '') + '" required><datalist id="tournament-names">' + (catalog.tournament_names || []).map(n => '<option value="' + esc(n.name) + '">').join('') + '</datalist>', true) + field('time', startTimeInput(e.start_time || localTime())) + managerField + createBackground + field('description', '<textarea name="description" rows="2">' + esc(e.description || '') + '</textarea>', true) + '</div></section>' : '';
     const backgroundPanel = mode === 'create' || mode === 'roster' ? '' : eventBackgroundMarkup(e, backgrounds, manages(e) && !terminal(e));
@@ -935,7 +935,7 @@
     const [directory, backgrounds] = await Promise.all([api('/api/users'), api('/api/backgrounds')]);
     if (!preserve || !state.archiveDraft) state.archiveDraft = window.TBArchivePage.create(localTime());
     window.TBArchivePage.render({
-      draft: state.archiveDraft, users: directory.users.filter(user => user.role !== 'superadmin'), backgrounds: backgrounds.backgrounds || [],
+      draft: state.archiveDraft, managers: directory.users.filter(user => user.status === 'active'), users: directory.users.filter(user => user.role !== 'superadmin'), backgrounds: backgrounds.backgrounds || [],
       t, esc, field, input, startTimeInput, startTimeValue, backgroundOptions, shell, action, toast, person,
       onSave: async body => { const result = await post('/api/tournaments/archive', body); state.archiveDraft = null; go('/live/' + result.id); }
     });

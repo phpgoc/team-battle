@@ -21,7 +21,7 @@ func TestHistoryPlayerFilterUsesCachedParticipants(t *testing.T) {
 		}
 		var result struct{ ID int64 }
 		if err := json.Unmarshal(f.request(t, 1, "POST", "/api/tournaments/archive", map[string]any{
-			"name": name, "start_time": date, "player_ids": roster, "fixed_assignments": assignments,
+			"manager_id": 1, "name": name, "start_time": date, "player_ids": roster, "fixed_assignments": assignments,
 			"round1_target": 1, "round2_target": 1,
 			"matches": []archivedMatch{{1, int64(roster[0]), int64(roster[3]), "a"}, {2, int64(roster[0]), int64(roster[3]), "a"}},
 		}, 200), &result); err != nil {

@@ -32,12 +32,12 @@ func TestPublicTournamentIncludesManagerDisplayName(t *testing.T) {
 	if !bytes.Contains(raw, []byte(`"manager_name":""`)) {
 		t.Fatalf("空管理员名称未保留: %s", raw)
 	}
-	// 未单独指定赛事管理员时，权限回落到超级管理员，公开姓名留空。
+	// 超级管理员也可被明确指定为赛事管理员，应显示其姓名。
 	if _, err := f.app.db.Exec(`UPDATE tournaments SET manager_id=1 WHERE id=?`, id); err != nil {
 		t.Fatal(err)
 	}
 	raw = f.request(t, 0, "GET", path, nil, 200)
-	if !bytes.Contains(raw, []byte(`"manager_name":""`)) {
-		t.Fatalf("未指定管理员时应显示空名称: %s", raw)
+	if !bytes.Contains(raw, []byte(`"manager_name":"选手1"`)) {
+		t.Fatalf("超级管理员姓名未显示: %s", raw)
 	}
 }

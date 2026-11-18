@@ -1,5 +1,6 @@
 window.TB_I18N = {
   "zh": {
+    "selectManager": "请选择赛事管理员",
     "profileTournamentLocked": "参加的赛事尚未关闭，暂不能修改个人资料，密码仍可修改。",
     "kofRevivalNoRepeat": "KOF复活不重复",
     "kofRevivalNoRepeatHint": "每人复活一次后，再从全队开始下一轮随机复活。",
@@ -164,9 +165,8 @@ window.TB_I18N = {
     "superadmin": "超级管理员",
     "user": "选手",
     "manager": "赛事管理员",
-    "managerDefault": "稍后由超级管理员操作",
     "optional": "可选",
-    "requiredHint": "只需填写赛事名称和开始时间，其他内容可稍后设置。",
+    "requiredHint": "请填写赛事名称、开始时间和赛事管理员，选手可稍后添加。",
     "teamA": "A 队",
     "teamB": "B 队",
     "players": "参赛选手",
@@ -329,7 +329,7 @@ window.TB_I18N = {
     "profileCredentials": "登录与密码",
     "profileCategory": "分类与身份",
     "basicInfo": "基本信息",
-    "requiredBasics": "名称和开始时间为必填项",
+    "requiredBasics": "名称、开始时间和赛事管理员必填",
     "eventSections": "赛事设置分区",
     "noneSelected": "暂未选择",
     "voteThreshold": "同一候选人获得 {count} 票后，自动确定为队长。",

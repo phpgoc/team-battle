@@ -50,7 +50,8 @@ func TestUnifiedTournamentSettingsAtomicRoster(t *testing.T) {
 	f.request(t, 2, "PATCH", path, map[string]any{"rules": defaultRules()}, 403)
 	f.request(t, 9, "PATCH", path, map[string]any{"player_ids": []int{}, "rules": map[string]any{"round1_mode": "manual", "kof_starter": "captain", "no_repeat": true}}, 400)
 	f.assertCount(t, 6, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=?`, id)
-	f.request(t, 1, "PATCH", path, map[string]any{"manager_id": 0}, 200)
+	f.request(t, 1, "PATCH", path, map[string]any{"manager_id": 0}, 400)
+	f.request(t, 1, "PATCH", path, map[string]any{"manager_id": 1}, 200)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND manager_id=1`, id)
 }
 

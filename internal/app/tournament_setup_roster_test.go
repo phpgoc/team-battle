@@ -59,7 +59,7 @@ func TestSetupRosterPreservesEntryOrderAndChoices(t *testing.T) {
 func TestArchivePreservesOriginalRoster(t *testing.T) {
 	f := newWorkflowFixture(t)
 	f.request(t, 1, "POST", "/api/tournaments/archive", map[string]any{
-		"name": "历史原始录入", "start_time": "2026-11-17T19",
+		"manager_id": 1, "name": "历史原始录入", "start_time": "2026-11-17T19",
 		"player_ids":        []int64{8, 3, 6, 4, 7, 5},
 		"fixed_assignments": map[string]string{"3": "A", "4": "A", "5": "A", "6": "B", "7": "B", "8": "B"},
 		"matches":           []archivedMatch{{1, 3, 6, "a"}, {2, 4, 7, "a"}},

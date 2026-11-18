@@ -112,7 +112,7 @@ func TestArchivedKOFRevivalRejectsRepeatsAndAllowsNewCycle(t *testing.T) {
 			matches = append(matches, archivedMatch{Round: 2, AID: 3, BID: id, WhoWin: "a"})
 		}
 		f.request(t, 1, "POST", "/api/tournaments/archive", map[string]any{
-			"name": "历史复活校验", "start_time": "2026-11-19T20", "round1_target": 1, "round2_target": len(tc.order), "kof_revival_no_repeat": tc.enabled,
+			"manager_id": 1, "name": "历史复活校验", "start_time": "2026-11-19T20", "round1_target": 1, "round2_target": len(tc.order), "kof_revival_no_repeat": tc.enabled,
 			"player_ids": []int{3, 4, 5, 6, 7, 8}, "fixed_assignments": map[string]string{"3": "A", "4": "A", "5": "A", "6": "B", "7": "B", "8": "B"}, "matches": matches,
 		}, tc.want)
 	}

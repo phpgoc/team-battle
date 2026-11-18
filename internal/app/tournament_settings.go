@@ -176,12 +176,8 @@ func (a *App) updateTournamentSettings(c *gin.Context) {
 		}
 		if req.ManagerID != nil {
 			manager := *req.ManagerID
-			if manager == 0 {
-				manager = actor.ID
-			}
-			var valid int
-			if err := tx.QueryRow(`SELECT COUNT(*) FROM users WHERE id=? AND status='active' AND is_deleted=0`, manager).Scan(&valid); err != nil || valid != 1 {
-				return errors.New("赛事管理员账号无效")
+			if err := validateTournamentManager(tx, manager); err != nil {
+				return err
 			}
 			if _, err := tx.Exec(`UPDATE tournaments SET manager_id=? WHERE id=?`, manager, tournamentID); err != nil {
 				return err
