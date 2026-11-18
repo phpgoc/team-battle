@@ -17,7 +17,7 @@
 - 应用只提供 HTTP，不实现 TLS；生产 HTTPS 由 Nginx 反向代理终止并转发到应用端口。
 - 密码必须使用不可逆哈希保存，不能保存明文密码。
 - 会话默认使用 HttpOnly Cookie；修改操作必须经过服务端权限校验。
-- 会话持久化在 `sessions` 表，服务端不设过期时间；Cookie使用长期有效期并在鉴权时续期。`sessions.user_id` 唯一，重新登录通过原子更新替换旧token；鉴权必须查询数据库，不能依赖进程内会话缓存。旧设备退出只撤销旧token，不能撤销新设备会话。前端仅在首次加载或读取本人资料时请求`/api/auth/me`，不定时、不因聚焦或页面可见性变化检查会话；受保护接口返回401时自动退出。公开SSE不因登录身份分流。
+- 会话仅存于`users.session_token`可空字段，不保留`sessions`表；服务端不设过期时间，Cookie使用长期有效期并在鉴权时续期。令牌建立非空唯一索引，重新登录通过原子更新替换旧token；鉴权必须查询数据库，不能依赖进程内会话缓存。旧设备退出只撤销旧token，不能撤销新设备会话。`session_token`只在鉴权SQL中读取，不加入公开User结构或账号目录缓存；登录响应、本人资料、账号列表及SSE均不得序列化令牌或密码哈希。前端仅在首次加载或读取本人资料时请求`/api/auth/me`，不定时、不因聚焦或页面可见性变化检查会话；受保护接口返回401时自动退出。公开SSE不因登录身份分流。
 - 账号删除使用 `users.is_deleted` 标记，拒绝删除自己及任何已完成对局的参赛者，删除后使会话和账号目录缓存失效。
 - 登录名仅本人可修改。包括超级管理员在内，修改本人登录名、显示名、头像、分类或其他非密码资料均共享滚动7天冷却，使用`users.profile_changed_at`；一次保存可同时修改多项，密码和无变化保存不消耗冷却。账号管理中的本人入口也必须校验；管理员代改他人资料不受限制，也不改变对方的本人冷却。旧头像、显示名修改时间迁移为两者较新的时间，资料与头像在同一事务保存。
 
@@ -63,7 +63,7 @@
 
 ## 推荐数据边界
 
-核心表包括：`users`、`tournaments`、`teams`、`event_players`、`captain_votes`、`lineup_entries`、`rounds`、`matches`、`event_actions`、`sessions`、`categories` 和 `site_event_names`。
+核心表包括：`users`、`tournaments`、`teams`、`event_players`、`captain_votes`、`lineup_entries`、`rounds`、`matches`、`event_actions`、`categories` 和 `site_event_names`。
 
 历史录入和实时推进都写入 `rounds` 与 `matches`；`matches.round_no`、`a_id`、`b_id`、`who_win` 保持与规范字段同步，其中 `who_win` 使用 `0`、`a`、`b`。
 

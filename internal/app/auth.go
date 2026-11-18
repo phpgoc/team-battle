@@ -50,8 +50,8 @@ func (a *App) login(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "创建会话失败")
 		return
 	}
-	// 唯一账号索引保证一次原子写入即替换旧会话，保存失败时不会签发新Cookie。
-	if _, err := a.db.Exec(`INSERT INTO sessions(token,user_id) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET token=excluded.token,created_at=CURRENT_TIMESTAMP`, token, user.ID); err != nil {
+	// 账号仅保存一个有效会话，一次原子更新即可顶掉旧设备，失败时不签发Cookie。
+	if _, err := a.db.Exec(`UPDATE users SET session_token=? WHERE id=?`, token, user.ID); err != nil {
 		fail(c, http.StatusInternalServerError, "保存登录会话失败")
 		return
 	}
@@ -63,7 +63,7 @@ func (a *App) login(c *gin.Context) {
 func (a *App) logout(c *gin.Context) {
 	if token, err := c.Cookie("tb_session"); err == nil {
 		// 只删除提交的会话，旧设备退出不能影响新设备的有效登录。
-		if _, err := a.db.Exec(`DELETE FROM sessions WHERE token = ?`, token); err != nil {
+		if _, err := a.db.Exec(`UPDATE users SET session_token=NULL WHERE session_token=?`, token); err != nil {
 			fail(c, http.StatusInternalServerError, "退出登录失败")
 			return
 		}
@@ -194,7 +194,7 @@ func (a *App) currentUser(c *gin.Context) (User, error) {
 	}
 	// 每次鉴权都核对数据库中的有效会话，避免进程内缓存让已被顶掉的设备继续操作。
 	var userID int64
-	if err := a.db.QueryRow(`SELECT user_id FROM sessions WHERE token=?`, token).Scan(&userID); err != nil {
+	if err := a.db.QueryRow(`SELECT id FROM users WHERE session_token=? AND is_deleted=0 AND status='active'`, token).Scan(&userID); err != nil {
 		c.Set("session_invalid", true)
 		return User{}, errors.New("unauthorized")
 	}

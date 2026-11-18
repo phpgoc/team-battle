@@ -71,7 +71,7 @@ func TestPublicSSEMatchesAcrossIdentitiesAndPushesResults(t *testing.T) {
 	if err := json.Unmarshal(payload["background_id"], &backgroundID); err != nil || backgroundID == 0 {
 		t.Fatalf("初始公开推送应包含赛事背景: %s", initial)
 	}
-	for _, key := range []string{"actions", "sessions", "kof_reservations", "password_hash"} {
+	for _, key := range []string{"actions", "sessions", "session_token", "kof_reservations", "password_hash"} {
 		if _, exists := payload[key]; exists {
 			t.Fatalf("公开推送不应含内部字段 %s", key)
 		}

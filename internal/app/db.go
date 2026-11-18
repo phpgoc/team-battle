@@ -170,18 +170,6 @@ func migrate(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS matches_player_a_records ON matches(player_a_id) WHERE status='finished'`,
 		`CREATE INDEX IF NOT EXISTS matches_player_b_records ON matches(player_b_id) WHERE status='finished'`,
-		`CREATE TABLE IF NOT EXISTS sessions (
-			token TEXT PRIMARY KEY,
-			user_id INTEGER NOT NULL,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-		)`,
-		// 升级时仅保留每个账号最新的一次登录，再约束一账号一个有效会话。
-		`DELETE FROM sessions WHERE EXISTS (
-			SELECT 1 FROM sessions newer WHERE newer.user_id=sessions.user_id
-			AND (newer.created_at>sessions.created_at OR (newer.created_at=sessions.created_at AND newer.rowid>sessions.rowid))
-		)`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS sessions_one_per_user ON sessions(user_id)`,
 		`CREATE TABLE IF NOT EXISTS player_selections (
 			event_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
 			stage TEXT NOT NULL,
@@ -247,6 +235,7 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 	for _, column := range []struct{ table, name, definition string }{
+		{"users", "session_token", "TEXT"},
 		{"users", "is_deleted", "INTEGER NOT NULL DEFAULT 0"},
 		{"users", "display_name_changed_at", "TEXT"},
 		{"users", "avatar_changed_at", "TEXT"},
@@ -273,6 +262,9 @@ func migrate(db *sql.DB) error {
 		if err := ensureColumn(db, column.table, column.name, column.definition); err != nil {
 			return err
 		}
+	}
+	if err := initializeUserSessions(db); err != nil {
+		return err
 	}
 	// 旧版本的头像、显示名次数合并到最近一次本人资料修改，不重置已有冷却。
 	if _, err := db.Exec(`UPDATE users SET profile_changed_at=MAX(COALESCE(display_name_changed_at,''),COALESCE(avatar_changed_at,'')) WHERE profile_changed_at IS NULL AND (COALESCE(display_name_changed_at,'')<>'' OR COALESCE(avatar_changed_at,'')<>'')`); err != nil {

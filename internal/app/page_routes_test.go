@@ -34,7 +34,7 @@ func TestWorkspacePageRoutesAndPermissions(t *testing.T) {
 		f.request(t, 0, http.MethodGet, path, nil, http.StatusOK)
 	}
 	// 会话失效后刷新私有页面，不能继续返回管理页。
-	if _, err := f.app.db.Exec(`DELETE FROM sessions WHERE user_id=1`); err != nil {
+	if _, err := f.app.db.Exec(`UPDATE users SET session_token=NULL WHERE id=1`); err != nil {
 		t.Fatal(err)
 	}
 	f.request(t, 1, http.MethodGet, "/backgrounds", nil, http.StatusFound)

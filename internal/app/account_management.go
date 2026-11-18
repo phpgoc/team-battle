@@ -351,12 +351,8 @@ func (a *App) deleteUser(c *gin.Context) {
 		return
 	}
 	// 仅标记删除，保留 ID 与赛事关联；已删除账号不可登录或重新入选。
-	if _, err := tx.Exec(`UPDATE users SET is_deleted=1 WHERE id=?`, target.ID); err != nil {
+	if _, err := tx.Exec(`UPDATE users SET is_deleted=1,session_token=NULL WHERE id=?`, target.ID); err != nil {
 		fail(c, 500, "删除账号失败")
-		return
-	}
-	if _, err := tx.Exec(`DELETE FROM sessions WHERE user_id=?`, target.ID); err != nil {
-		fail(c, 500, "清理账号会话失败")
 		return
 	}
 	if err := tx.Commit(); err != nil {

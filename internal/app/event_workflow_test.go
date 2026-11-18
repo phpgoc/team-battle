@@ -41,7 +41,7 @@ func newWorkflowFixture(t *testing.T) *workflowFixture {
 	tokens := map[int]string{}
 	for id := 1; id <= 9; id++ {
 		tokens[id] = fmt.Sprint(id)
-		if _, err := db.Exec(`INSERT INTO sessions(token,user_id) VALUES(?,?)`, tokens[id], id); err != nil {
+		if _, err := db.Exec(`UPDATE users SET session_token=? WHERE id=?`, tokens[id], id); err != nil {
 			t.Fatal(err)
 		}
 	}

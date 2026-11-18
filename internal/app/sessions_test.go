@@ -63,7 +63,7 @@ func TestPersistentSessionReplacementAndLogout(t *testing.T) {
 	if first.Value == second.Value {
 		t.Fatal("重新登录必须替换会话标识")
 	}
-	f.assertCount(t, 1, `SELECT COUNT(*) FROM sessions WHERE user_id=3`)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM users WHERE id=3 AND session_token IS NOT NULL`)
 	if response := sessionRequest(f.handler, "GET", "/api/auth/me", nil, first); response.Code != 401 {
 		t.Fatal("旧设备必须立即失效")
 	}
@@ -71,9 +71,6 @@ func TestPersistentSessionReplacementAndLogout(t *testing.T) {
 	f.request(t, 4, "GET", "/api/auth/me", nil, 200)
 	if response := sessionRequest(f.handler, "POST", "/api/auth/logout", nil, first); response.Code != 200 {
 		t.Fatal("退出旧会话失败")
-	}
-	if _, err := f.app.db.Exec(`UPDATE sessions SET created_at='2000-01-01 00:00:00' WHERE user_id=3`); err != nil {
-		t.Fatal(err)
 	}
 	// 重新打开同一个SQLite文件，模拟重启后没有任何进程内状态的应用。
 	var sequence int
@@ -117,7 +114,7 @@ func TestFailedLoginPreservesCurrentSession(t *testing.T) {
 	if response := sessionRequest(f.handler, "POST", "/api/auth/login", map[string]any{"username": "user3", "password": "wrong"}, nil); response.Code != 401 {
 		t.Fatal("错误密码必须拒绝登录")
 	}
-	if _, err := f.app.db.Exec(`CREATE TRIGGER reject_session_update BEFORE UPDATE ON sessions BEGIN SELECT RAISE(ABORT,'test failure'); END`); err != nil {
+	if _, err := f.app.db.Exec(`CREATE TRIGGER reject_session_update BEFORE UPDATE OF session_token ON users BEGIN SELECT RAISE(ABORT,'test failure'); END`); err != nil {
 		t.Fatal(err)
 	}
 	response := sessionRequest(f.handler, "POST", "/api/auth/login", credentials, nil)
@@ -132,7 +129,7 @@ func TestFailedLoginPreservesCurrentSession(t *testing.T) {
 func TestReplacedSessionReturnsUnauthorizedOnProtectedActions(t *testing.T) {
 	f := newWorkflowFixture(t)
 	cookie := &http.Cookie{Name: "tb_session", Value: f.tokens[1]}
-	if _, err := f.app.db.Exec(`UPDATE sessions SET token='replacement-token' WHERE user_id=1`); err != nil {
+	if _, err := f.app.db.Exec(`UPDATE users SET session_token='replacement-token' WHERE id=1`); err != nil {
 		t.Fatal(err)
 	}
 	for _, endpoint := range []struct{ method, path string }{
@@ -173,12 +170,15 @@ func TestConcurrentLoginsLeaveOneValidSession(t *testing.T) {
 	if valid != 1 {
 		t.Fatalf("并发登录后只应有一个有效会话，实际为 %d", valid)
 	}
-	f.assertCount(t, 1, `SELECT COUNT(*) FROM sessions WHERE user_id=3`)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM users WHERE id=3 AND session_token IS NOT NULL`)
 }
 
-func TestSessionMigrationKeepsLatestLogin(t *testing.T) {
+func TestSessionInitializationMovesLegacyTokensToUsers(t *testing.T) {
 	f := newWorkflowFixture(t)
-	if _, err := f.app.db.Exec(`DROP INDEX sessions_one_per_user`); err != nil {
+	if _, err := f.app.db.Exec(`UPDATE users SET session_token=NULL WHERE id=3`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.app.db.Exec(`CREATE TABLE sessions(token TEXT PRIMARY KEY,user_id INTEGER NOT NULL,created_at TEXT NOT NULL)`); err != nil {
 		t.Fatal(err)
 	}
 	for _, token := range []string{"older", "latest", "latest-tie"} {
@@ -193,9 +193,26 @@ func TestSessionMigrationKeepsLatestLogin(t *testing.T) {
 	if err := migrate(f.app.db); err != nil {
 		t.Fatal(err)
 	}
-	f.assertCount(t, 1, `SELECT COUNT(*) FROM sessions WHERE user_id=3 AND token='latest-tie'`)
-	f.assertCount(t, 1, `SELECT COUNT(*) FROM sessions WHERE user_id=3`)
-	if _, err := f.app.db.Exec(`INSERT INTO sessions(token,user_id) VALUES('duplicate',3)`); err == nil {
-		t.Fatal("数据库必须拒绝同一账号的第二个会话")
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM users WHERE id=3 AND session_token='latest-tie'`)
+	f.assertCount(t, 0, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='sessions'`)
+	if _, err := f.app.db.Exec(`UPDATE users SET session_token='latest-tie' WHERE id=4`); err == nil {
+		t.Fatal("同一个令牌不能属于两个账号")
+	}
+	if err := migrate(f.app.db); err != nil {
+		t.Fatal(err)
+	}
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM users WHERE id=3 AND session_token='latest-tie'`)
+}
+
+func TestSessionTokenNeverAppearsInJSON(t *testing.T) {
+	f := newWorkflowFixture(t)
+	credentials := prepareSessionLogin(t, f)
+	login := sessionRequest(f.handler, "POST", "/api/auth/login", credentials, nil)
+	cookie := sessionCookie(t, login)
+	responses := [][]byte{login.Body.Bytes(), f.request(t, 1, "GET", "/api/users", nil, 200), sessionRequest(f.handler, "GET", "/api/auth/me", nil, cookie).Body.Bytes()}
+	for _, raw := range responses {
+		if bytes.Contains(raw, []byte("session_token")) || bytes.Contains(raw, []byte("password_hash")) || bytes.Contains(raw, []byte(cookie.Value)) {
+			t.Fatalf("接口泄露私有认证字段: %s", raw)
+		}
 	}
 }
