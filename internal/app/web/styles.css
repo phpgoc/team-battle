@@ -228,10 +228,15 @@ input,select,textarea{min-width:0}input:not([type=checkbox]):not([type=radio]):n
 /* 直播与历史看板铺满视口，双方名单放在大将战下方。 */
 .broadcast-board{padding:clamp(12px,1vw,24px);min-height:100dvh}
 #board-content{width:100%;min-width:0}
-.broadcast-board .board-top{max-width:none;width:100%;margin:0 0 16px;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:24px}
+.broadcast-board .board-top{max-width:none;width:100%;margin:0 0 16px;display:block}
+.broadcast-board .board-top.has-current{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);align-items:stretch;gap:24px}
+.board-overview{min-width:0;display:flex;flex-direction:column;justify-content:center;gap:20px}
+.board-overview-bottom{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px 24px}
 .board-title{min-width:0}
 .broadcast-board .board-top h1{font-size:clamp(28px,2.5vw,50px);margin:4px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .broadcast-board .board-top p{display:flex;gap:6px 22px;flex-wrap:wrap;font-size:clamp(14px,1vw,20px)}
+.broadcast-board .has-current .board-title p{flex-direction:column;gap:4px}
+.broadcast-board .board-top:not(.has-current) .board-overview{flex-direction:row;align-items:center;justify-content:space-between;gap:24px}
 .board-manager b{color:#c7d5e8;font-weight:600}
 .broadcast-board .board-live-mark{font-size:13px}
 .broadcast-board .board-score{width:auto;max-width:none;margin:0;gap:24px;align-items:center}
@@ -242,17 +247,19 @@ input,select,textarea{min-width:0}input:not([type=checkbox]):not([type=radio]):n
 .broadcast-board .board-status,.broadcast-board .board-settings-button{font-size:16px}
 .board-arena{display:flex;min-width:0;min-height:0}
 .board-center{display:flex;flex:1;flex-direction:column;min-width:0;min-height:0;gap:16px}
-.broadcast-board .board-current-match{position:relative;max-width:none;width:100%;margin:0;padding:14px 24px;flex:none}
-.broadcast-board .board-current-fighters{margin-top:8px;grid-template-columns:minmax(0,1fr) 70px minmax(0,1fr);gap:20px}
-.broadcast-board .board-current-fighters .board-avatar{width:clamp(60px,4.7vw,96px);height:clamp(60px,4.7vw,96px);flex-basis:clamp(60px,4.7vw,96px)}
-.broadcast-board .current-player strong{font-size:clamp(32px,3vw,60px)}
+.broadcast-board .board-current-match{position:relative;max-width:none;width:100%;height:clamp(240px,28vh,380px);margin:0;padding:10px 24px;display:flex;flex-direction:column;background:none;border:0;border-radius:0}
+.broadcast-board .board-current-fighters{flex:1;min-height:0;margin-top:12px;grid-template-columns:minmax(0,1fr) 70px minmax(0,1fr);gap:20px}
+.broadcast-board .board-current-fighters .board-avatar{width:clamp(108px,8vw,184px);height:clamp(108px,8vw,184px);flex-basis:clamp(108px,8vw,184px);box-shadow:0 10px 30px #0004}
+.broadcast-board .current-player,.broadcast-board .current-player-right{flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:14px}
+.broadcast-board .current-player>div{display:block;max-width:100%;min-width:0}
+.broadcast-board .current-player strong{display:block;font-size:clamp(32px,2.7vw,56px);overflow:visible;white-space:normal;line-height:1.2}
 .broadcast-board .current-player .board-category-icon{width:36px;height:36px;flex-basis:36px}
 .broadcast-board .board-current-head{font-size:18px}
 .broadcast-board .board-current-vs{font-size:24px}
 .broadcast-board .board-records{max-width:none;width:100%;margin:0;display:flex;flex-direction:column;flex:1;min-height:0;gap:14px}
 .broadcast-board .board-columns{max-width:none;width:100%;margin:0;display:grid;grid-template-columns:minmax(0,2.1fr) minmax(330px,1fr);gap:16px;flex:1;min-height:0;align-items:stretch}
 .broadcast-board .board-left{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;min-width:0;min-height:0;align-items:stretch}
-.broadcast-board .board-right{display:flex;flex-direction:column;gap:14px;grid-row:auto;min-width:0;min-height:0}
+.broadcast-board .board-right{display:flex;flex-direction:column;align-items:stretch;gap:14px;grid-row:auto;min-width:0;min-height:0}
 .broadcast-board .board-round{display:flex;flex-direction:column;min-width:0;min-height:0;padding:0;overflow:hidden}
 .broadcast-board .board-right>.board-round{flex:0 0 auto}
 .broadcast-board .board-round-head{flex:none;padding:14px 18px;gap:12px}
@@ -263,7 +270,10 @@ input,select,textarea{min-width:0}input:not([type=checkbox]):not([type=radio]):n
 .broadcast-board .board-match{grid-template-columns:26px minmax(0,1fr) clamp(64px,4.5vw,90px) minmax(0,1fr);gap:9px;padding:17px 2px;min-height:84px}
 .broadcast-board .board-match-no{font-size:16px}
 .broadcast-board .board-player{font-size:clamp(22px,1.65vw,34px);gap:9px;min-width:0}
-.broadcast-board .board-player>span{min-width:0;flex:1}
+.broadcast-board .board-player>span{min-width:0;flex:0 1 auto}
+.broadcast-board .board-identity{display:inline-flex;align-items:center;gap:.3em;max-width:100%;min-width:0;vertical-align:middle;white-space:normal}
+.broadcast-board .board-identity .player-record-link{min-width:0;flex:0 1 auto;overflow-wrap:anywhere}
+.broadcast-board .board-identity .board-category-icon{flex-shrink:0;margin:0}
 .broadcast-board .board-player .player-record-link{white-space:normal;overflow-wrap:anywhere;line-height:1.25;font-size:inherit}
 .broadcast-board .board-player .board-category-icon{width:28px;height:28px;flex-basis:28px}
 .broadcast-board .board-match-result{display:flex;justify-content:center;gap:0}
@@ -274,8 +284,8 @@ input,select,textarea{min-width:0}input:not([type=checkbox]):not([type=radio]):n
 .broadcast-board .board-roster-head{padding:12px 14px;font-size:clamp(18px,1.25vw,25px);flex:none}
 .broadcast-board .board-roster-head b{font-size:inherit}
 .board-roster-list{min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#536985 #152237;display:grid;align-content:start;padding:4px 10px 10px}
-.broadcast-board .board-roster-player{margin:0;padding:10px 0;display:flex;gap:8px;align-items:center;min-width:0;min-height:68px;border-bottom:1px solid #ffffff0c}
-.broadcast-board .board-roster-player .board-avatar{width:clamp(34px,2.5vw,52px);height:clamp(34px,2.5vw,52px);flex-basis:clamp(34px,2.5vw,52px);object-fit:cover}
+.broadcast-board .board-roster-player{margin:0;padding:10px 0;display:flex;gap:8px;align-items:center;min-width:0;min-height:max(68px,calc(clamp(46px,3.4vw,80px) + 21px));border-bottom:1px solid #ffffff0c}
+.broadcast-board .board-roster-player .board-avatar{width:clamp(46px,3.4vw,80px);height:clamp(46px,3.4vw,80px);flex-basis:clamp(46px,3.4vw,80px);object-fit:cover}
 .broadcast-board .board-roster-name{min-width:0;flex:1;display:grid;gap:3px;font-size:clamp(19px,1.35vw,28px)}
 .broadcast-board .board-roster-player .player-record-link{font-size:inherit;white-space:normal;overflow-wrap:anywhere;text-align:left;line-height:1.2}
 .broadcast-board .board-roster-player .board-category-icon{width:24px;height:24px;flex-basis:24px;margin-left:0}
@@ -308,14 +318,15 @@ input,select,textarea{min-width:0}input:not([type=checkbox]):not([type=radio]):n
   .broadcast-board .board-top h1{font-size:30px}
   .broadcast-board .board-score strong{font-size:60px}
   .board-center{gap:10px}
-  .broadcast-board .board-current-match{padding:8px 18px}
-  .broadcast-board .board-current-fighters .board-avatar{width:56px;height:56px;flex-basis:56px}
+  .broadcast-board .board-current-match{height:210px;padding:6px 14px}
+  .broadcast-board .board-current-fighters .board-avatar{width:108px;height:108px;flex-basis:108px}
+  .broadcast-board .current-player{gap:9px}
   .broadcast-board .current-player strong{font-size:34px}
   .broadcast-board .board-rules{max-height:135px}
   .broadcast-board .board-round-head{padding:9px 14px}
   .broadcast-board .board-round-head h2{font-size:42px}
   .broadcast-board .board-match{min-height:72px;padding:12px 2px}
-  .broadcast-board .board-roster-player{min-height:54px;padding:7px 0}
+  .broadcast-board .board-roster-player{min-height:max(54px,calc(clamp(46px,3.4vw,80px) + 15px));padding:7px 0}
 }
 @media(min-width:1180px) and (max-width:1550px){
   .broadcast-board .board-columns{grid-template-columns:minmax(0,2.05fr) minmax(350px,1fr);gap:12px}
@@ -330,6 +341,11 @@ input,select,textarea{min-width:0}input:not([type=checkbox]):not([type=radio]):n
   .broadcast-board .board-roster-head{padding:9px 10px}
 }
 @media(min-width:1180px) and (max-height:700px){
+  .broadcast-board .board-current-match{height:185px}
+  .broadcast-board .board-current-fighters{margin-top:6px}
+  .broadcast-board .board-current-fighters .board-avatar{width:88px;height:88px;flex-basis:88px}
+  .board-overview{gap:10px}
+  .broadcast-board .board-score strong{font-size:48px}
   .broadcast-board .board-rules{max-height:110px}
   .broadcast-board .board-right .board-round-head>div{display:flex;align-items:center;gap:14px}
   .broadcast-board .board-right .board-round-head h2{margin:0}
@@ -337,6 +353,9 @@ input,select,textarea{min-width:0}input:not([type=checkbox]):not([type=radio]):n
 }
 /* 窗口较小时允许整页滚动，保留全部内容及操作入口。 */
 @media(max-width:1179px){
+  .broadcast-board .board-top.has-current{grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:16px}
+  .broadcast-board .board-current-match{height:260px;padding:10px}
+  .broadcast-board .board-current-fighters .board-avatar{width:112px;height:112px;flex-basis:112px}
   .broadcast-board .board-columns{grid-template-columns:1fr}
   .broadcast-board .board-right{display:flex;flex-direction:column}
   .broadcast-board .board-right>.board-round{max-height:none}
@@ -347,16 +366,11 @@ input,select,textarea{min-width:0}input:not([type=checkbox]):not([type=radio]):n
   .broadcast-board .board-roster-list{max-height:420px}
 }
 @media(max-width:900px){
-  .broadcast-board .board-top{grid-template-columns:minmax(0,1fr) auto}
-  .broadcast-board .board-top>.board-score{grid-column:1/-1;grid-row:2;justify-self:center}
-  .board-heading-actions{grid-column:2;grid-row:1}
+  .broadcast-board .board-top.has-current{grid-template-columns:1fr;gap:20px}
+  .broadcast-board .board-top .board-overview{flex-direction:column;align-items:stretch;gap:16px}
   .broadcast-board .board-right{display:flex}
   .broadcast-board .board-current-fighters{grid-template-columns:minmax(0,1fr) 44px minmax(0,1fr)}
   .broadcast-board .current-player strong{font-size:28px}
-  .broadcast-board .current-player,.broadcast-board .current-player-right{justify-content:start;text-align:left}
-  .broadcast-board .current-player-right{justify-content:end;text-align:right}
-  .broadcast-board .current-player>div{display:grid}
-  .broadcast-board .current-player-right>div{justify-items:end}
   .broadcast-board .board-current-fighters .current-player:last-child{order:3}
   .broadcast-board .board-current-fighters .board-current-vs{order:2}
 }
@@ -367,10 +381,10 @@ input,select,textarea{min-width:0}input:not([type=checkbox]):not([type=radio]):n
   .broadcast-board .board-player{font-size:22px}
   .broadcast-board .board-player .board-category-icon{width:22px;height:22px;flex-basis:22px}
   .broadcast-board .board-top p{font-size:13px}
-  .broadcast-board .board-current-fighters .board-avatar{width:40px;height:40px;flex-basis:40px}
+  .broadcast-board .board-current-fighters .board-avatar{width:100px;height:100px;flex-basis:100px}
   .broadcast-board .current-player strong{font-size:22px}
   .broadcast-board .current-player{gap:7px}
-  .broadcast-board .board-current-match{padding:12px}
+  .broadcast-board .board-current-match{height:240px;padding:12px 0}
   .broadcast-board .event-operations{inset:12px;padding:16px}
   .broadcast-board .board-roster-name{font-size:19px}
 }
