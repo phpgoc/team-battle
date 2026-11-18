@@ -446,12 +446,13 @@
       const sides = e.teams.map((team, side) => {
         const ids = split ? group[side === 0 ? 'team_a_ids' : 'team_b_ids'] || [] : group.player_ids || [];
         const names = ids.filter(id => team.players.some(player => player.id === Number(id))).map(id => players.get(Number(id))).filter(Boolean).map(recordName);
-        return `<span>${t(side === 0 ? 'teamA' : 'teamB')}: ${names.length ? names.join(', ') : t('random')}</span>`;
+        return `<span class="special-rule-side" aria-label="${t(side === 0 ? 'teamA' : 'teamB')}">${names.length ? names.join('、') : t('random')}</span>`;
       });
-      return `<div><dt>${t('specialMatchGroup')}${index + 1}</dt><dd class="special-rules-summary"><b>${Number(group.probability) || 0}%</b>${sides.join('')}</dd></div>`;
+      return `<div class="ace-special-rule"><dt>${t('specialMatchGroup')}${index + 1} <b>${Number(group.probability) || 0}%</b></dt><dd class="special-rules-summary">${sides.join(`<span class="special-rule-versus">${t('matchupAgainst')}</span>`)}</dd></div>`;
     }).join('');
     const configured = Number(rules.ace_most_wins) + Number(rules.ace_most_losses) + (rules.ace_specials || []).reduce((sum, group) => sum + Number(group.probability || 0), 0);
-    return `<div class="board-rule-block"><h3>${t('aceRules')}</h3><dl><div><dt>${t('sourceMostWins')}</dt><dd>${Number(rules.ace_most_wins) || 0}%</dd></div><div><dt>${t('sourceMostLosses')}</dt><dd>${Number(rules.ace_most_losses) || 0}%</dd></div>${specials}<div><dt>${t('fallback')}</dt><dd>${Math.max(0, 100 - configured)}%</dd></div></dl></div>`;
+    const odds = [['sourceMostWins', Number(rules.ace_most_wins) || 0], ['sourceMostLosses', Number(rules.ace_most_losses) || 0], ['fallback', Math.max(0, 100 - configured)]];
+    return `<div class="board-rule-block ace-rule-block"><div class="ace-rule-heading"><h3>${t('aceRules')}</h3><div class="ace-rule-odds">${odds.map(([label, probability]) => `<dl><dt>${t(label)}</dt><dd>${probability}%</dd></dl>`).join('')}</div></div>${specials ? `<dl class="ace-special-list">${specials}</dl>` : ''}</div>`;
   }
   function rulesSummary(e) { const rules = { ...defaultRules(), ...e.rules }; return `<section class="board-rules"><div class="board-roster-head"><span>${t('eventRules')}</span></div><div class="board-rule-block"><h3>${t('round1')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round1_target}</dd></div><div><dt>${t('round1Mode')}</dt><dd>${t(rules.round1_mode === 'random' ? 'random' : 'manual')}</dd></div><div><dt>${t('noRepeat')}</dt><dd>${t(rules.no_repeat ? 'enabled' : 'disabled')}</dd></div></dl></div><div class="board-rule-block"><h3>${t('round2')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round2_target}</dd></div><div><dt>${t('kofStarter')}</dt><dd>${t(rules.kof_starter === 'captain' ? 'captainStarter' : 'randomStarter')}</dd></div></dl></div>${aceRulesSummary(e, rules)}${e.description ? `<div class="board-rule-block"><h3>${t('description')}</h3><p class="summary-description">${esc(e.description)}</p></div>` : ''}</section>`; }
   // 预抽对阵只用于展示，正式开赛后由比赛引擎按同一份排阵生成真实对局。

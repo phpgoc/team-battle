@@ -33,7 +33,27 @@
 .special-team-candidates .special-player-select{max-width:none;min-width:0}
 .special-team-candidates .help{margin:0;font-size:12px}
 .special-teams-vs{align-self:center;font-size:13px;font-weight:700;color:#8a9aae}
-.special-rules-summary{display:grid;gap:6px}.special-rules-summary>span{overflow-wrap:anywhere}
+/* 大将战获得更多横向空间，多条特殊对战在规则区内滚动，姓名完整换行。 */
+.ace-rule-heading{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 24px;margin-bottom:5px;flex:none}
+.broadcast-board .ace-rule-heading h3{margin:0}
+.ace-rule-odds{display:flex;flex-wrap:wrap;gap:4px 20px}
+.broadcast-board .ace-rule-odds dl{display:flex;gap:8px;align-items:baseline}
+.broadcast-board .ace-rule-odds dd{max-width:none;flex:none}
+.broadcast-board .ace-special-list{gap:5px}
+.broadcast-board .ace-special-list>.ace-special-rule{display:block;line-height:1.6}
+.ace-special-rule>dt{display:inline;margin-right:10px;white-space:nowrap}
+.ace-special-rule>dt>b{color:#e9c08d;font-weight:600;margin-left:4px}
+.broadcast-board .ace-special-rule>.special-rules-summary{display:inline;margin:0;max-width:none;text-align:left;overflow-wrap:anywhere}
+.special-rule-side{overflow-wrap:anywhere}
+.special-rule-versus{display:inline-block;margin:0 .55em;color:#91a0b5}
+.special-rules-summary .player-record-link{overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere;line-height:inherit}
+@media(min-width:1180px){
+  .broadcast-board .board-rules{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,2fr)}
+  .broadcast-board .board-rules:not(:has(.summary-description)){height:170px;grid-template-rows:auto minmax(0,1fr);overflow:hidden}
+  .broadcast-board .board-rules:not(:has(.summary-description))>.board-rule-block{min-height:0;overflow:auto}
+  .broadcast-board .board-rules:not(:has(.summary-description))>.ace-rule-block{display:flex;flex-direction:column;overflow:hidden}
+  .broadcast-board .ace-special-list{min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#536985 #152237}
+}
 @media(max-width:620px){.special-teams{gap:8px}.special-player-select{font-size:12px}.special-player-select option{padding:8px 5px}.special-team-candidates .field-label{font-size:12px}.special-teams-vs{font-size:10px}.special-rule-head{flex-wrap:wrap;gap:8px}}
 @media(max-width:620px){
   .roster-list-heading,.roster-entry{grid-template-columns:minmax(0,1fr) 94px 32px;gap:8px;padding-left:0;padding-right:0}
