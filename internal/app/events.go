@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -17,22 +16,17 @@ func (a *App) publicStream(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "赛事编号无效")
 		return
 	}
-	var assignedTeams int
-	if err := a.db.QueryRow(`SELECT COUNT(DISTINCT team_id) FROM event_players WHERE event_id=? AND active=1`, eventID).Scan(&assignedTeams); err != nil || assignedTeams != 2 {
-		fail(c, http.StatusNotFound, "赛事尚未完成参赛分队")
-		return
-	}
-	payload, err := a.publicEventPayload(eventID)
+	initial, updates, unsubscribe, err := a.subscribeEvent(eventID)
 	if err != nil {
 		fail(c, http.StatusNotFound, "赛事不存在")
 		return
 	}
-	var initialStatus string
-	if err := a.db.QueryRow(`SELECT status FROM events WHERE id=?`, eventID).Scan(&initialStatus); err != nil {
-		fail(c, 404, "赛事不存在")
+	defer unsubscribe()
+	if !initial.grouped {
+		fail(c, http.StatusNotFound, "赛事尚未完成参赛分队")
 		return
 	}
-	if initialStatus == statusCompleted || initialStatus == statusCancelled {
+	if initial.status == statusCompleted || initial.status == statusCancelled {
 		c.Status(http.StatusNoContent)
 		return
 	}
@@ -40,17 +34,13 @@ func (a *App) publicStream(c *gin.Context) {
 	c.Header("Cache-Control", "no-cache, no-transform")
 	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no")
-	if _, err := fmt.Fprintf(c.Writer, "retry: 2000\ndata: %s\n\n", payload); err != nil {
+	if _, err := fmt.Fprintf(c.Writer, "retry: 2000\ndata: %s\n\n", initial.payload); err != nil {
 		return
 	}
 	c.Writer.Flush()
 
-	updates := time.NewTicker(time.Second)
 	heartbeats := time.NewTicker(15 * time.Second)
-	defer updates.Stop()
 	defer heartbeats.Stop()
-	previous := payload
-	var status string
 	for {
 		select {
 		case <-c.Request.Context().Done():
@@ -60,20 +50,15 @@ func (a *App) publicStream(c *gin.Context) {
 				return
 			}
 			c.Writer.Flush()
-		case <-updates.C:
-			payload, err = a.publicEventPayload(eventID)
-			if err != nil {
+		case next := <-updates:
+			if !next.grouped || len(next.payload) == 0 {
 				return
 			}
-			if bytes.Equal(previous, payload) {
-				continue
-			}
-			if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", payload); err != nil {
+			if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", next.payload); err != nil {
 				return
 			}
-			previous = payload
 			c.Writer.Flush()
-			if err := a.db.QueryRow(`SELECT status FROM events WHERE id=?`, eventID).Scan(&status); err == nil && (status == statusCompleted || status == statusCancelled) {
+			if next.status == statusCompleted || next.status == statusCancelled {
 				return
 			}
 		}

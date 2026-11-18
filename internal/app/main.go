@@ -55,6 +55,7 @@ type App struct {
 	storageDir  string
 	history     historyCache
 	directory   categoryDirectoryCache
+	broadcast   eventBroadcast
 }
 
 type historyCache struct {

@@ -11,6 +11,7 @@ func (a *App) router() *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
+	r.Use(a.broadcastAfterMutation)
 	a.registerPageRoutes(r)
 	r.GET("/live/:id/setting", func(c *gin.Context) { a.serveLiveEntry(c, true) })
 	r.GET("/live/:id/lineup", a.serveLineupEntry)
