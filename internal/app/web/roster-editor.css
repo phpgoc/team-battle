@@ -28,6 +28,13 @@
 .special-player-select{display:block;width:100%;max-width:680px;min-height:180px;font-size:14px;line-height:1.6}
 .special-player-select option{padding:8px 10px;border-radius:4px}
 .special-player-select:focus{outline:2px solid #75aee2;outline-offset:2px}
+.special-teams{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:18px;align-items:start}
+.special-team-candidates{display:grid;gap:10px;min-width:0}
+.special-team-candidates .special-player-select{max-width:none;min-width:0}
+.special-team-candidates .help{margin:0;font-size:12px}
+.special-teams-vs{align-self:center;font-size:13px;font-weight:700;color:#8a9aae}
+.special-rules-summary{display:grid;gap:6px}.special-rules-summary>span{overflow-wrap:anywhere}
+@media(max-width:620px){.special-teams{gap:8px}.special-player-select{font-size:12px}.special-player-select option{padding:8px 5px}.special-team-candidates .field-label{font-size:12px}.special-teams-vs{font-size:10px}.special-rule-head{flex-wrap:wrap;gap:8px}}
 @media(max-width:620px){
   .roster-list-heading,.roster-entry{grid-template-columns:minmax(0,1fr) 94px 32px;gap:8px;padding-left:0;padding-right:0}
   [data-roster-editable=false] .roster-list-heading,[data-roster-editable=false] .roster-entry{grid-template-columns:minmax(0,1fr) 94px}

@@ -41,6 +41,9 @@ func TestAceSpecialGroupsAndFullRandomFallback(t *testing.T) {
 	}{
 		{"全随机包含特殊候选", []AceSpecial{{PlayerIDs: []int64{3, 4, 5, 6, 7, 8}, Probability: 0}}, "random", []int{3, 3}, []int64{3, 4, 5}, []int64{6, 7, 8}},
 		{"其他选手显式录入第二组", []AceSpecial{{PlayerIDs: []int64{3, 6}, Probability: 0}, {PlayerIDs: []int64{4, 5, 7, 8}, Probability: 100}}, "special:1", []int{2, 2}, []int64{4, 5}, []int64{7, 8}},
+		{"双侧候选独立且排除对侧记录", []AceSpecial{{TeamAIDs: []int64{3, 4, 8}, TeamBIDs: []int64{5, 6}, Probability: 100}}, "special:0", []int{2, 1}, []int64{3, 4}, []int64{6}},
+		{"空侧从本队全随机", []AceSpecial{{TeamAIDs: []int64{3}, TeamBIDs: []int64{}, Probability: 100}}, "special:0", []int{1, 3}, []int64{3}, []int64{6, 7, 8}},
+		{"双侧规则不缩小全随机候选", []AceSpecial{{TeamAIDs: []int64{3}, TeamBIDs: []int64{6}, Probability: 0}}, "random", []int{3, 3}, []int64{3, 4, 5}, []int64{6, 7, 8}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			f := newWorkflowFixture(t)
@@ -71,5 +74,46 @@ func TestAceSpecialGroupsAndFullRandomFallback(t *testing.T) {
 				t.Fatalf("大将战候选池不符合配置: %+v", draw)
 			}
 		})
+	}
+}
+
+func TestAceSideCandidatesValidationAndRosterCleanup(t *testing.T) {
+	f := newWorkflowFixture(t)
+	base := func() map[string]any {
+		return map[string]any{
+			"name": "双侧特殊对战", "event_time": "2026-11-18T20", "manager_id": 2,
+			"player_ids": []int64{3, 4, 5, 6, 7, 8},
+			"rules":      map[string]any{"ace_specials": []map[string]any{{"team_a_ids": []int64{3}, "team_b_ids": []int64{6, 7}, "probability": 20}}},
+		}
+	}
+	for _, test := range []struct {
+		name string
+		a, b []int64
+	}{
+		{"同侧重复", []int64{3, 3}, []int64{6}},
+		{"非参赛选手", []int64{3}, []int64{9}},
+		{"两侧皆空", []int64{}, []int64{}},
+		{"非法ID", []int64{-1}, []int64{6}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			body := base()
+			body["rules"].(map[string]any)["ace_specials"] = []map[string]any{{"team_a_ids": test.a, "team_b_ids": test.b, "probability": 20}}
+			f.request(t, 1, "POST", "/api/events", body, 400)
+			f.assertCount(t, 0, `SELECT COUNT(*) FROM events WHERE name='双侧特殊对战'`)
+		})
+	}
+	body := base()
+	// 未分组的同一选手可分别列为两侧候选，不能当作同侧重复。
+	body["rules"].(map[string]any)["ace_specials"] = []map[string]any{{"team_a_ids": []int64{3, 4}, "team_b_ids": []int64{3, 6}, "probability": 20}}
+	f.request(t, 1, "POST", "/api/events", body, 200)
+	id := f.scalar(t, `SELECT id FROM events WHERE name='双侧特殊对战'`)
+	path := fmt.Sprintf("/api/events/%d", id)
+	f.request(t, 3, "PATCH", path+"/settings", map[string]any{"rules": body["rules"]}, 403)
+	f.request(t, 2, "PATCH", path+"/settings", map[string]any{"rules": map[string]any{"ace_specials": []map[string]any{{"team_a_ids": []int64{9}, "team_b_ids": []int64{6}, "probability": 20}}}}, 400)
+	// 旧阵容接口删除参赛者时，也必须清理两侧名单。
+	f.request(t, 2, "POST", path+"/players", map[string]any{"player_ids": []int64{3, 5, 6, 7, 8, 9}}, 200)
+	rules := mustEventRules(f.app.db, id)
+	if len(rules.AceSpecials) != 1 || !reflect.DeepEqual(rules.AceSpecials[0].TeamAIDs, []int64{3}) || !reflect.DeepEqual(rules.AceSpecials[0].TeamBIDs, []int64{3, 6}) {
+		t.Fatalf("修改阵容后双侧候选不正确: %+v", rules.AceSpecials)
 	}
 }

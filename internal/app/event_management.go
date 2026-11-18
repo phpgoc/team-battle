@@ -189,7 +189,7 @@ func (a *App) createEvent(c *gin.Context) {
 		return
 	}
 	for _, group := range rules.AceSpecials {
-		for _, id := range group.PlayerIDs {
+		for _, id := range group.allPlayerIDs() {
 			found := false
 			for _, player := range req.PlayerIDs {
 				if player == id {

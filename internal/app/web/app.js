@@ -236,7 +236,7 @@
       state.roster = Object.fromEntries(entries);
       state.rosterOrder = entries.map(([id]) => id);
       $$('[data-special-candidates]', form).forEach(container => {
-        const selected = specialCandidateIDs(container);
+        const selected = specialCandidatesValue(container);
         container.innerHTML = specialCandidatesMarkup(selected);
       });
       refreshSpecialCounts();
@@ -244,19 +244,32 @@
     } });
   }
   const defaultRules = () => ({ round1_mode: 'manual', kof_starter: 'random', no_repeat: true, random_draw_seconds: 5, ace_draw_seconds: 5, ace_most_wins: 20, ace_most_losses: 20, ace_specials: [] });
-  const specialCandidateIDs = row => [...($('[name="special_ids"]', row)?.selectedOptions || [])].map(option => Number(option.value));
-  function specialCandidatesMarkup(selected = []) {
+  const specialSideIDs = (row, side) => [...($(`[name="special_${side}_ids"]`, row)?.selectedOptions || [])].map(option => Number(option.value));
+  const specialCandidatesValue = row => ({ team_a_ids: specialSideIDs(row, 'a'), team_b_ids: specialSideIDs(row, 'b') });
+  const specialCandidateIDs = row => [...new Set([...specialSideIDs(row, 'a'), ...specialSideIDs(row, 'b')])];
+  function specialCandidatesMarkup(group = {}) {
     const available = state.rosterOrder.map(id => state.users.find(user => user.id === id)).filter(Boolean);
-    return `<select class="special-player-select" name="special_ids" multiple size="6" aria-label="${t('specialCandidates')}">${available.map(u => `<option value="${u.id}"${selected.includes(u.id) ? ' selected' : ''}>${esc(u.display_name)}${u.username && u.username !== u.display_name ? ` (${esc(u.username)})` : ''}${u.category_name ? ` · ${esc(u.category_name)}` : ''}</option>`).join('')}</select>${available.length ? '' : `<p class="help">${t('selectPlayersFirst')}</p>`}`;
+    const split = Array.isArray(group.team_a_ids) || Array.isArray(group.team_b_ids);
+    // 分组后按正式队伍列候选；分组前待随机选手可分别加入两侧，保留各自的选择。
+    const sideOf = id => state.specialTeams?.[id] || state.roster[id];
+    const column = side => {
+      const team = side.toUpperCase(), label = t(side === 'a' ? 'teamA' : 'teamB');
+      const selected = split ? group[`team_${side}_ids`] || [] : (group.player_ids || []).filter(id => !['A', 'B'].includes(sideOf(id)) || sideOf(id) === team);
+      const players = available.filter(user => !['A', 'B'].includes(sideOf(user.id)) || sideOf(user.id) === team);
+      const opposite = available.filter(user => selected.includes(user.id) && !players.includes(user));
+      const option = user => `<option value="${user.id}"${selected.includes(user.id) ? ' selected' : ''}>${esc(user.display_name)}${user.username && user.username !== user.display_name ? ` (${esc(user.username)})` : ''}${user.category_name ? ` · ${esc(user.category_name)}` : ''}${!['A', 'B'].includes(sideOf(user.id)) ? ` · ${t('randomTeam')}` : ''}</option>`;
+      return `<label class="special-team-candidates"><span class="field-label">${label} · ${t('specialCandidates')}</span><select class="special-player-select" name="special_${side}_ids" data-special-side="${side}" multiple size="6" aria-label="${label} · ${t('specialCandidates')}">${players.map(option).join('')}${opposite.length ? `<optgroup label="${t('specialOtherTeam')}">${opposite.map(option).join('')}</optgroup>` : ''}</select><small class="help">${t('specialSideFallback')}</small></label>`;
+    };
+    return `<div class="special-teams">${column('a')}<span class="special-teams-vs" aria-hidden="true">VS</span>${column('b')}</div>${available.length ? '' : `<p class="help">${t('selectPlayersFirst')}</p>`}`;
   }
   function specialMarkup(group = { player_ids: [], probability: 0 }) {
-    return `<section class="special-rule"><div class="special-rule-head"><h3 data-special-title></h3><span data-special-count></span><button type="button" class="link danger" data-remove-special>${t('delete')}</button></div><div class="special-probability">${field('probability', input('special_probability', group.probability, 'number', 'min="0" max="100" required'))}<p class="help">${t('candidateHint')}</p></div><div class="special-candidates" data-special-candidates>${specialCandidatesMarkup(group.player_ids)}</div></section>`;
+    return `<section class="special-rule"><div class="special-rule-head"><h3 data-special-title></h3><span data-special-count></span><button type="button" class="link danger" data-remove-special>${t('delete')}</button></div><div class="special-probability">${field('probability', input('special_probability', group.probability, 'number', 'min="0" max="100" required'))}<p class="help">${t('candidateHint')}</p></div><div class="special-candidates" data-special-candidates>${specialCandidatesMarkup(group)}</div></section>`;
   }
   function refreshSpecialCounts() {
     $$('.special-rule').forEach((row, index) => {
       $('[data-special-title]', row).textContent = `${t('specialMatchGroup')}${index + 1}`;
-      $('[data-special-count]', row).textContent = `${t('selected')} ${specialCandidateIDs(row).length}`;
-      $('[name="special_ids"]', row)?.setAttribute('aria-label', `${t('specialMatchGroup')}${index + 1} · ${t('specialCandidates')}`);
+      $('[data-special-count]', row).textContent = `${t('teamA')} ${specialSideIDs(row, 'a').length} · ${t('teamB')} ${specialSideIDs(row, 'b').length}`;
+      $$('[data-special-side]', row).forEach(select => select.setAttribute('aria-label', `${t('specialMatchGroup')}${index + 1} · ${t(select.dataset.specialSide === 'a' ? 'teamA' : 'teamB')} · ${t('specialCandidates')}`));
     });
   }
   function rulesMarkup(e = {}, roundEditable = true, aceEditable = true) {
@@ -268,7 +281,7 @@
   }
   function readRulesDraft(form) {
     const f = new FormData(form);
-    return { round1_mode: f.get('round1_mode'), kof_starter: f.get('kof_starter'), no_repeat: f.has('no_repeat'), random_draw_seconds: Number(f.get('random_draw_seconds')), ace_draw_seconds: Number(f.get('ace_draw_seconds')), ace_most_wins: Number(f.get('ace_most_wins')), ace_most_losses: Number(f.get('ace_most_losses')), ace_specials: $$('.special-rule', form).map(row => ({ probability: Number($('[name="special_probability"]', row).value), player_ids: specialCandidateIDs(row) })) };
+    return { round1_mode: f.get('round1_mode'), kof_starter: f.get('kof_starter'), no_repeat: f.has('no_repeat'), random_draw_seconds: Number(f.get('random_draw_seconds')), ace_draw_seconds: Number(f.get('ace_draw_seconds')), ace_most_wins: Number(f.get('ace_most_wins')), ace_most_losses: Number(f.get('ace_most_losses')), ace_specials: $$('.special-rule', form).map(row => ({ probability: Number($('[name="special_probability"]', row).value), ...specialCandidatesValue(row), player_ids: specialCandidateIDs(row) })) };
   }
   function rulesValue(form) {
     const rules = readRulesDraft(form);
@@ -330,6 +343,7 @@
       if (player.display_name && !directory.has(player.id)) directory.set(player.id, player);
     }
     state.users = [...directory.values()];
+    state.specialTeams = Object.fromEntries((e.teams || []).flatMap((team, index) => team.players.filter(player => player.active !== false).map(player => [player.id, index === 0 ? 'A' : 'B'])));
     const backgrounds = catalog.backgrounds || [];
     if (!preserve || readonly) {
       // 设置页只还原录入意向；旧赛事未保存意向时，不用实际分队猜测原始选择。
@@ -428,8 +442,13 @@
   function aceRulesSummary(e, rules) {
     const players = new Map(e.teams.flatMap(team => team.players).map(player => [player.id, player]));
     const specials = (rules.ace_specials || []).map((group, index) => {
-      const names = (group.player_ids || []).map(id => players.get(Number(id))).filter(Boolean).map(recordName);
-      return `<div><dt>${t('specialMatchGroup')}${index + 1}</dt><dd>${Number(group.probability) || 0}%${names.length ? ` · ${names.join(', ')}` : ''}</dd></div>`;
+      const split = Array.isArray(group.team_a_ids) || Array.isArray(group.team_b_ids);
+      const sides = e.teams.map((team, side) => {
+        const ids = split ? group[side === 0 ? 'team_a_ids' : 'team_b_ids'] || [] : group.player_ids || [];
+        const names = ids.filter(id => team.players.some(player => player.id === Number(id))).map(id => players.get(Number(id))).filter(Boolean).map(recordName);
+        return `<span>${t(side === 0 ? 'teamA' : 'teamB')}: ${names.length ? names.join(', ') : t('random')}</span>`;
+      });
+      return `<div><dt>${t('specialMatchGroup')}${index + 1}</dt><dd class="special-rules-summary"><b>${Number(group.probability) || 0}%</b>${sides.join('')}</dd></div>`;
     }).join('');
     const configured = Number(rules.ace_most_wins) + Number(rules.ace_most_losses) + (rules.ace_specials || []).reduce((sum, group) => sum + Number(group.probability || 0), 0);
     return `<div class="board-rule-block"><h3>${t('aceRules')}</h3><dl><div><dt>${t('sourceMostWins')}</dt><dd>${Number(rules.ace_most_wins) || 0}%</dd></div><div><dt>${t('sourceMostLosses')}</dt><dd>${Number(rules.ace_most_losses) || 0}%</dd></div>${specials}<div><dt>${t('fallback')}</dt><dd>${Math.max(0, 100 - configured)}%</dd></div></dl></div>`;

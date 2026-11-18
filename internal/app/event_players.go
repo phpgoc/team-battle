@@ -74,13 +74,23 @@ func (a *App) addEventPlayers(c *gin.Context) {
 		selected[id] = true
 	}
 	groups := []AceSpecial{}
-	for _, group := range rules.AceSpecials {
-		ids := []int64{}
-		for _, id := range group.PlayerIDs {
+	keepSelected := func(ids []int64) []int64 {
+		if ids == nil {
+			return nil
+		}
+		kept := []int64{}
+		for _, id := range ids {
 			if selected[id] {
-				ids = append(ids, id)
+				kept = append(kept, id)
 			}
 		}
+		return kept
+	}
+	for _, group := range rules.AceSpecials {
+		group.PlayerIDs = keepSelected(group.PlayerIDs)
+		group.TeamAIDs = keepSelected(group.TeamAIDs)
+		group.TeamBIDs = keepSelected(group.TeamBIDs)
+		ids := group.allPlayerIDs()
 		if len(ids) > 0 {
 			group.PlayerIDs = ids
 			groups = append(groups, group)

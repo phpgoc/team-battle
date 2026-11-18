@@ -11,7 +11,37 @@ import (
 // 大将战按互斥概率抽取规则；余下的概率始终交给全随机兜底。
 type AceSpecial struct {
 	PlayerIDs   []int64 `json:"player_ids"`
+	TeamAIDs    []int64 `json:"team_a_ids,omitempty"`
+	TeamBIDs    []int64 `json:"team_b_ids,omitempty"`
 	Probability int     `json:"probability"`
+}
+
+// 新规则按两侧分别保存；旧规则仍将同一候选名单与实际队伍取交集。
+func (s AceSpecial) candidateIDs(side int) []int64 {
+	if s.TeamAIDs != nil || s.TeamBIDs != nil {
+		if side == 0 {
+			return s.TeamAIDs
+		}
+		return s.TeamBIDs
+	}
+	return s.PlayerIDs
+}
+
+func (s AceSpecial) allPlayerIDs() []int64 {
+	if s.TeamAIDs == nil && s.TeamBIDs == nil {
+		return s.PlayerIDs
+	}
+	ids := []int64{}
+	seen := map[int64]bool{}
+	for _, side := range [][]int64{s.TeamAIDs, s.TeamBIDs} {
+		for _, id := range side {
+			if !seen[id] {
+				ids = append(ids, id)
+				seen[id] = true
+			}
+		}
+	}
+	return ids
 }
 
 type EventRules struct {
@@ -63,15 +93,17 @@ func (r EventRules) validate() error {
 		return errors.New("大将战概率不能为负数")
 	}
 	for _, special := range r.AceSpecials {
-		if special.Probability < 0 || len(special.PlayerIDs) == 0 {
+		if special.Probability < 0 || len(special.allPlayerIDs()) == 0 {
 			return errors.New("特殊选择需要候选选手和有效概率")
 		}
-		seen := map[int64]bool{}
-		for _, id := range special.PlayerIDs {
-			if id <= 0 || seen[id] {
-				return errors.New("特殊选择中的选手无效或重复")
+		for _, side := range [][]int64{special.candidateIDs(0), special.candidateIDs(1)} {
+			seen := map[int64]bool{}
+			for _, id := range side {
+				if id <= 0 || seen[id] {
+					return errors.New("特殊选择中的选手无效或重复")
+				}
+				seen[id] = true
 			}
-			seen[id] = true
 		}
 		total += special.Probability
 	}

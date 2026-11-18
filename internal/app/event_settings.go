@@ -153,7 +153,7 @@ func (a *App) updateEventSettings(c *gin.Context) {
 			}
 		}
 		for _, group := range rules.AceSpecials {
-			for _, player := range group.PlayerIDs {
+			for _, player := range group.allPlayerIDs() {
 				var exists int
 				if err := tx.QueryRow(`SELECT (SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=? AND active=1)+(SELECT COUNT(*) FROM event_setup_roster WHERE event_id=? AND user_id=?)`, eventID, player, eventID, player).Scan(&exists); err != nil {
 					return err

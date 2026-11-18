@@ -670,7 +670,7 @@ func (e *matchEngine) drawAce() error {
 	candidatesByTeam := make([][]int64, 0, len(teams))
 	sources := make([]string, 0, len(teams))
 	needsDraw := false
-	for _, team := range teams {
+	for side, team := range teams {
 		ids, err := e.players(team)
 		if err != nil {
 			return err
@@ -686,7 +686,7 @@ func (e *matchEngine) drawAce() error {
 			index, _ := strconv.Atoi(strings.TrimPrefix(mode, "special:"))
 			candidates = nil
 			if index >= 0 && index < len(rules.AceSpecials) {
-				for _, id := range rules.AceSpecials[index].PlayerIDs {
+				for _, id := range rules.AceSpecials[index].candidateIDs(side) {
 					if containsID(ids, id) {
 						candidates = append(candidates, id)
 					}
