@@ -95,6 +95,7 @@ func (f *workflowFixture) create(t *testing.T, mode string) int64 {
 	if err := json.Unmarshal(raw, &created); err != nil {
 		t.Fatal(err)
 	}
+	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/setup-draw", created.ID), nil, 200)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/captains/confirm", created.ID), map[string]any{"team_a_player_id": 3, "team_b_player_id": 6}, 200)
 	return created.ID
 }

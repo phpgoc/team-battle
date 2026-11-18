@@ -81,6 +81,26 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 		return nil, err
 	}
 	event["teams"] = teams
+	setup := []map[string]any{}
+	setupRows, err := a.db.Query(`SELECT user_id,fixed_team FROM event_setup_roster WHERE event_id=? ORDER BY position,user_id`, eventID)
+	if err != nil {
+		return nil, err
+	}
+	for setupRows.Next() {
+		var id int64
+		var side string
+		if err := setupRows.Scan(&id, &side); err != nil {
+			setupRows.Close()
+			return nil, err
+		}
+		setup = append(setup, map[string]any{"id": id, "fixed_team": side})
+	}
+	if err := setupRows.Err(); err != nil {
+		setupRows.Close()
+		return nil, err
+	}
+	setupRows.Close()
+	event["setup_roster"] = setup
 	var raw string
 	if err := a.db.QueryRow(`SELECT rules_json FROM events WHERE id=?`, eventID).Scan(&raw); err != nil {
 		return nil, err
@@ -109,6 +129,15 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 	}
 	selectionRows.Close()
 	event["kof_starters"] = starters
+	if rules.KOFStarter == "random" {
+		var aID, bID sql.NullInt64
+		if err := a.db.QueryRow(`SELECT kof_initial_a,kof_initial_b FROM events WHERE id=?`, eventID).Scan(&aID, &bID); err != nil {
+			return nil, err
+		}
+		if aID.Valid && bID.Valid && len(teams) == 2 {
+			event["kof_starters"] = []map[string]any{{"team_id": teams[0]["id"], "player_id": aID.Int64}, {"team_id": teams[1]["id"], "player_id": bID.Int64}}
+		}
+	}
 	lineups := []map[string]any{}
 	lineupRows, err := a.db.Query(`SELECT team_id,position,player_id,source FROM lineup_entries WHERE event_id=? ORDER BY team_id,position`, eventID)
 	if err != nil {

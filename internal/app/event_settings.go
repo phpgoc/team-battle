@@ -122,28 +122,28 @@ func (a *App) updateEventSettings(c *gin.Context) {
 			if err != nil {
 				return err
 			}
+			if !grouped {
+				changed = true
+			}
 			rosterChanged = changed
+			if grouped && changed {
+				return errors.New("分组抽签后不能修改参赛阵容")
+			}
 			if changed {
-				teams, err := e.teams()
-				if err != nil {
-					return err
-				}
 				for _, table := range []string{"captain_votes", "event_players"} {
 					if _, err := tx.Exec(`DELETE FROM `+table+` WHERE event_id=?`, eventID); err != nil {
 						return err
 					}
 				}
-				if len(*req.PlayerIDs) > 0 {
-					if err := assignPlayers(tx, eventID, teams[0], teams[1], *req.PlayerIDs, req.FixedAssignments, a.rng); err != nil {
-						return err
-					}
+				if err := saveSetupRoster(tx, eventID, *req.PlayerIDs, req.FixedAssignments); err != nil {
+					return err
 				}
 			}
 		}
 		for _, group := range rules.AceSpecials {
 			for _, player := range group.PlayerIDs {
 				var exists int
-				if err := tx.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=? AND active=1`, eventID, player).Scan(&exists); err != nil {
+				if err := tx.QueryRow(`SELECT (SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=? AND active=1)+(SELECT COUNT(*) FROM event_setup_roster WHERE event_id=? AND user_id=?)`, eventID, player, eventID, player).Scan(&exists); err != nil {
 					return err
 				}
 				if exists == 0 {

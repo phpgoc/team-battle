@@ -42,14 +42,14 @@ func TestUnifiedEventSettingsAtomicRoster(t *testing.T) {
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=8`, id)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM events WHERE id=? AND name='不应保存'`, id)
 	f.assertCount(t, 2, `SELECT COUNT(*) FROM event_players WHERE event_id=? AND is_captain=1`, id)
-	f.request(t, 2, "PATCH", path, map[string]any{"name": "完整赛事设置", "description": "更新说明", "event_time": "2026-11-19T21", "round1_target": 1, "round2_target": 1, "player_ids": []int{3, 4, 5, 6, 7, 9}, "fixed_assignments": map[string]string{"3": "A", "4": "A", "5": "A", "6": "B", "7": "B", "9": "B"}, "rules": map[string]any{"kof_starter": "captain", "round1_mode": "manual", "no_repeat": true, "ace_most_wins": 30, "ace_specials": []map[string]any{{"player_ids": []int{9}, "probability": 10}}}}, 200)
+	f.request(t, 2, "PATCH", path, map[string]any{"name": "完整赛事设置", "description": "更新说明", "event_time": "2026-11-19T21", "round1_target": 1, "round2_target": 1, "rules": map[string]any{"kof_starter": "captain", "round1_mode": "manual", "no_repeat": true, "ace_most_wins": 30, "ace_specials": []map[string]any{{"player_ids": []int{8}, "probability": 10}}}}, 200)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE id=? AND name='完整赛事设置' AND event_time='2026-11-19T21:00:00' AND round1_target=1 AND round2_target=1`, id)
-	f.assertCount(t, 1, `SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=9`, id)
-	f.assertCount(t, 0, `SELECT COUNT(*) FROM event_players WHERE event_id=? AND (user_id=8 OR is_captain=1)`, id)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=8`, id)
+	f.assertCount(t, 2, `SELECT COUNT(*) FROM event_players WHERE event_id=? AND is_captain=1`, id)
 	f.request(t, 1, "PATCH", path, map[string]any{"manager_id": 9}, 200)
 	f.request(t, 2, "PATCH", path, map[string]any{"rules": defaultRules()}, 403)
-	f.request(t, 9, "PATCH", path, map[string]any{"player_ids": []int{}, "rules": map[string]any{"round1_mode": "manual", "kof_starter": "captain", "no_repeat": true}}, 200)
-	f.assertCount(t, 0, `SELECT COUNT(*) FROM event_players WHERE event_id=?`, id)
+	f.request(t, 9, "PATCH", path, map[string]any{"player_ids": []int{}, "rules": map[string]any{"round1_mode": "manual", "kof_starter": "captain", "no_repeat": true}}, 400)
+	f.assertCount(t, 6, `SELECT COUNT(*) FROM event_players WHERE event_id=?`, id)
 	f.request(t, 1, "PATCH", path, map[string]any{"manager_id": 0}, 200)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE id=? AND manager_id=1`, id)
 }
@@ -70,6 +70,8 @@ func TestRoundAndAceSettingsUseDifferentSetupStages(t *testing.T) {
 	rules.KOFStarter = "captain"
 	f.request(t, 2, "PATCH", path, map[string]any{"name": "分阶段设置", "event_time": "2026-11-19T20", "round1_target": 4, "round2_target": 5, "rules": rules}, 200)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/players", id), map[string]any{"player_ids": []int{3, 4, 5, 6, 7, 8}, "fixed_assignments": map[string]string{"3": "A", "4": "A", "5": "A", "6": "B", "7": "B", "8": "B"}}, 200)
+	f.assertCount(t, 0, `SELECT COUNT(*) FROM event_players WHERE event_id=?`, id)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/setup-draw", id), nil, 200)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE id=? AND round1_target=4 AND round2_target=5`, id)
 	rules.AceMostWins = 35
 	f.request(t, 2, "PATCH", path, map[string]any{"rules": rules}, 200)

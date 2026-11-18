@@ -186,6 +186,13 @@ func (e *matchEngine) fillLineups(force bool) error {
 	if err != nil {
 		return err
 	}
+	var setupEntries int
+	if err := e.db.QueryRow(`SELECT COUNT(*) FROM lineup_entries WHERE event_id=? AND source='setup_draw'`, e.eventID).Scan(&setupEntries); err != nil {
+		return err
+	}
+	if !force && setupEntries > 0 {
+		return nil
+	}
 	if force || rules.Round1Mode == "random" {
 		if _, err := e.db.Exec(`DELETE FROM lineup_entries WHERE event_id=?`, e.eventID); err != nil {
 			return err
@@ -502,6 +509,13 @@ func (e *matchEngine) initialKOF() error {
 	}
 	if rules.KOFStarter == "captain" {
 		return nil
+	}
+	var initialA, initialB sql.NullInt64
+	if err := e.db.QueryRow(`SELECT kof_initial_a,kof_initial_b FROM events WHERE id=?`, e.eventID).Scan(&initialA, &initialB); err != nil {
+		return err
+	}
+	if initialA.Valid && initialB.Valid {
+		return e.insertMatch(stageRound2, initialA.Int64, initialB.Int64)
 	}
 	e.waitDraw(rules.RandomDrawSeconds)
 	teams, err := e.teams()

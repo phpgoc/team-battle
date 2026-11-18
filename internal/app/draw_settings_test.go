@@ -19,8 +19,8 @@ func TestDrawDurationsApplyToRoundAndAceSelection(t *testing.T) {
 	match := f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=2`, id)
 	teams := f.teams(t, id)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[1]}, 200)
-	if want := []time.Duration{2 * time.Second, 2 * time.Second, 7 * time.Second}; !reflect.DeepEqual(waits, want) {
-		t.Fatalf("排阵、KOF首发、大将战抽选时间不正确: got %v, want %v", waits, want)
+	if want := []time.Duration{2 * time.Second, 7 * time.Second}; !reflect.DeepEqual(waits, want) {
+		t.Fatalf("排阵和大将战使用当前时长，预抽KOF首发不应重抽: got %v, want %v", waits, want)
 	}
 }
 

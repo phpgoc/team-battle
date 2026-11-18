@@ -196,6 +196,9 @@ func migrate(db *sql.DB) error {
 			return err
 		}
 	}
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS event_setup_roster(event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,user_id INTEGER NOT NULL REFERENCES users(id),fixed_team TEXT NOT NULL DEFAULT '',position INTEGER NOT NULL,PRIMARY KEY(event_id,user_id))`); err != nil {
+		return err
+	}
 	if err := ensureColumn(db, "users", "avatar_data", "BLOB"); err != nil {
 		return err
 	}

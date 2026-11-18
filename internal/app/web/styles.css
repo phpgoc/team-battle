@@ -388,10 +388,18 @@ input,select,textarea{min-width:0}input:not([type=checkbox]):not([type=radio]):n
   .broadcast-board .event-operations{inset:12px;padding:16px}
   .broadcast-board .board-roster-name{font-size:19px}
 }
-
 /* 设置操作固定在视口底部，页面只保留一次保存入口。 */
 .event-editor-page{padding-bottom:110px}
 .event-editor-actions{position:fixed;bottom:16px;right:max(20px,calc((100vw - 1200px)/2));z-index:20;display:flex;gap:12px;padding:12px 16px;border:1px solid #52617a;background:#101b2df2;box-shadow:0 8px 32px #0006;border-radius:14px;backdrop-filter:blur(12px)}
 .event-editor-actions button{min-width:108px}
+.setup-draw-action{display:flex;align-items:center;gap:18px;margin:24px 0}
+.setup-empty-slot{color:#a3b3c9;font-size:clamp(24px,2.7vw,48px)}
+.setup-flying-player{position:fixed;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transform-origin:top left;pointer-events:none;color:#72d7a0;background:#15263ef0;border:1px solid #f0ad75;border-radius:16px;padding:12px;box-shadow:0 10px 35px #0006}
+.setup-flying-player .board-avatar{width:min(8vw,154px);height:min(8vw,154px);border-radius:50%;object-fit:cover}
+.setup-flying-player strong{font-size:clamp(22px,2vw,42px)}
+.setup-flying-player .board-category-icon{width:28px;height:28px;object-fit:contain}
+.setup-flying-player .board-identity{display:flex;align-items:center;gap:8px}
+.setup-arriving{animation:setup-arrival .7s ease both}
+@keyframes setup-arrival{from{opacity:.15}to{opacity:1}}
 #event-form{padding-bottom:85px}
 @media(max-width:600px){.event-editor-actions{left:12px;right:12px;bottom:12px;justify-content:flex-end}.event-editor-actions button{flex:1}}

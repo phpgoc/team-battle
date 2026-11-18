@@ -140,6 +140,13 @@ func (a *App) generateLineup(c *gin.Context) {
 		return
 	}
 	err := a.runMatchMutation(id, actor.ID, func(e *matchEngine) error {
+		var drawn int
+		if err := e.db.QueryRow(`SELECT COUNT(*) FROM lineup_entries WHERE event_id=? AND source='setup_draw'`, id).Scan(&drawn); err != nil {
+			return err
+		}
+		if drawn > 0 {
+			return errors.New("赛前随机排阵已完成，不能重复抽签")
+		}
 		if err := e.fillLineups(true); err != nil {
 			return err
 		}
@@ -187,6 +194,13 @@ func (a *App) submitLineup(c *gin.Context) {
 		}
 		if rules.Round1Mode == "random" && len(req.PlayerIDs) > 0 {
 			return errors.New("该赛事首轮为全随机")
+		}
+		var setupEntries int
+		if err := e.db.QueryRow(`SELECT COUNT(*) FROM lineup_entries WHERE event_id=? AND source='setup_draw'`, id).Scan(&setupEntries); err != nil {
+			return err
+		}
+		if setupEntries > 0 {
+			return errors.New("赛前随机排阵已完成，不能修改抽签结果")
 		}
 		ids, err := e.players(req.TeamID)
 		if err != nil || len(ids) == 0 {

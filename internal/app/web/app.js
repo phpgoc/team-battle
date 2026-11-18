@@ -67,7 +67,7 @@
     };
   }
   function picker() { return `<select class="language-picker" aria-label="Language">${Object.entries(langs).map(([key, name]) => `<option value="${key}"${state.language === key ? ' selected' : ''}>${name}</option>`).join('')}</select>`; }
-  function closeStream() { state.stream?.close(); state.stream = null; if (state.drawTimer) clearInterval(state.drawTimer); state.drawTimer = null; state.drawToken += 1; state.draw = null; }
+  function closeStream() { state.stream?.close(); state.stream = null; if (state.drawTimer) clearInterval(state.drawTimer); state.drawTimer = null; state.drawToken += 1; state.draw = null; state.setupDraw = null; document.querySelectorAll('.setup-flying-player').forEach(node => node.remove()); }
   function pageURL(page) { return page === 'home' ? '/' : `/workspace?page=${page}`; }
   function go(url) { closeStream(); state.editor = null; state.ruleDraft = null; state.operations = false; history.pushState({}, '', url); renderRoute().catch(error => toast(error.message)); }
   // 语言只改变当前视图的文案，保留表单值和路由。
@@ -317,7 +317,7 @@
     ]);
     state.users = users.users.filter(u => u.role !== 'superadmin');
     const backgrounds = catalog.backgrounds || [];
-    if (!preserve || readonly) state.roster = Object.fromEntries((e.teams || []).flatMap((team, i) => team.players.filter(p => p.active !== false).map(p => [p.id, i ? 'B' : 'A'])));
+    if (!preserve || readonly) state.roster = hasGrouping(e) ? Object.fromEntries((e.teams || []).flatMap((team, i) => team.players.filter(p => p.active !== false).map(p => [p.id, i ? 'B' : 'A']))) : Object.fromEntries((e.setup_roster || []).map(p => [p.id, p.fixed_team || 'R']));
     const managerDefault = mode === 'create' || state.users.some(u => u.id === e.manager_id) ? 0 : e.manager_id;
     const managerField = state.user.role === 'superadmin' ? field('manager', '<select name="manager_id"><option value="' + managerDefault + '">' + t('managerDefault') + '</option>' + options(state.users, e.manager_id) + '</select>') : '';
     const createBackground = mode === 'create' ? field('background', `<select name="background_id">${backgroundOptions(backgrounds, e.background_id)}</select>`) : '';
@@ -330,11 +330,19 @@
       bindCommon(); $('#back-board').onclick = () => go(hasRoster(state.event) ? '/live/' + state.event.id : '/');
     }
     const form = $('#event-form');
+    if (mode !== 'create' && mode !== 'roster' && roundSetupEditable) $('#event-ace').insertAdjacentHTML('beforebegin', `<div class="setup-draw-action"><button type="button" class="primary accent" id="start-setup-draw">${t('startSetupDraw')}</button><span class="help">${t('setupDrawHint')}</span></div>`);
+    $('#start-setup-draw')?.addEventListener('click', () => {
+      if (form.dataset.busy || !form.reportValidity()) return;
+      form.dataset.submitAction = 'draw';
+      form.requestSubmit();
+    });
     bindRoster(form);
     if (mode !== 'roster') bindRules(form);
     $('.event-settings-fields', form).disabled = readonly;
     form.onsubmit = action(async event => {
       event.preventDefault();
+      const beginDraw = form.dataset.submitAction === 'draw';
+      delete form.dataset.submitAction;
       const f = new FormData(form);
       const body = readonly ? { random_draw_seconds: Number(f.get('random_draw_seconds')), ace_draw_seconds: Number(f.get('ace_draw_seconds')), background_id: Number(f.get('background_id') || 0) } : mode === 'roster' ? rosterValue(form) : {
         name: f.get('name'), event_time: eventTimeValue(f), description: f.get('description'),
@@ -345,6 +353,14 @@
       if (mode === 'create') { const created = await post('/api/events', body); toast(t('eventCreated')); go('/live/' + created.id); }
       else {
         await post('/api/events/' + e.id + (mode === 'roster' ? '/players' : '/settings'), body, mode === 'roster' ? 'POST' : 'PATCH');
+        if (beginDraw) {
+          const result = await post('/api/events/' + e.id + '/setup-draw');
+          state.editor = null;
+          closeStream(); history.pushState({}, '', '/live/' + e.id);
+          await openEvent(e.id);
+          await playSetupDraw(result.steps, state.event);
+          return;
+        }
         state.editor = null;
         if (mode === 'settings') history.replaceState({}, '', '/live/' + e.id);
         if (!hasRoster(state.event)) { await openEvent(e.id); } else { await refreshEvent(); }
@@ -379,21 +395,53 @@
     return `<div class="board-rule-block"><h3>${t('aceRules')}</h3><dl><div><dt>${t('sourceMostWins')}</dt><dd>${Number(rules.ace_most_wins) || 0}%</dd></div><div><dt>${t('sourceMostLosses')}</dt><dd>${Number(rules.ace_most_losses) || 0}%</dd></div>${specials}<div><dt>${t('fallback')}</dt><dd>${Math.max(0, 100 - configured)}%</dd></div></dl></div>`;
   }
   function rulesSummary(e) { const rules = { ...defaultRules(), ...e.rules }; return `<section class="board-rules"><div class="board-roster-head"><span>${t('eventSettings')}</span></div><div class="board-rule-block"><h3>${t('round1')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round1_target}</dd></div><div><dt>${t('round1Mode')}</dt><dd>${t(rules.round1_mode === 'random' ? 'random' : 'manual')}</dd></div><div><dt>${t('noRepeat')}</dt><dd>${t(rules.no_repeat ? 'enabled' : 'disabled')}</dd></div></dl></div><div class="board-rule-block"><h3>${t('round2')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round2_target}</dd></div><div><dt>${t('kofStarter')}</dt><dd>${t(rules.kof_starter === 'captain' ? 'captainStarter' : 'randomStarter')}</dd></div></dl></div>${aceRulesSummary(e, rules)}${e.description ? `<div class="board-rule-block"><h3>${t('description')}</h3><p class="summary-description">${esc(e.description)}</p></div>` : ''}</section>`; }
+  // 预抽对阵只用于展示，正式开赛后由比赛引擎按同一份排阵生成真实对局。
+  function plannedMatches(e, stage) {
+    if (!['round1', 'round2'].includes(stage) || terminal(e) || e.rounds.find(round => round.stage === stage)?.status === 'finished') return [];
+    const existing = e.matches.filter(match => match.stage === stage);
+    const positions = stage === 'round1' ? [...new Set(e.lineups.map(entry => entry.position))].sort((a, b) => a - b) : (e.kof_starters?.length === 2 ? [1] : []);
+    return positions.filter(position => !existing.some(match => match.seq === position)).map(position => {
+      const player = side => stage === 'round1' ? e.lineups.find(entry => entry.team_id === e.teams[side].id && entry.position === position)?.player_id : e.kof_starters.find(entry => entry.team_id === e.teams[side].id)?.player_id;
+      return { stage, seq: position, player_a_id: player(0) || 0, player_b_id: player(1) || 0, player_a_name: t('toConfirm'), player_b_name: t('toConfirm'), who_win: '0', status: 'planned' };
+    });
+  }
+  async function playSetupDraw(steps, e) {
+    if (!manages(e)) return;
+    const session = { id: e.id, progress: null };
+    state.setupDraw = session;
+    state.operations = false; $('#event-operations')?.classList.add('hidden');
+    const active = () => state.setupDraw === session && state.event?.id === e.id && !state.editor && manages(state.event) && preMatch(state.event);
+    try {
+      await window.TBSetupDraw.play({ steps, event: e, translate: t, isActive: active, playerMarkup: player => `${avatar(player)}<div><strong>${boardIdentity(player)}</strong></div>`, render: progress => {
+        session.progress = progress;
+        $('#board-content').innerHTML = boardContent(state.event);
+        bindBoardSettings();
+      } });
+    } finally {
+      if (state.setupDraw === session) {
+        state.setupDraw = null;
+        if (!state.editor && state.event?.id === e.id) { boardPage(); $$('.board-matches,.board-roster-list').forEach(node => node.scrollTop = 0); }
+      }
+    }
+  }
   function boardContent(e) {
     const teams = e.teams, people = teams.flatMap(team => team.players), rounds = e.rounds;
+    const setup = state.setupDraw?.id === e.id ? state.setupDraw.progress : null;
     const panel = stage => {
       const matches = e.matches.filter(match => match.stage === stage);
+      const previews = plannedMatches(e, stage).filter(match => !setup || (stage === 'round1' ? match.seq <= setup.round1 : setup.kof));
+      matches.push(...previews);
       const waiting = stage === 'round2' ? waitingKOFMatch(e) : null;
-      if (waiting) matches.push(waiting);
+      if (waiting && !matches.some(match => match.seq === waiting.seq)) matches.push(waiting);
       return roundMarkup(rounds.find(round => round.stage === stage), matches, people, e);
     };
-    const pending = !terminal(e) ? (e.matches.find(match => match.status === 'pending' && match.stage === e.status) || waitingKOFMatch(e)) : null;
+    const pending = setup?.step ? { stage: setup.step.kind === 'group' ? 'setupGrouping' : setup.step.kind, player_a_id: setup.step.a, player_b_id: setup.step.b, player_a_name: t('toConfirm'), player_b_name: t('toConfirm') } : !terminal(e) ? (e.matches.find(match => match.status === 'pending' && match.stage === e.status) || waitingKOFMatch(e) || (preMatch(e) && e.rules.round1_mode === 'random' ? plannedMatches(e, 'round1')[0] : null)) : null;
     // 历史赛事继续保留KOF胜负颜色，避免赛事结束后阵容退回无标记状态。
     const recordStage = e.matches.some(match => match.stage === 'round2') ? 'round2' : 'round1';
-    const roster = (team, side) => `<aside class="board-roster board-roster-${side}"><div class="board-roster-head"><span>${esc(teamName(e, team))}</span><b>${team.players.length}</b></div><div class="board-roster-list">${team.players.map(player => {
+    const roster = (team, side) => `<aside class="board-roster board-roster-${side}"><div class="board-roster-head"><span>${esc(teamName(e, team))}</span><b>${team.players.filter(player => !setup || setup.visible.has(player.id)).length}</b></div><div class="board-roster-list">${team.players.filter(player => !setup || setup.visible.has(player.id)).map(player => {
       const lost = playerHasLoss(e, player.id, 'round2');
       const recordClass = playerHasWin(e, player.id, recordStage) ? 'is-record-winner' : 'is-record-new';
-      return `<div class="board-roster-player ${lost ? 'is-lost' : ''} ${recordClass}">${avatar(player)}<span class="board-roster-name">${boardIdentity(player)}${player.is_captain ? `<small class="board-captain">${t('captain')}</small>` : ''}</span></div>`;
+      return `<div data-roster-player="${player.id}" class="board-roster-player ${lost ? 'is-lost' : ''} ${recordClass}">${avatar(player)}<span class="board-roster-name">${boardIdentity(player)}${player.is_captain ? `<small class="board-captain">${t('captain')}</small>` : ''}</span></div>`;
     }).join('')}</div></aside>`;
     const score = `<div class="board-score"><div><span>${t('teamA')}</span><strong>${rounds.filter(round => round.winner_team_id === teams[0].id).length}</strong></div><b>VS</b><div><span>${t('teamB')}</span><strong>${rounds.filter(round => round.winner_team_id === teams[1].id).length}</strong></div></div>`;
     return `<header class="board-top${pending ? ' has-current' : ''}">
@@ -413,6 +461,7 @@
   function canOperate(e) { return boardVariant(e) !== 'spectator'; }
   function bindBoardSettings() {
     $('#board-settings')?.addEventListener('click', () => go('/live/' + state.event.id + '/setting'));
+    if (state.setupDraw) $('#board-content')?.setAttribute('data-setup-drawing', 'true');
   }
   function applyEventBackground(e) {
     const board = $('.broadcast-board');
@@ -429,7 +478,7 @@
     const e = state.event;
     if (!canOperate(e)) state.operations = false;
     app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div id="board-content">${boardContent(e)}</div><div id="event-operations" tabindex="-1" class="event-operations${state.operations ? '' : ' hidden'}"></div><details class="board-menu"><summary aria-label="${t('eventControls')}">☰</summary><div>${picker()}<button data-go="/">${t('homeLink')}</button>${canOperate(e) ? `<button id="toggle-operations">${t('eventControls')}</button>` : ''}${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></main>`;
-    applyEventBackground(e); bindCommon(); bindBoardSettings(); $('#toggle-operations')?.addEventListener('click', () => { state.operations = !state.operations; $('#event-operations').classList.toggle('hidden', !state.operations); if (state.operations) { renderOperations(); $('#event-operations').focus({ preventScroll: true }); } });
+    applyEventBackground(e); bindCommon(); bindBoardSettings(); $('#toggle-operations')?.addEventListener('click', () => { if (state.setupDraw) return; state.operations = !state.operations; $('#event-operations').classList.toggle('hidden', !state.operations); if (state.operations) { renderOperations(); $('#event-operations').focus({ preventScroll: true }); } });
     if (state.operations) renderOperations();
   }
   function currentPending(event) {
@@ -447,10 +496,14 @@
     return team.players.filter(player => player.active !== false);
   }
   function startDrawAnimation(previous, next) {
+    if (state.setupDraw) return;
     // 仅管理员在状态推进时播放抽签，首次进入、刷新和重新连接均不补播。
     if (!previous || previous.id !== next.id || !manages(next)) return;
     const match = currentPending(next);
     if (!match || match.status !== 'pending' || !['round1', 'round2', 'ace'].includes(match.stage)) return;
+    // 开赛及进入KOF时沿用赛前已公开的抽签，不把同一组人选再滚动一次。
+    const announced = plannedMatches(previous, match.stage).find(item => item.seq === match.seq);
+    if (announced?.player_a_id === match.player_a_id && announced?.player_b_id === match.player_b_id) return;
     const key = `${next.id}:${match.id}:${match.stage}:${match.seq}:${match.player_a_id}:${match.player_b_id}`;
     const continuing = state.draw?.key === key && state.draw.endAt > Date.now();
     // 提交响应和SSE可能先后返回，同一对局只播放一次，重绘沿用剩余时间。
@@ -549,6 +602,7 @@
     if (manager && e.status === 'final_confirm') content += `<section class="panel section-gap"><div class="panel-body"><p>${t('confirmEndHint')}</p><button class="primary accent" id="confirm-end">${t('confirmEnd')}</button></div></section>`;
     if (manager && e.matches.some(m => m.status === 'finished')) content += `<section class="panel section-gap"><div class="panel-head"><h2>${t('correct')}</h2></div><form id="correct-form" class="panel-body form-grid"><p class="notice full">${t('correctHint')}</p>${field('matchNo', `<select name="match_id">${e.matches.filter(m => m.status === 'finished').map(m => `<option value="${m.id}">${t(m.stage)} #${m.seq} · ${esc(m.player_a_name)} / ${esc(m.player_b_name)}</option>`).join('')}</select>`)}${field('winner', `<select name="winner_team_id">${e.teams.map(team => `<option value="${team.id}">${esc(teamName(e, team))}</option>`).join('')}</select>`)}<button class="outline">${t('correct')}</button></form></section>`;
     target.innerHTML = content;
+    if (e.lineups.some(entry => entry.source === 'setup_draw')) $('#random-lineup')?.remove();
     $('#close-operations')?.addEventListener('click', () => { state.operations = false; $('#event-operations').classList.add('hidden'); });
     if (e.status === 'round2') renderKOFSelection(e, manager).catch(error => toast(error.message));
     $('#vote-form')?.addEventListener('submit', action(async event => { event.preventDefault(); await eventAction('/captain-votes', { target_id: Number(new FormData(event.target).get('target_id')) }); toast(t('voteSaved')); }));
@@ -582,11 +636,12 @@
       const data = JSON.parse(message.data); const previous = state.event; const changed = JSON.stringify(state.event) !== JSON.stringify(data); const variantChanged = boardVariant(state.event) !== boardVariant(data); const settingsLocked = canEditSettings(state.event) && !canEditSettings(data); state.event = data;
       if (state.editor && settingsLocked) { eventEditor(state.editor).catch(error => toast(error.message)); }
       if (variantChanged && !state.editor) { boardPage(); }
+      if (changed && !state.editor) applyEventBackground(data);
       if (changed && state.editor) {
         const backgroundName = $('.event-background-panel .panel-head span');
         if (backgroundName) backgroundName.textContent = data.background_name || t('noBackground');
       }
-      if (changed && !state.editor && $('#board-content')) { $('#board-content').innerHTML = boardContent(data); applyEventBackground(data); bindBoardSettings(); startDrawAnimation(previous, data); if (state.operations) { const forms = captureForms(); renderOperations(); restoreForms(forms); } }
+      if (changed && !state.editor && $('#board-content') && !state.setupDraw) { $('#board-content').innerHTML = boardContent(data); applyEventBackground(data); bindBoardSettings(); startDrawAnimation(previous, data); if (state.operations) { const forms = captureForms(); renderOperations(); restoreForms(forms); } }
       if (terminal(data)) { closeStream(); if (!state.editor) boardPage(); }
     };
   }

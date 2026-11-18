@@ -5,7 +5,7 @@ import (
 	"sort"
 )
 
-// 正式开始前可以补充或重新分配完整阵容。
+// 分组抽签前可以补充选手并调整固定队伍，保存不执行抽签。
 func (a *App) addEventPlayers(c *gin.Context) {
 	actor, eventID, access := a.managerEvent(c)
 	if !access {
@@ -23,11 +23,6 @@ func (a *App) addEventPlayers(c *gin.Context) {
 	}
 	req.PlayerIDs = body.PlayerIDs
 	req.FixedAssignments = body.FixedAssignments
-	teams, err := a.teamIDs(eventID)
-	if err != nil {
-		fail(c, 400, err.Error())
-		return
-	}
 	tx, err := a.db.Begin()
 	if err != nil {
 		fail(c, 500, err.Error())
@@ -38,17 +33,19 @@ func (a *App) addEventPlayers(c *gin.Context) {
 		fail(c, 400, err.Error())
 		return
 	}
+	if grouped, err := eventHasGrouping(tx, eventID); err != nil || grouped {
+		fail(c, 400, "分组抽签后不能修改参赛阵容")
+		return
+	}
 	for _, table := range []string{"kof_reservations", "matches", "captain_votes", "lineup_entries", "player_selections", "event_players"} {
 		if _, err := tx.Exec(`DELETE FROM `+table+` WHERE event_id=?`, eventID); err != nil {
 			fail(c, 500, err.Error())
 			return
 		}
 	}
-	if len(req.PlayerIDs) > 0 {
-		if err := assignPlayers(tx, eventID, teams[0], teams[1], req.PlayerIDs, req.FixedAssignments, a.rng); err != nil {
-			fail(c, 400, err.Error())
-			return
-		}
+	if err := saveSetupRoster(tx, eventID, req.PlayerIDs, req.FixedAssignments); err != nil {
+		fail(c, 400, err.Error())
+		return
 	}
 	if _, err := tx.Exec(`UPDATE events SET status='draft',kof_initial_a=NULL,kof_initial_b=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`, eventID); err != nil {
 		fail(c, 500, err.Error())
