@@ -19,7 +19,7 @@ const maxBackgroundSize = 64 * 1024 * 1024
 
 // loadBackgrounds 返回背景目录的公开字段，图片本体仍通过独立地址读取。
 func (a *App) loadBackgrounds() ([]map[string]any, error) {
-	rows, err := a.db.Query(`SELECT id,name,updated_at FROM backgrounds ORDER BY sort_order,id`)
+	rows, err := a.db.Query(`SELECT b.id,b.name,b.updated_at,EXISTS(SELECT 1 FROM events e WHERE e.background_id=b.id) FROM backgrounds b ORDER BY b.sort_order,b.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -28,10 +28,13 @@ func (a *App) loadBackgrounds() ([]map[string]any, error) {
 	for rows.Next() {
 		var id int64
 		var name, updatedAt string
-		if err := rows.Scan(&id, &name, &updatedAt); err != nil {
+		var inUse bool
+		if err := rows.Scan(&id, &name, &updatedAt, &inUse); err != nil {
 			return nil, err
 		}
-		items = append(items, backgroundItem(id, name, updatedAt))
+		item := backgroundItem(id, name, updatedAt)
+		item["in_use"] = inUse
+		items = append(items, item)
 	}
 	return items, rows.Err()
 }
@@ -199,8 +202,14 @@ func (a *App) deleteBackground(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec(`UPDATE events SET background_id=NULL WHERE background_id=?`, id); err != nil {
-		fail(c, http.StatusInternalServerError, "清理赛事背景引用失败")
+	// 实时和历史赛事的背景绑定都必须保留，禁止通过删除背景清空引用。
+	var inUse bool
+	if err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM events WHERE background_id=?)`, id).Scan(&inUse); err != nil {
+		fail(c, http.StatusInternalServerError, "读取赛事背景引用失败")
+		return
+	}
+	if inUse {
+		fail(c, http.StatusConflict, "背景已绑定赛事，不能删除")
 		return
 	}
 	var filePath string

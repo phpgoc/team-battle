@@ -118,16 +118,60 @@ func TestBackgroundManagementAndPublicEventSelection(t *testing.T) {
 		t.Fatal("替换背景接口没有读取新文件")
 	}
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM backgrounds WHERE id=? AND name='替换背景'`, backgroundID)
-	f.backgroundForm(t, 1, http.MethodDelete, fmt.Sprintf("/api/site-settings/backgrounds/%d", backgroundID), "", nil, http.StatusOK)
-	f.assertCount(t, 2, `SELECT COUNT(*) FROM events WHERE background_id IS NULL`)
-	f.backgroundForm(t, 1, http.MethodPatch, fmt.Sprintf("/api/site-settings/backgrounds/%d", backgroundID), "不存在", nil, http.StatusNotFound)
-	f.backgroundForm(t, 1, http.MethodDelete, fmt.Sprintf("/api/site-settings/backgrounds/%d", backgroundID), "", nil, http.StatusNotFound)
+	f.backgroundForm(t, 1, http.MethodDelete, fmt.Sprintf("/api/site-settings/backgrounds/%d", backgroundID), "", nil, http.StatusConflict)
+	f.assertCount(t, 2, `SELECT COUNT(*) FROM events WHERE background_id=?`, backgroundID)
+	if got := f.request(t, 0, http.MethodGet, imageURL, nil, http.StatusOK); !bytes.Equal(got, replacement) {
+		t.Fatal("拒绝删除已绑定背景后，图片必须保持可用")
+	}
 
 	if _, err := f.app.db.Exec(`UPDATE events SET status=? WHERE id=?`, statusCompleted, id); err != nil {
 		t.Fatal(err)
 	}
 	f.request(t, 2, http.MethodPatch, path, map[string]any{"background_id": 0}, http.StatusBadRequest)
 	f.request(t, 1, http.MethodPatch, path, map[string]any{"background_id": 0}, http.StatusBadRequest)
+}
+
+func TestBackgroundDeletionProtectsEveryBoundEvent(t *testing.T) {
+	f := newWorkflowFixture(t)
+	image, err := demoFS.ReadFile("testdata/demo/zerg.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := f.create(t, "random")
+	f.backgroundForm(t, 1, http.MethodPost, "/api/site-settings/backgrounds", "删除保护", image, http.StatusOK)
+	backgroundID := f.scalar(t, `SELECT id FROM backgrounds WHERE name='删除保护'`)
+	path := fmt.Sprintf("/api/site-settings/backgrounds/%d", backgroundID)
+	for _, status := range []string{statusDraft, statusRound1, statusRound2, statusAce, statusFinalConfirm, statusCompleted, statusCancelled} {
+		if _, err := f.app.db.Exec(`UPDATE events SET status=?,background_id=? WHERE id=?`, status, backgroundID, id); err != nil {
+			t.Fatal(err)
+		}
+		response := f.backgroundForm(t, 1, http.MethodDelete, path, "", nil, http.StatusConflict)
+		if !strings.Contains(response.Body.String(), "背景已绑定赛事，不能删除") {
+			t.Fatalf("已绑定背景应说明原因: %s", response.Body.String())
+		}
+		f.assertCount(t, 1, `SELECT COUNT(*) FROM events WHERE id=? AND background_id=?`, id, backgroundID)
+		f.assertCount(t, 1, `SELECT COUNT(*) FROM backgrounds WHERE id=?`, backgroundID)
+	}
+	list := f.request(t, 0, http.MethodGet, "/api/backgrounds", nil, http.StatusOK)
+	if !bytes.Contains(list, []byte(`"in_use":true`)) {
+		t.Fatalf("背景目录应标识已绑定: %s", list)
+	}
+	// 无引用的背景仍可删除，且清理原图；重复删除返回404。
+	if _, err := f.app.db.Exec(`UPDATE events SET background_id=NULL WHERE id=?`, id); err != nil {
+		t.Fatal(err)
+	}
+	var filePath string
+	if err := f.app.db.QueryRow(`SELECT file_path FROM backgrounds WHERE id=?`, backgroundID).Scan(&filePath); err != nil {
+		t.Fatal(err)
+	}
+	f.backgroundForm(t, 2, http.MethodDelete, path, "", nil, http.StatusForbidden)
+	f.backgroundForm(t, 1, http.MethodDelete, path, "", nil, http.StatusOK)
+	f.assertCount(t, 0, `SELECT COUNT(*) FROM backgrounds WHERE id=?`, backgroundID)
+	if _, err := os.Stat(filepath.Join(f.app.backgroundDir(), filePath)); !os.IsNotExist(err) {
+		t.Fatal("删除未绑定背景后必须清理原图")
+	}
+	f.backgroundForm(t, 1, http.MethodDelete, path, "", nil, http.StatusNotFound)
+	f.backgroundForm(t, 1, http.MethodPatch, path, "不存在", nil, http.StatusNotFound)
 }
 
 func TestBackgroundUploadRejectsInvalidImage(t *testing.T) {
