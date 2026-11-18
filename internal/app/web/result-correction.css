@@ -1,0 +1,26 @@
+/* 已完成的对局逐行列出，一次只修正一场，后续失效结果在保存前标明。 */
+.correction-round{margin-top:24px}
+.correction-round h3{font-size:17px;margin:0 0 12px}
+.correction-column-head,.correction-row{display:grid;grid-template-columns:42px minmax(0,1fr) minmax(110px,.75fr) minmax(0,1fr) minmax(170px,1fr);align-items:center;gap:14px;padding:12px}
+.correction-column-head{color:var(--muted);font-size:12px;border-bottom:1px solid var(--line)}
+.correction-row{border-bottom:1px solid var(--line);font-size:15px;line-height:1.5}
+.correction-match-no{color:var(--muted);font-size:13px}
+.correction-player{min-width:0;overflow-wrap:anywhere}
+.correction-player .board-identity{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-width:0}
+.correction-player .player-record-link{white-space:normal;overflow-wrap:anywhere;text-align:left}
+.correction-player .board-category-icon{width:22px;height:22px;flex:none}
+.correction-player.is-winner{color:#bd3c36;font-weight:700}
+.correction-player.is-loser{color:#25815a}
+.correction-result{display:grid;gap:4px;min-width:0;text-align:center}
+.correction-result strong{font-size:14px}
+.correction-result small{font-size:12px;color:#a46d12}
+.correction-result small:empty{display:none}
+.correction-row>button{font-size:13px;padding:9px 12px;white-space:normal}
+.correction-row.is-selected{background:#fff7e6;outline:1px solid #d9ab57;outline-offset:-1px}
+.correction-row.is-discarded{background:#f6f7fa;border-bottom-style:dashed}
+@media(max-width:700px){
+  .correction-column-head{display:none}
+  .correction-row{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;padding:14px 4px}
+  .correction-match-no,.correction-row>button{grid-column:1/-1}
+  .correction-result{font-size:12px}
+}
