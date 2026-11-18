@@ -210,17 +210,11 @@ func Main() {
 		log.Fatal(err)
 	}
 
-	db, err := sql.Open("sqlite", *dbPath)
+	db, err := openDatabase(*dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
-	// 使用小连接池支持赛事详情的嵌套读取，写操作由路由互斥锁串行化。
-	db.SetMaxOpenConns(4)
-	db.SetMaxIdleConns(4)
-	if _, err := db.Exec(`PRAGMA busy_timeout = 5000`); err != nil {
-		log.Fatal(err)
-	}
 	if err := migrate(db); err != nil {
 		log.Fatal(err)
 	}

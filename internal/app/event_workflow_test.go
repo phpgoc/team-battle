@@ -2,7 +2,6 @@ package app
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -20,7 +19,7 @@ type workflowFixture struct {
 
 func newWorkflowFixture(t *testing.T) *workflowFixture {
 	t.Helper()
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "events.sqlite"))
+	db, err := openDatabase(filepath.Join(t.TempDir(), "events.sqlite"))
 	if err != nil {
 		t.Fatal(err)
 	}
