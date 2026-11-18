@@ -78,7 +78,6 @@
   function captureForms() {
     return $$('form').map((form, index) => ({
       key: formKey(form, index),
-      matchRounds: form.id === 'archive-form' ? $$('[name="past_round"]', form).map(el => Number(el.value)) : null,
       fields: $$('input,select,textarea', form).map(el => ({ name: el.name, type: fieldType(el), value: el.value, checked: el.checked, selected: el.multiple ? [...el.selectedOptions].map(o => o.value) : null, files: el.type === 'file' ? el.files : null }))
     }));
   }
@@ -86,7 +85,6 @@
     for (const data of forms) {
       const form = $$('form').find((form, index) => formKey(form, index) === data.key);
       if (!form) continue;
-      if (data.matchRounds) { $('#past-matches').innerHTML = data.matchRounds.map(pastMatchRow).join(''); bindPastMatchRemoval(); }
       const used = new Set();
       for (const item of data.fields) {
         const el = $$('input,select,textarea', form).find(el => !used.has(el) && el.name === item.name && fieldType(el) === item.type);
@@ -779,24 +777,14 @@
     };
   }
 
-  function pastMatchRow(round = 1) { return `<div class="past-match"><select name="past_round" aria-label="${t('stage')}">${[1, 2, 3].map(r => `<option value="${r}"${r === round ? ' selected' : ''}>${t(r === 1 ? 'round1' : r === 2 ? 'round2' : 'ace')}</option>`).join('')}</select><select name="past_a" aria-label="${t('teamA')}" required>${options(state.users.filter(u => state.roster[u.id] === 'A'))}</select><span>VS</span><select name="past_b" aria-label="${t('teamB')}" required>${options(state.users.filter(u => state.roster[u.id] === 'B'))}</select><select name="past_winner" aria-label="${t('winner')}"><option value="a">${t('teamA')} · ${t('win')}</option><option value="b">${t('teamB')} · ${t('win')}</option></select><button type="button" class="link danger" data-remove-match>${t('delete')}</button></div>`; }
-  function bindPastMatchRemoval() { $$('[data-remove-match]').forEach(button => button.onclick = () => button.closest('.past-match').remove()); }
   async function archivePage(preserve = false) {
     const [directory, backgrounds] = await Promise.all([api('/api/users'), api('/api/backgrounds')]);
-    state.users = directory.users.filter(u => u.role !== 'superadmin'); if (!preserve) { state.roster = {}; state.rosterOrder = []; }
-    shell(`<div class="page-head"><div><h1>${t('archive')}</h1><p class="subtitle">${t('pastHint')}</p></div></div><form id="archive-form"><section class="panel"><div class="panel-body form-grid">${field('name', input('name', '', 'text', 'required'), true)}${field('time', eventTimeInput())}${field('background', `<select name="background_id">${backgroundOptions(backgrounds.backgrounds || [])}</select>`)}${field('aceSource', `<select name="ace_source"><option value="random">${t('random')}</option><option value="most_wins">${t('sourceMostWins')}</option><option value="most_losses">${t('sourceMostLosses')}</option><option value="special:0">${t('specialMatchGroup')}1</option><option value="special:1">${t('specialMatchGroup')}2</option></select>`)}</div></section>${rosterMarkup(state.users, state.roster, true, false)}<section class="panel section-gap"><div class="panel-head"><h2>${t('results')}</h2></div><div class="panel-body"><div id="past-matches">${pastMatchRow()}</div><button type="button" class="outline" id="add-match">${t('addMatch')}</button></div></section><div class="form-footer"><button class="primary accent">${t('pastSave')}</button></div></form>`, 'archive');
-    bindRoster($('#archive-form'));
-    bindPastMatchRemoval();
-    $('#add-match').onclick = () => { $('#past-matches').insertAdjacentHTML('beforeend', pastMatchRow()); bindPastMatchRemoval(); };
-    $('#archive-form').addEventListener('rosterchange', () => {
-      for (const side of ['a', 'b']) $$(`[name="past_${side}"]`).forEach(select => {
-        const chosen = select.value;
-        select.innerHTML = options(state.users.filter(u => state.roster[u.id] === side.toUpperCase()), chosen);
-        // 名单新增或换队后，保留有效人选，否则使用本队首位，避免空值阻止表单提交。
-        if ([...select.options].some(option => option.value === chosen)) select.value = chosen;
-      });
+    if (!preserve || !state.archiveDraft) state.archiveDraft = window.TBArchivePage.create(localTime());
+    window.TBArchivePage.render({
+      draft: state.archiveDraft, users: directory.users.filter(user => user.role !== 'superadmin'), backgrounds: backgrounds.backgrounds || [],
+      t, esc, field, input, eventTimeInput, eventTimeValue, backgroundOptions, shell, action, toast, person,
+      onSave: async body => { const result = await post('/api/events/archive', body); state.archiveDraft = null; go('/live/' + result.id); }
     });
-    $('#archive-form').onsubmit = action(async event => { event.preventDefault(); const f = new FormData(event.target); const matches = $$('.past-match').map(row => ({ round: Number($('[name="past_round"]', row).value), a_id: Number($('[name="past_a"]', row).value), b_id: Number($('[name="past_b"]', row).value), who_win: $('[name="past_winner"]', row).value })); if (!confirm(t('confirmEndHint'))) return; const result = await post('/api/events/archive', { name: f.get('name'), event_time: eventTimeValue(f), background_id: Number(f.get('background_id') || 0), ace_source: f.get('ace_source'), ...rosterValue(event.target), matches }); go('/live/' + result.id); });
   }
   async function renderRoute(preserve = false) {
     document.documentElement.lang = state.language;

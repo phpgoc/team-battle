@@ -1,0 +1,23 @@
+.archive-steps{display:flex;flex-wrap:wrap;gap:12px;padding:0;margin:0 0 24px;list-style:none}
+.archive-steps li{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:14px}
+.archive-steps li span{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#e8edf3;color:#63758a}
+.archive-steps li[aria-current]{color:#172c43;font-weight:700}
+.archive-steps li[aria-current] span{background:#172c43;color:#fff}
+.archive-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:24px}
+.archive-current{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:24px;margin:20px 0 28px}
+.archive-contender{display:grid;gap:12px;min-width:0;padding:20px;border:1px solid #e1e8ef;border-radius:14px;background:#f8fafc}
+.archive-contender select{width:100%}
+.archive-person{min-height:54px;min-width:0}.archive-person .person{max-width:100%}
+.archive-vs{font-weight:800;color:#8b9bae}
+.archive-score{white-space:nowrap;font-size:18px}.archive-score strong{font-size:28px;margin:0 12px}
+.archive-results{list-style:none;padding:0;margin:20px 0 0}
+.archive-results li{display:grid;grid-template-columns:26px minmax(0,1fr) auto minmax(0,1fr) auto;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid #e9eef3}
+.archive-results li>span:not(.archive-seq){overflow-wrap:anywhere}
+.archive-results b{font-size:13px;font-weight:500;color:#63758a}
+.archive-results button{white-space:nowrap}.archive-seq{color:#8b9bae;font-size:13px}
+.archive-won{color:#c94435;font-weight:700}
+.archive-complete{padding:18px;border-radius:10px;background:#eaf6ef;color:#246541;font-weight:700}
+.archive-stage-summary{display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:16px}
+.archive-stage-summary strong{font-size:24px}.archive-review-stage{margin-top:28px}
+.archive-team-summary{display:grid;grid-template-columns:1fr 1fr;gap:24px}.archive-team-summary p{line-height:1.8;overflow-wrap:anywhere}
+@media(max-width:600px){.archive-current{gap:8px}.archive-contender{padding:12px;gap:10px}.archive-person .person{flex-wrap:wrap}.archive-results li{gap:8px;grid-template-columns:18px minmax(0,1fr) auto minmax(0,1fr)}.archive-results button{grid-column:2/-1;justify-self:end}.archive-stage-summary{flex-wrap:wrap}.archive-team-summary{gap:12px}.archive-score strong{font-size:23px;margin:0 6px}.archive-steps{gap:10px}.archive-steps li{font-size:12px}}

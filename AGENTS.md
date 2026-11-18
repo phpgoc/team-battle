@@ -65,6 +65,8 @@
 
 历史录入和实时推进都写入 `rounds` 与 `matches`；`matches.round_no`、`a_id`、`b_id`、`who_win` 保持与规范字段同步，其中 `who_win` 使用 `0`、`a`、`b`。
 
+历史录入使用`archive-page.js/css`分步页面，基本资料、第一轮、KOF、必要时的大将战、核对保存分别展示。草稿及当前步骤保存在页面内存，切换语言不清空；重录某局须确认后截断该局及全部后续轮次，队伍或目标变更也须确认清空已有对局。服务端从逐局胜负计算比分及赛事胜者，验证目标分、结束后无多余对局、KOF胜者留场及复活资格；历史复活人选由录入者选择实际出场者，不重新随机。旧API未传目标分时仍从最终比分推导。
+
 账号只有 `superadmin` 和非超级管理员两层；赛事管理员由 `events.manager_id` 关联，参赛选手由 `event_players` 关联。分类目录在进程内缓存，分类变更后失效并重新加载。分类图标以图片二进制和 MIME 保存，不使用 emoji 字符代替图片。
 
 比赛阶段建议使用：`draft`、`captain_vote`、`lineup_confirm`、`round1`、`round2`、`ace`、`completed`、`cancelled`。

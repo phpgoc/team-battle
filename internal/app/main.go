@@ -16,7 +16,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-//go:embed web/index.html web/styles.css web/app.js web/i18n.js web/player-records.js web/setup-draw.js web/roster-editor.js web/roster-editor.css web/lineup-page.js web/lineup-page.css web/kof-board.js web/kof-board.css
+//go:embed web/index.html web/styles.css web/app.js web/i18n.js web/player-records.js web/setup-draw.js web/roster-editor.js web/roster-editor.css web/lineup-page.js web/lineup-page.css web/kof-board.js web/kof-board.css web/archive-page.js web/archive-page.css
 var webFS embed.FS
 
 const (
@@ -115,6 +115,8 @@ type archivedMatch struct {
 }
 
 type archiveEventRequest struct {
+	Round1Target     int               `json:"round1_target"`
+	Round2Target     int               `json:"round2_target"`
 	Matches          []archivedMatch   `json:"matches"`
 	FixedAssignments map[string]string `json:"fixed_assignments"`
 	BackgroundID     int64             `json:"background_id"`

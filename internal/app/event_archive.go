@@ -1,9 +1,11 @@
 package app
 
 import (
-	"github.com/gin-gonic/gin"
+	"errors"
 	"strconv"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 // 过去赛事与实时赛事共用对局表，一次事务导入后立即封存。
@@ -67,8 +69,17 @@ func (a *App) archiveEvent(c *gin.Context) {
 			return
 		}
 	}
+	targets := [3]int{req.Round1Target, req.Round2Target, 1}
 	for i, matches := range grouped {
-		target := max(scores[i][0], scores[i][1])
+		// 兼容未传目标分的旧请求；新录入必须实际达到所选抢分目标。
+		if targets[i] == 0 {
+			targets[i] = max(scores[i][0], scores[i][1])
+		}
+		target := targets[i]
+		if target < 1 || target > 99 || (len(matches) > 0 && max(scores[i][0], scores[i][1]) != target) {
+			fail(c, 400, "阶段比分必须达到1到99之间的抢分目标")
+			return
+		}
 		current := [2]int{}
 		for seq, m := range matches {
 			side := 0
@@ -88,7 +99,7 @@ func (a *App) archiveEvent(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback()
-	r, err := tx.Exec(`INSERT INTO events(name,description,event_time,status,round1_target,round2_target,manager_id,created_by,background_id) VALUES(?,?,?,'completed',?,?,?,?,?)`, strings.TrimSpace(req.Name), req.Description, eventTime, max(scores[0][0], scores[0][1]), max(scores[1][0], scores[1][1]), actor.ID, actor.ID, nullableInt64(req.BackgroundID))
+	r, err := tx.Exec(`INSERT INTO events(name,description,event_time,status,round1_target,round2_target,manager_id,created_by,background_id) VALUES(?,?,?,'completed',?,?,?,?,?)`, strings.TrimSpace(req.Name), req.Description, eventTime, targets[0], targets[1], actor.ID, actor.ID, nullableInt64(req.BackgroundID))
 	if err != nil {
 		fail(c, 400, err.Error())
 		return
@@ -112,6 +123,19 @@ func (a *App) archiveEvent(c *gin.Context) {
 		fail(c, 400, err.Error())
 		return
 	}
+	engine := &matchEngine{db: tx, eventID: id, actorID: actor.ID, rng: a.rng}
+	var rosters [2][]int64
+	for side, team := range teams {
+		rosters[side], err = engine.players(team)
+		if err != nil {
+			fail(c, 500, err.Error())
+			return
+		}
+	}
+	if err := validateArchivedKOF(grouped[1], rosters, targets[1]); err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
 	for i, stage := range []string{stageRound1, stageRound2, stageAce} {
 		winner := int64(0)
 		if scores[i][0] > scores[i][1] {
@@ -120,7 +144,7 @@ func (a *App) archiveEvent(c *gin.Context) {
 		if scores[i][1] > scores[i][0] {
 			winner = teams[1]
 		}
-		target := max(1, max(scores[i][0], scores[i][1]))
+		target := targets[i]
 		status := statusFinished
 		if len(grouped[i]) == 0 {
 			status = statusPending
@@ -149,7 +173,6 @@ func (a *App) archiveEvent(c *gin.Context) {
 			}
 		}
 	}
-	engine := &matchEngine{db: tx, eventID: id, actorID: actor.ID, rng: a.rng}
 	if err := engine.log("historical_event_created", map[string]any{"matches": len(req.Matches)}); err != nil {
 		fail(c, 500, err.Error())
 		return
@@ -166,6 +189,44 @@ func (a *App) archiveEvent(c *gin.Context) {
 	}
 	a.invalidateHistoryCache()
 	ok(c, gin.H{"id": id})
+}
+
+// 历史KOF也须胜者留场，复活只放开全队已经输过且目标高于人数的队伍。
+func validateArchivedKOF(matches []archivedMatch, rosters [2][]int64, target int) error {
+	lost := [2]map[int64]bool{{}, {}}
+	for index, match := range matches {
+		ids := [2]int64{match.AID, match.BID}
+		for side, id := range ids {
+			if !containsID(rosters[side], id) {
+				return errors.New("对局选手必须属于对应队伍")
+			}
+			if index == 0 {
+				continue
+			}
+			previous := matches[index-1]
+			previousSide := 0
+			if previous.WhoWin == "b" {
+				previousSide = 1
+			}
+			if side == previousSide {
+				previousID := previous.AID
+				if side == 1 {
+					previousID = previous.BID
+				}
+				if id != previousID {
+					return errors.New("KOF下一局必须保留上一局胜者")
+				}
+			} else if lost[side][id] && (target <= len(rosters[side]) || len(lost[side]) < len(rosters[side])) {
+				return errors.New("KOF已输过的选手尚不满足复活条件")
+			}
+		}
+		loser := 1
+		if match.WhoWin == "b" {
+			loser = 0
+		}
+		lost[loser][ids[loser]] = true
+	}
+	return nil
 }
 
 func validAceSource(source string) bool {
