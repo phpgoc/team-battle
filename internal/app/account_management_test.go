@@ -60,7 +60,7 @@ func TestAccountUsernameOwnership(t *testing.T) {
 	f.request(t, 0, "POST", "/api/auth/login", map[string]any{"username": "user2", "password": "new-pass"}, 401)
 	f.request(t, 0, "POST", "/api/auth/login", map[string]any{"username": "renamed", "password": "new-pass"}, 200)
 	f.request(t, 1, "PATCH", "/api/auth/profile", map[string]any{"username": "renamed-admin"}, 200)
-	f.request(t, 1, "PATCH", "/api/users/1", map[string]any{"username": "admin-again"}, 200)
+	f.request(t, 1, "PATCH", "/api/users/1", map[string]any{"username": "admin-again"}, 400)
 	f.request(t, 2, "PATCH", "/api/auth/profile", map[string]any{"role": "superadmin"}, 403)
 	f.assertCount(t, 1, "SELECT COUNT(*) FROM users WHERE id=2 AND role='user'")
 	var listed struct {
@@ -69,7 +69,7 @@ func TestAccountUsernameOwnership(t *testing.T) {
 	if err := json.Unmarshal(f.request(t, 1, "GET", "/api/users", nil, 200), &listed); err != nil {
 		t.Fatal(err)
 	}
-	if listed.Users[0].Username != "admin-again" || listed.Users[1].Username != "renamed" {
+	if listed.Users[0].Username != "renamed-admin" || listed.Users[1].Username != "renamed" {
 		t.Fatal("账号目录未更新登录名")
 	}
 }
@@ -81,25 +81,29 @@ func TestAccountWeeklyChangesAndAtomicSave(t *testing.T) {
 	f.accountForm(t, 2, "PATCH", "/api/auth/profile", map[string]string{"display_name": "新显示名", "username": "new-user"}, true, 200)
 	f.request(t, 2, "PATCH", "/api/auth/profile", map[string]any{"display_name": "第二次"}, 400)
 	f.accountForm(t, 2, "POST", "/api/auth/avatar", nil, true, 400)
-	// 未修改显示名时，仍然可以修改密码、登录名或分类。
-	f.request(t, 2, "PATCH", "/api/auth/profile", map[string]any{"display_name": "新显示名", "username": "new-user-2", "category_id": 0}, 200)
+	// 本人所有资料共享冷却；只改密码或重复保存原值仍然允许。
+	f.request(t, 2, "PATCH", "/api/auth/profile", map[string]any{"display_name": "新显示名", "username": "new-user-2", "category_id": 0}, 400)
+	f.request(t, 2, "PATCH", "/api/auth/profile", map[string]any{"display_name": "新显示名", "username": "new-user", "category_id": 0, "new_password": "secret2", "new_password_confirm": "secret2"}, 200)
 	f.accountForm(t, 2, "PATCH", "/api/auth/profile", map[string]string{"username": "must-not-save"}, true, 400)
-	f.assertCount(t, 1, "SELECT COUNT(*) FROM users WHERE id=2 AND username='new-user-2'")
+	f.assertCount(t, 1, "SELECT COUNT(*) FROM users WHERE id=2 AND username='new-user'")
 	// 管理员可以连续代改资料、头像和密码，不能更改他人的登录名。
 	for i := 0; i < 2; i++ {
 		f.accountForm(t, 1, "PATCH", "/api/users/2", map[string]string{"display_name": fmt.Sprint("管理员修改", i), "new_password": "admin-pass", "new_password_confirm": "admin-pass", "category_id": "0"}, true, 200)
-		f.accountForm(t, 1, "PATCH", "/api/auth/profile", map[string]string{"display_name": fmt.Sprint("管理自己", i)}, true, 200)
+		want := 200
+		if i > 0 {
+			want = 400
+		}
+		f.accountForm(t, 1, "PATCH", "/api/auth/profile", map[string]string{"display_name": fmt.Sprint("管理自己", i)}, true, want)
 	}
-	f.request(t, 0, "POST", "/api/auth/login", map[string]any{"username": "new-user-2", "password": "admin-pass"}, 200)
+	f.request(t, 0, "POST", "/api/auth/login", map[string]any{"username": "new-user", "password": "admin-pass"}, 200)
 	old := time.Now().UTC().Add(-profileChangeInterval - time.Second).Format(time.RFC3339Nano)
-	if _, err := f.app.db.Exec("UPDATE users SET display_name_changed_at=?,avatar_changed_at=? WHERE id=2", old, old); err != nil {
+	if _, err := f.app.db.Exec("UPDATE users SET profile_changed_at=? WHERE id=2", old); err != nil {
 		t.Fatal(err)
 	}
 	f.app.invalidateCategoryDirectory()
 	f.accountForm(t, 2, "PATCH", "/api/auth/profile", map[string]string{"display_name": "一周后"}, true, 200)
-	// 两项限额分别计算，改名不会占用头像次数。
-	f.request(t, 3, "PATCH", "/api/auth/profile", map[string]any{"display_name": "独立次数"}, 200)
-	f.accountForm(t, 3, "POST", "/api/auth/avatar", nil, true, 200)
+	// 改名也会占用头像、登录名及分类的修改次数。
+	f.request(t, 3, "PATCH", "/api/auth/profile", map[string]any{"display_name": "共享次数"}, 200)
 	f.accountForm(t, 3, "POST", "/api/auth/avatar", nil, true, 400)
 	now := time.Now().UTC()
 	if !profileChangeAllowed(now.Add(-profileChangeInterval).Format(time.RFC3339Nano), now) || profileChangeAllowed(now.Add(-profileChangeInterval+time.Second).Format(time.RFC3339Nano), now) {

@@ -237,6 +237,7 @@ func migrate(db *sql.DB) error {
 		{"users", "is_deleted", "INTEGER NOT NULL DEFAULT 0"},
 		{"users", "display_name_changed_at", "TEXT"},
 		{"users", "avatar_changed_at", "TEXT"},
+		{"users", "profile_changed_at", "TEXT"},
 		{"users", "avatar_version", "INTEGER NOT NULL DEFAULT 0"},
 		{"users", "category_id", "INTEGER"},
 		{"categories", "icon_data", "BLOB"},
@@ -259,6 +260,10 @@ func migrate(db *sql.DB) error {
 		if err := ensureColumn(db, column.table, column.name, column.definition); err != nil {
 			return err
 		}
+	}
+	// 旧版本的头像、显示名次数合并到最近一次本人资料修改，不重置已有冷却。
+	if _, err := db.Exec(`UPDATE users SET profile_changed_at=MAX(COALESCE(display_name_changed_at,''),COALESCE(avatar_changed_at,'')) WHERE profile_changed_at IS NULL AND (COALESCE(display_name_changed_at,'')<>'' OR COALESCE(avatar_changed_at,'')<>'')`); err != nil {
+		return err
 	}
 	if _, err := db.Exec(`UPDATE matches SET round_no=CASE (SELECT stage FROM rounds WHERE id=matches.round_id) WHEN 'round1' THEN 1 WHEN 'round2' THEN 2 WHEN 'ace' THEN 3 ELSE 0 END,a_id=player_a_id,b_id=player_b_id,who_win=CASE WHEN winner_team_id IS NULL THEN '0' WHEN winner_team_id=team_a_id THEN 'a' ELSE 'b' END WHERE round_no IS NULL OR a_id IS NULL OR b_id IS NULL`); err != nil {
 		return err

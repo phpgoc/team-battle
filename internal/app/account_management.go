@@ -1,6 +1,6 @@
 package app
 
-// 账号资料统一保存；登录名只允许本人修改，管理员代改资料不占用本人的每周次数。
+// 账号资料统一保存；本人除密码外的资料共享七天冷却，管理员代改他人资料不占用本人次数。
 import (
 	"errors"
 	"io"
@@ -189,21 +189,22 @@ func (a *App) saveAccountChange(c *gin.Context, actor, target User, req profileR
 		}
 	}
 	now := time.Now().UTC()
-	limited := actor.Role != roleSuperAdmin
+	self := actor.ID == target.ID
+	profileChanged := username != target.Username || displayName != target.DisplayName || role != target.Role || category != target.CategoryID || avatar != nil
+	profileChangedAt := target.ProfileChangedAt
 	nameChangedAt, avatarChangedAt := target.DisplayNameChangedAt, target.AvatarChangedAt
-	if displayName != target.DisplayName && limited {
-		if !profileChangeAllowed(nameChangedAt, now) {
-			fail(c, 400, "显示名每7天只能修改一次")
+	if self && profileChanged {
+		if !profileChangeAllowed(profileChangedAt, now) {
+			fail(c, 400, "个人资料共享7天修改冷却，密码不受限制")
 			return
 		}
-		nameChangedAt = now.Format(time.RFC3339Nano)
-	}
-	if avatar != nil && limited {
-		if !profileChangeAllowed(avatarChangedAt, now) {
-			fail(c, 400, "头像每7天只能修改一次")
-			return
+		profileChangedAt = now.Format(time.RFC3339Nano)
+		if displayName != target.DisplayName {
+			nameChangedAt = profileChangedAt
 		}
-		avatarChangedAt = now.Format(time.RFC3339Nano)
+		if avatar != nil {
+			avatarChangedAt = profileChangedAt
+		}
 	}
 	var hash []byte
 	if req.NewPassword != "" || req.NewPasswordConfirm != "" {
@@ -238,7 +239,7 @@ func (a *App) saveAccountChange(c *gin.Context, actor, target User, req profileR
 		return
 	}
 	defer tx.Rollback()
-	_, err = tx.Exec(`UPDATE users SET username=?,display_name=?,role=?,category_id=?,display_name_changed_at=?,avatar_changed_at=? WHERE id=? AND is_deleted=0`, username, displayName, role, nullableInt64(category), nameChangedAt, avatarChangedAt, target.ID)
+	_, err = tx.Exec(`UPDATE users SET username=?,display_name=?,role=?,category_id=?,display_name_changed_at=?,avatar_changed_at=?,profile_changed_at=? WHERE id=? AND is_deleted=0`, username, displayName, role, nullableInt64(category), nameChangedAt, avatarChangedAt, profileChangedAt, target.ID)
 	if err == nil && len(hash) > 0 {
 		_, err = tx.Exec(`UPDATE users SET password_hash=? WHERE id=?`, string(hash), target.ID)
 	}

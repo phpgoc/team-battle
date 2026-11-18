@@ -145,21 +145,22 @@
     return limited && next && next > new Date() ? next : null;
   }
   function profileFields(user, categories, managed = false, creating = false) {
-    const limited = !managed && user.role !== 'superadmin';
-    const nameNext = profileLimit(user.display_name_changed_at, limited), avatarNext = profileLimit(user.avatar_changed_at, limited);
+    const limited = !creating && user.id === state.user.id;
+    const next = profileLimit(user.profile_changed_at, limited);
+    const disabled = next ? ' disabled' : '';
     const editableLogin = creating || user.id === state.user.id;
     const dateText = date => new Intl.DateTimeFormat({ zh: 'zh-CN', en: 'en-GB', ko: 'ko-KR' }[state.language], { dateStyle: 'medium', timeStyle: 'short' }).format(date);
-    const limitHint = (key, next) => limited ? '<p class="help">' + t(key) + (next ? ' ' + t('availableOn') + ' ' + esc(dateText(next)) : '') + '</p>' : '';
+    const limitHint = limited ? '<p class="notice full">' + t('profileWeekly') + (next ? ' ' + t('availableOn') + ' ' + esc(dateText(next)) : '') + '</p>' : '';
     const section = (title, contents) => `<fieldset class="profile-section full"><legend>${t(title)}</legend><div class="form-grid">${contents}</div></fieldset>`;
-    const identity = field('avatar', `<div class="avatar-upload"><div id="avatar-preview">${user.avatar_url ? `<img class="account-avatar-preview" src="${esc(user.avatar_url)}" alt="">` : `<span class="account-avatar-empty">${t('noAvatar')}</span>`}</div><div><input type="file" name="avatar" accept="image/jpeg,image/png,image/gif,image/webp" aria-label="${t('avatar')}"${avatarNext ? ' disabled' : ''}><p class="help">${t('imageHint')}</p>${limitHint('avatarWeekly', avatarNext)}</div></div>`, true)
-      + field('displayName', input('display_name', user.display_name || '', 'text', (creating ? '' : 'required') + (nameNext ? ' disabled' : '')) + limitHint('nameWeekly', nameNext), true);
-    const credentials = field('username', input('username', user.username || '', 'text', 'required autocomplete="username"' + (editableLogin ? '' : ' readonly')) + (editableLogin ? '' : '<p class="help">' + t('usernameSelfOnly') + '</p>'), true)
+    const identity = field('avatar', `<div class="avatar-upload"><div id="avatar-preview">${user.avatar_url ? `<img class="account-avatar-preview" src="${esc(user.avatar_url)}" alt="">` : `<span class="account-avatar-empty">${t('noAvatar')}</span>`}</div><div><input type="file" name="avatar" accept="image/jpeg,image/png,image/gif,image/webp" aria-label="${t('avatar')}"${disabled}><p class="help">${t('imageHint')}</p></div></div>`, true)
+      + field('displayName', input('display_name', user.display_name || '', 'text', (creating ? '' : 'required') + disabled), true);
+    const credentials = field('username', input('username', user.username || '', 'text', 'required autocomplete="username"' + (editableLogin ? disabled : ' readonly')) + (editableLogin ? '' : '<p class="help">' + t('usernameSelfOnly') + '</p>'), true)
       + field('newPassword', input('new_password', '', 'password', 'minlength="6" autocomplete="new-password"' + (creating ? ' required' : '')))
       + field('confirmPassword', input('new_password_confirm', '', 'password', 'autocomplete="new-password"' + (creating ? ' required' : '')))
       + `<p class="help full">${t('passwordHint')}</p>`;
-    const category = field('category', `<div class="category-choices"><label><input type="radio" name="category_id" value="0"${!user.category_id ? ' checked' : ''}>${t('noCategory')}</label>${categories.map(c => `<label><input type="radio" name="category_id" value="${c.id}"${Number(c.id) === Number(user.category_id) ? ' checked' : ''}>${c.icon_url ? `<img src="${esc(c.icon_url)}" alt="">` : ''}${esc(c.name)}</label>`).join('')}</div>`, true)
-      + (managed ? field('role', '<select name="role">' + ['user', 'superadmin'].map(role => '<option value="' + role + '"' + (role === (user.role || 'user') ? ' selected' : '') + '>' + t(role) + '</option>').join('') + '</select>') : '');
-    return section('profileIdentity', identity) + section('profileCredentials', credentials) + section('profileCategory', category);
+    const category = field('category', `<div class="category-choices"><label><input type="radio" name="category_id" value="0"${!user.category_id ? ' checked' : ''}${disabled}>${t('noCategory')}</label>${categories.map(c => `<label><input type="radio" name="category_id" value="${c.id}"${Number(c.id) === Number(user.category_id) ? ' checked' : ''}${disabled}>${c.icon_url ? `<img src="${esc(c.icon_url)}" alt="">` : ''}${esc(c.name)}</label>`).join('')}</div>`, true)
+      + (managed ? field('role', '<select name="role"' + disabled + '>' + ['user', 'superadmin'].map(role => '<option value="' + role + '"' + (role === (user.role || 'user') ? ' selected' : '') + '>' + t(role) + '</option>').join('') + '</select>') : '');
+    return limitHint + section('profileIdentity', identity) + section('profileCredentials', credentials) + section('profileCategory', category);
   }
   function bindProfileForm(form, endpoint, method, saved) {
     let previewURL;

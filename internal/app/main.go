@@ -77,6 +77,7 @@ type User struct {
 	CategoryIcon         string `json:"category_icon,omitempty"`
 	DisplayNameChangedAt string `json:"display_name_changed_at,omitempty"`
 	AvatarChangedAt      string `json:"avatar_changed_at,omitempty"`
+	ProfileChangedAt     string `json:"profile_changed_at,omitempty"`
 	IsDeleted            bool   `json:"-"`
 	CanDelete            bool   `json:"can_delete"`
 }

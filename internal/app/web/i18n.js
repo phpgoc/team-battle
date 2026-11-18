@@ -1,5 +1,7 @@
 window.TB_I18N = {
   "zh": {
+    "profileWeekly": "本人资料共享7天修改冷却，请一次修改完所需内容；密码随时可改。",
+    "profileCooldown": "个人资料共享7天修改冷却，密码不受限制",
     "drawAce": "抽取大将",
     "awaitingAceDraw": "待抽取大将",
     "aceDrawReviewHint": "请先核对前两轮比分，确认无误后抽取大将。",
@@ -290,6 +292,8 @@ window.TB_I18N = {
     "categoryIconFormat": "分类图标只支持 JPG、PNG、GIF 或 WebP"
   },
   "en": {
+    "profileWeekly": "Changes to your own profile share a 7-day cooldown. Update all details together. Password changes are always allowed.",
+    "profileCooldown": "Profile changes share a 7-day cooldown; passwords are exempt",
     "drawAce": "Draw ace players",
     "awaitingAceDraw": "Awaiting ace draw",
     "aceDrawReviewHint": "Check the first two rounds before drawing ace players.",
@@ -580,6 +584,8 @@ window.TB_I18N = {
     "categoryIconFormat": "Category icons must be JPG, PNG, GIF or WebP."
   },
   "ko": {
+    "profileWeekly": "본인 정보 변경은 7일 대기 시간을 공유합니다. 필요한 항목을 함께 변경하세요. 비밀번호는 언제든 변경할 수 있습니다.",
+    "profileCooldown": "개인 정보 변경은 7일 대기 시간을 공유하며 비밀번호는 제외됩니다",
     "drawAce": "대장 추첨",
     "awaitingAceDraw": "대장 추첨 대기",
     "aceDrawReviewHint": "앞선 두 라운드의 점수를 확인한 후 대장을 추첨하세요.",
