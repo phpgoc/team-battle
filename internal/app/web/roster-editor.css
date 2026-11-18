@@ -47,13 +47,6 @@
 .special-rule-side{overflow-wrap:anywhere}
 .special-rule-versus{display:inline-block;margin:0 .55em;color:#91a0b5}
 .special-rules-summary .player-record-link{overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere;line-height:inherit}
-@media(min-width:1180px){
-  .broadcast-board .board-rules{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,2fr)}
-  .broadcast-board .board-rules:not(:has(.summary-description)){height:170px;grid-template-rows:auto minmax(0,1fr);overflow:hidden}
-  .broadcast-board .board-rules:not(:has(.summary-description))>.board-rule-block{min-height:0;overflow:auto}
-  .broadcast-board .board-rules:not(:has(.summary-description))>.ace-rule-block{display:flex;flex-direction:column;overflow:hidden}
-  .broadcast-board .ace-special-list{min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#536985 #152237}
-}
 @media(max-width:620px){.special-teams{gap:8px}.special-player-select{font-size:12px}.special-player-select option{padding:8px 5px}.special-team-candidates .field-label{font-size:12px}.special-teams-vs{font-size:10px}.special-rule-head{flex-wrap:wrap;gap:8px}}
 @media(max-width:620px){
   .roster-list-heading,.roster-entry{grid-template-columns:minmax(0,1fr) 94px 32px;gap:8px;padding-left:0;padding-right:0}
