@@ -88,10 +88,25 @@ func (a *App) publicPlayerRecords(c *gin.Context) {
 		categories = append(categories, *category)
 	}
 	sort.Slice(categories, func(i, j int) bool { return categories[i].CategoryID < categories[j].CategoryID })
+	rows.Close()
+	// 团战按确认结束的整场赛事计数，未实际出场的正式队员也共享本队胜负。
+	teamBattle := recordScore{}
+	err = a.db.QueryRow(`SELECT COALESCE(SUM(won_rounds>=2),0),COALESCE(SUM(lost_rounds>=2),0) FROM (
+		SELECT p.event_id,
+			SUM(CASE WHEN r.winner_team_id=p.team_id THEN 1 ELSE 0 END) AS won_rounds,
+			SUM(CASE WHEN r.winner_team_id<>p.team_id THEN 1 ELSE 0 END) AS lost_rounds
+		FROM event_players p JOIN events e ON e.id=p.event_id JOIN rounds r ON r.event_id=e.id
+		WHERE p.user_id=? AND p.active=1 AND e.status='completed' AND r.status='finished' AND r.stage IN ('round1','round2','ace')
+		GROUP BY p.event_id
+	)`, id).Scan(&teamBattle.Wins, &teamBattle.Losses)
+	if err != nil {
+		fail(c, http.StatusInternalServerError, "读取团战战绩失败")
+		return
+	}
 	c.Header("Cache-Control", "no-store")
 	ok(c, gin.H{
 		"user": gin.H{"id": user.ID, "display_name": user.DisplayName, "avatar_url": user.AvatarURL,
 			"category_id": user.CategoryID, "category_name": user.CategoryName, "category_icon": user.CategoryIcon},
-		"overall": overall, "ace": ace, "by_category": categories,
+		"overall": overall, "ace": ace, "team_battle": teamBattle, "by_category": categories,
 	})
 }
