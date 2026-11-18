@@ -123,6 +123,11 @@ func (a *App) archiveEvent(c *gin.Context) {
 			return
 		}
 	}
+	// 历史录入校验实际分队，奇数时多出的选手必须在A队。
+	if len(rosters[0]) != (len(req.PlayerIDs)+1)/2 || len(rosters[1]) != len(req.PlayerIDs)/2 {
+		fail(c, 400, "偶数人数须两队相同，奇数人数须A队比B队多1人。")
+		return
+	}
 	if err := validateArchivedKOF(grouped[1], rosters, targets[1]); err != nil {
 		fail(c, 400, err.Error())
 		return

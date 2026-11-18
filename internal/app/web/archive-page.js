@@ -91,6 +91,7 @@
         readBasics();
         if (!d.name.trim()) throw Error(t('archiveNameRequired'));
         if (d.entries.length < 6 || d.entries.length > 12 || !teamIDs(d, 'a').length || !teamIDs(d, 'b').length) throw Error(t('archiveRosterRequired'));
+        if (teamIDs(d, 'a').length !== Math.ceil(d.entries.length / 2) || teamIDs(d, 'b').length !== Math.floor(d.entries.length / 2)) throw Error(t('archiveRosterBalance'));
         const signature = JSON.stringify([d.entries, d.round1_target, d.round2_target]);
         if (d.signature && d.signature !== signature && Object.values(d.matches).some(matches => matches.length)) {
           if (!(await window.TBConfirm.ask(t('archiveRosterReset')))) return;

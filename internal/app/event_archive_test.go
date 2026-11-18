@@ -1,6 +1,75 @@
 package app
 
-import "testing"
+import (
+	"encoding/json"
+	"fmt"
+	"testing"
+)
+
+// 覆盖6到12人的所有分队人数，非法录入不能留下赛事、名单或对局。
+func TestArchiveValidatesTeamSizes(t *testing.T) {
+	for total := 6; total <= 12; total++ {
+		t.Run(fmt.Sprintf("%d人", total), func(t *testing.T) {
+			f := newWorkflowFixture(t)
+			ids := make([]int64, total)
+			for index := range ids {
+				id := int64(index + 3)
+				ids[index] = id
+				if id > 9 {
+					if _, err := f.app.db.Exec(`INSERT INTO users(id,username,display_name,password_hash,role) VALUES(?,?,?,'unused','user')`, id, fmt.Sprint("user", id), fmt.Sprint("选手", id)); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			for countA := 0; countA <= total; countA++ {
+				t.Run(fmt.Sprintf("A%d_B%d", countA, total-countA), func(t *testing.T) {
+					fixed := map[string]string{}
+					for index, id := range ids {
+						side := "B"
+						if index < countA {
+							side = "A"
+						}
+						fixed[fmt.Sprint(id)] = side
+					}
+					body := map[string]any{
+						"name": "历史人数校验", "start_time": "2026-11-17T19",
+						"player_ids": ids, "fixed_assignments": fixed,
+						"round1_target": 1, "round2_target": 1,
+						"matches": []archivedMatch{{1, 3, int64(countA + 3), "a"}, {2, 3, int64(countA + 3), "a"}},
+					}
+					want := 400
+					if countA == (total+1)/2 {
+						want = 200
+					}
+					const savedRows = `SELECT (SELECT COUNT(*) FROM tournaments)+(SELECT COUNT(*) FROM tournament_setup_roster)+(SELECT COUNT(*) FROM tournament_players)+(SELECT COUNT(*) FROM rounds)+(SELECT COUNT(*) FROM matches)+(SELECT COUNT(*) FROM tournament_actions)`
+					before := f.scalar(t, savedRows)
+					raw := f.request(t, 1, "POST", "/api/events/archive", body, want)
+					if want == 400 {
+						var result struct {
+							Error string `json:"error"`
+						}
+						if err := json.Unmarshal(raw, &result); err != nil || result.Error != "偶数人数须两队相同，奇数人数须A队比B队多1人。" {
+							t.Fatalf("应提示分队人数不合法: %s", raw)
+						}
+						f.assertCount(t, before, savedRows)
+						return
+					}
+					var result struct {
+						ID int64 `json:"id"`
+					}
+					if err := json.Unmarshal(raw, &result); err != nil {
+						t.Fatal(err)
+					}
+					teams := fixedTeamIDs(result.ID)
+					f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND status='completed'`, result.ID)
+					f.assertCount(t, int64(countA), `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND team_id=?`, result.ID, teams[0])
+					f.assertCount(t, int64(total-countA), `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND team_id=?`, result.ID, teams[1])
+					f.assertCount(t, 2, `SELECT COUNT(*) FROM matches WHERE tournament_id=?`, result.ID)
+				})
+			}
+		})
+	}
+}
 
 func TestArchiveValidatesTargetsAndKOFBeforeSaving(t *testing.T) {
 	f := newWorkflowFixture(t)
