@@ -1,7 +1,8 @@
 /* 点击选手位置打开队长投票或KOF操作，观众和淘汰选手不出现操作标记。 */
-.roster-operable{cursor:pointer;border-radius:6px}
-.roster-operable:hover,.roster-operable:focus-visible{background:#284462;outline:1px solid #6388b7;outline-offset:-1px}
-.roster-operable::after{content:'⋯';color:#a6c8ef;font-size:20px;margin-left:auto;flex:none}
+.broadcast-board .board-roster-profile{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
+.broadcast-board .board-roster-player.roster-operable{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:0}
+.roster-action-area{height:100%;min-height:48px;width:100%;padding:0 4px;background:transparent;color:#a6c8ef;font-size:22px;border-left:1px solid #ffffff12;border-radius:0 6px 6px 0}
+.roster-action-area:hover,.roster-action-area:focus-visible{background:#284462;outline:1px solid #6388b7;outline-offset:-1px}
 #roster-actions{width:min(420px,calc(100vw - 32px))}
 .roster-action-list{display:grid;gap:12px}
 .roster-action-list .help{margin:0 0 4px}
@@ -13,9 +14,6 @@
 #board-kof-controls small{display:block;font-size:11px;line-height:1.5;color:#94a8c3}
 .kof-reserved-label{font-size:12px;color:#f9cb72;white-space:nowrap}
 .board-roster-player[data-kof-selected=true]{background:#e6ae3612}
-.broadcast-board .board-roster-player:has(.kof-player-action){display:grid;grid-template-columns:clamp(46px,3.4vw,80px) minmax(0,1fr);gap:4px 8px}
-.board-roster-player:has(.kof-player-action)>.board-avatar{grid-row:1/span 2}
-.board-roster-player:has(.kof-player-action)>.kof-player-action{grid-column:2;justify-self:start}
 @media(max-width:1100px){.kof-reserved-label{font-size:10px}}
 /* 较矮桌面压缩提示和空大将战，给可滚动名单保留可操作的高度。 */
 @media(min-width:1180px) and (max-height:800px){

@@ -451,7 +451,7 @@
     const roster = (team, side) => `<aside class="board-roster board-roster-${side}"><div class="board-roster-head"><span>${esc(teamName(e, team))}</span><b>${team.players.filter(player => !setup || setup.visible.has(player.id)).length}</b></div><div class="board-roster-list">${team.players.filter(player => !setup || setup.visible.has(player.id)).map(player => {
       const lost = playerHasLoss(e, player.id, 'round2');
       const recordClass = playerHasWin(e, player.id, recordStage) ? 'is-record-winner' : 'is-record-new';
-      return `<div data-roster-player="${player.id}" class="board-roster-player ${lost ? 'is-lost' : ''} ${recordClass}">${avatar(player)}<span class="board-roster-name">${boardIdentity(player)}${player.is_captain ? `<small class="board-captain">${t('captain')}</small>` : ''}</span></div>`;
+      return `<div data-roster-player="${player.id}" class="board-roster-player ${lost ? 'is-lost' : ''} ${recordClass}"><div class="board-roster-profile">${avatar(player)}<span class="board-roster-name">${boardIdentity(player)}${player.is_captain ? `<small class="board-captain">${t('captain')}</small>` : ''}</span></div></div>`;
     }).join('')}</div></aside>`;
     const score = `<div class="board-score"><div><span>${t('teamA')}</span><strong>${rounds.filter(round => round.winner_team_id === teams[0].id).length}</strong></div><b>VS</b><div><span>${t('teamB')}</span><strong>${rounds.filter(round => round.winner_team_id === teams[1].id).length}</strong></div></div>`;
     return `<header class="board-top${pending ? ' has-current' : ''}">
@@ -486,7 +486,7 @@
     $('#roster-actions')?.close();
     $('#board-settings')?.addEventListener('click', () => go('/live/' + state.event.id + '/setting'));
     $('#board-lineup')?.addEventListener('click', () => go('/live/' + state.event.id + '/lineup'));
-    if (!state.setupDraw) window.TBKOFBoard.bindRows({ root: $('#board-content'), event: state.event, user: state.user, manager: manages(state.event), t, action, onVote: voteForCaptain });
+    if (!state.setupDraw) window.TBKOFBoard.bindRows({ root: $('#board-content'), event: state.event, user: state.user, manager: manages(state.event), t, action, onVote: voteForCaptain, onCaptain: assignCaptain });
     if (state.event.status === 'round2' && canOperate(state.event) && !state.setupDraw) renderKOFSelection(state.event, manages(state.event)).catch(error => toast(error.message));
     if (state.setupDraw) $('#board-content')?.setAttribute('data-setup-drawing', 'true');
   }
@@ -603,12 +603,13 @@
   async function refreshEvent() { const previous = state.event; state.event = await api('/api/public/events/' + state.event.id); if (!state.editor) { boardPage(); startDrawAnimation(previous, state.event); } }
   async function eventAction(path, body = {}, method = 'POST') { await post('/api/events/' + state.event.id + path, body, method); await refreshEvent(); }
   async function voteForCaptain(id) { await eventAction('/captain-votes', { target_id: id }); toast(t('voteSaved')); }
+  async function assignCaptain(team, player) { await eventAction('/captains/select', { team_id: team, player_id: player }); }
   async function renderKOFSelection(e, manager) {
     const target = $('#board-kof-controls');
     if (!target || !canOperate(e) || e.status !== 'round2') return;
     const choices = await api('/api/events/' + e.id + '/kof/options');
     if (!target.isConnected || state.event?.id !== e.id || state.event.status !== 'round2') return;
-    const paint = () => window.TBKOFBoard.render({ root: $('#board-content'), event: state.event, choices, user: state.user, manager, selectedTeam: state.kofTeam, t, action, onVote: voteForCaptain,
+    const paint = () => window.TBKOFBoard.render({ root: $('#board-content'), event: state.event, choices, user: state.user, manager, selectedTeam: state.kofTeam, t, action, onVote: voteForCaptain, onCaptain: assignCaptain,
       onTeam: id => { state.kofTeam = id; paint(); },
       onSend: async body => {
         try { await eventAction(choices.match_id ? '/kof/next-player' : '/kof/starter', body); toast(t('reservationSaved')); }
@@ -624,7 +625,6 @@
     if (!manages(e) || terminal(e)) { target.innerHTML = ''; return; }
     const manager = manages(e), people = e.teams.flatMap(team => team.players);
     let content = `<div class="operations-heading"><div><span class="eyebrow">${t('eventControls')}</span><h2>${t(e.status)}</h2></div><button class="outline" id="close-operations">${t('close')}</button></div>`;
-    if (manager && e.teams.every(team => team.players.length)) content += `<section class="panel section-gap"><form id="captains-form" class="panel-body form-grid">${e.teams.map((team, i) => { return field(i ? 'teamB' : 'teamA', `<select name="team_${i ? 'b' : 'a'}_player_id"><option value="0">${t('noCaptain')}</option>${team.players.map(p => `<option value="${p.id}"${p.is_captain ? ' selected' : ''}>${esc(p.display_name)} · ${e.votes.find(v => v.player_id === p.id)?.count || 0} ${t('votes')}</option>`).join('')}</select>`); }).join('')}<button class="primary">${t('confirmCaptains')}</button></form></section>`;
     if (canArrangeLineup(e)) content += `<section class="panel section-gap"><div class="panel-body"><a class="primary" href="/live/${e.id}/lineup" id="operations-lineup">${t('round1Lineup')}</a></div></section>`;
     if (manager && preMatch(e)) content += `<div class="form-footer"><button class="primary accent" id="start-event">${t('start')}</button></div>`;
     const pending = e.matches.find(m => m.status === 'pending' && m.stage === e.status);
@@ -634,7 +634,6 @@
     if (manager && e.matches.some(m => m.status === 'finished')) content += `<section class="panel section-gap"><div class="panel-head"><h2>${t('correct')}</h2></div><form id="correct-form" class="panel-body form-grid"><p class="notice full">${t('correctHint')}</p>${field('matchNo', `<select name="match_id">${e.matches.filter(m => m.status === 'finished').map(m => `<option value="${m.id}">${t(m.stage)} #${m.seq} · ${esc(m.player_a_name)} / ${esc(m.player_b_name)}</option>`).join('')}</select>`)}${field('winner', `<select name="winner_team_id">${e.teams.map(team => `<option value="${team.id}">${esc(teamName(e, team))}</option>`).join('')}</select>`)}<button class="outline">${t('correct')}</button></form></section>`;
     target.innerHTML = content;
     $('#close-operations')?.addEventListener('click', () => { state.operations = false; $('#event-operations').classList.add('hidden'); });
-    $('#captains-form')?.addEventListener('submit', action(async event => { event.preventDefault(); const f = new FormData(event.target); await eventAction('/captains/confirm', { team_a_player_id: Number(f.get('team_a_player_id')), team_b_player_id: Number(f.get('team_b_player_id')) }); }));
     $('#operations-lineup')?.addEventListener('click', event => { event.preventDefault(); go('/live/' + e.id + '/lineup'); });
     $('#start-event')?.addEventListener('click', action(() => eventAction('/start')));
     $$('[data-winner]').forEach(button => button.onclick = action(() => eventAction('/matches/' + button.dataset.match + '/result', { winner_team_id: Number(button.dataset.winner) })));

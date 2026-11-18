@@ -137,6 +137,56 @@ func (a *App) confirmCaptains(c *gin.Context) {
 	}
 	ok(c, gin.H{"ok": true})
 }
+
+// 单队指定在事务内只修改该队，避免管理员点击名单时覆盖另一队刚选出的队长。
+func (a *App) selectTeamCaptain(c *gin.Context) {
+	actor, id, access := a.managerEvent(c)
+	if !access {
+		return
+	}
+	var req struct {
+		TeamID   int64 `json:"team_id"`
+		PlayerID int64 `json:"player_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fail(c, 400, "请选择队长候选人")
+		return
+	}
+	err := a.runMatchMutation(id, actor.ID, func(e *matchEngine) error {
+		ids, err := e.players(req.TeamID)
+		if err != nil || len(ids) == 0 {
+			return errors.New("队伍不存在或没有选手")
+		}
+		if req.PlayerID != 0 && !containsID(ids, req.PlayerID) {
+			return errors.New("队长必须属于对应队伍")
+		}
+		if _, err := e.db.Exec(`UPDATE event_players SET is_captain=CASE WHEN user_id=? THEN 1 ELSE 0 END WHERE event_id=? AND team_id=?`, req.PlayerID, id, req.TeamID); err != nil {
+			return err
+		}
+		stage, err := e.status()
+		if err != nil {
+			return err
+		}
+		if preMatch(stage) {
+			var captains int
+			if err := e.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND is_captain=1 AND active=1`, id).Scan(&captains); err != nil {
+				return err
+			}
+			if captains == 2 {
+				if err := e.setStage(statusLineup); err != nil {
+					return err
+				}
+			}
+		}
+		return e.log("team_captain_selected", req)
+	})
+	if err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
+	ok(c, gin.H{"ok": true})
+}
+
 func (a *App) generateLineup(c *gin.Context) {
 	actor, id, access := a.managerEvent(c)
 	if !access {
