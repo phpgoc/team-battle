@@ -3,6 +3,8 @@
   const app = document.getElementById('app');
   const state = { user: null, language: localStorage.getItem('tb_language') || 'zh', boardTransparency: readBoardTransparency(), event: null, stream: null, operations: false, editor: null, roster: {}, rosterOrder: [], users: [], page: 1, filters: {}, connection: '', drawTimer: null, drawToken: 0, draw: null };
   const langs = { zh: '中文', en: 'English', ko: '한국어' };
+  const pagePaths = { home: '/', createEvent: '/events/new', accounts: '/accounts', archive: '/events/archive', siteSettings: '/site-settings', backgrounds: '/backgrounds', settings: '/account' };
+  const pageForPath = (path = location.pathname) => Object.keys(pagePaths).find(page => pagePaths[page] === path) || (/^\/accounts\/(new|[1-9]\d*)$/.test(path) ? 'accounts' : null);
   const t = key => window.TB_I18N[state.language]?.[key] || window.TB_I18N.zh[key] || key;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const $ = (s, root = document) => root.querySelector(s);
@@ -42,7 +44,7 @@
   async function api(url, options = {}) { const headers = { ...options.headers }; if (options.body !== undefined && !(options.body instanceof FormData)) headers['Content-Type'] = 'application/json'; const res = await fetch(url, { ...options, headers }); const data = await res.json().catch(() => ({})); if (!res.ok) { if (res.status === 401 && state.user) { sessionEnded(); throw new Error(t('sessionReplaced')); } const errorKey = Object.keys(window.TB_I18N.zh).find(key => window.TB_I18N.zh[key] === data.error); throw new Error(errorKey ? t(errorKey) : data.error || t('requestFailed')); } return data; }
   function sessionEnded() {
     state.user = null; state.editor = null; state.operations = false;
-    if (location.pathname === '/workspace' || location.pathname.endsWith('/setting') || location.pathname.endsWith('/lineup')) go('/login');
+    if ((pageForPath() && pageForPath() !== 'home') || location.pathname.endsWith('/setting') || location.pathname.endsWith('/lineup')) go('/login?return=' + encodeURIComponent(location.pathname + location.search));
     else renderRoute().catch(error => toast(error.message));
     toast(t('sessionReplaced'));
   }
@@ -71,7 +73,14 @@
   }
   function picker() { return `<select class="language-picker" aria-label="Language">${Object.entries(langs).map(([key, name]) => `<option value="${key}"${state.language === key ? ' selected' : ''}>${name}</option>`).join('')}</select>`; }
   function closeStream() { state.stream?.close(); state.stream = null; if (state.drawTimer) clearInterval(state.drawTimer); state.drawTimer = null; state.drawToken += 1; state.draw = null; state.setupDraw = null; document.querySelectorAll('.setup-flying-player').forEach(node => node.remove()); }
-  function pageURL(page) { return page === 'home' ? '/' : `/workspace?page=${page}`; }
+  function pageURL(page) { return pagePaths[page] || '/'; }
+  function loginTarget() {
+    try {
+      const target = new URL(new URLSearchParams(location.search).get('return') || '/', location.origin);
+      // 登录只返回本站已知页面，防止外部地址或伪造路径成为跳转目标。
+      return target.origin === location.origin && (pageForPath(target.pathname) || /^\/live\/[1-9]\d*(\/(setting|lineup))?$/.test(target.pathname)) ? target.pathname + target.search + target.hash : '/';
+    } catch (_) { return '/'; }
+  }
   function go(url) { window.TBConfirm.cancel(); closeStream(); state.editor = null; state.ruleDraft = null; state.operations = false; history.pushState({}, '', url); renderRoute().catch(error => toast(error.message)); }
   // 语言只改变当前视图的文案，保留表单值和路由。
   const formKey = (form, index) => form.id || ['name', 'category', 'kofReserve'].map(key => form.dataset[key] ? `${key}:${form.dataset[key]}` : '').find(Boolean) || `form:${index}`;
@@ -137,7 +146,7 @@
   }
   function loginPage() {
     app.innerHTML = '<main class="login-shell"><section class="login-story"><a class="brand" href="/" data-go="/"><span class="brand-mark">TB<span></span></span><span><strong>TEAM BATTLE</strong><small>' + t('brandCaption') + '</small></span></a><div><span class="eyebrow">1V1 / KOF / ACE</span><h2>' + t('loginHeadline') + '</h2><p>' + t('homeIntro') + '</p><div class="login-art" aria-hidden="true"><span>A</span><b>VS</b><span>B</span></div></div><small>TEAM BATTLE</small></section><section class="login-main"><div class="login-language">' + picker() + '</div><div class="login-card"><span class="eyebrow">WELCOME BACK</span><h1>' + t('login') + '</h1><p class="subtitle">' + t('loginIntro') + '</p><form id="login-form" class="login-form">' + field('username', input('username', '', 'text', 'required autocomplete="username" placeholder="' + t('username') + '"')) + field('password', input('password', '', 'password', 'required autocomplete="current-password"')) + '<button class="primary accent">' + t('login') + ' <span aria-hidden="true">→</span></button></form><p class="help">' + t('persistentLoginHint') + '</p><a class="back-link" href="/" data-go="/">← ' + t('homeLink') + '</a></div></section></main>'; bindCommon();
-    $('#login-form').onsubmit = action(async event => { event.preventDefault(); const form = new FormData(event.target); state.user = (await post('/api/auth/login', Object.fromEntries(form))).user; const target = new URLSearchParams(location.search).get('return'); go(target?.startsWith('/live/') ? target : '/'); });
+    $('#login-form').onsubmit = action(async event => { event.preventDefault(); const form = new FormData(event.target); state.user = (await post('/api/auth/login', Object.fromEntries(form))).user; go(loginTarget()); });
   }
   function profileLimit(changedAt, limited) {
     const next = changedAt ? new Date(Date.parse(changedAt) + 7 * 24 * 60 * 60 * 1000) : null;
@@ -188,10 +197,11 @@
     shell(`<div class="page-head"><h1>${t('settings')}</h1><button type="button" class="outline" data-player-record="${state.user.id}">${t('myRecords')}</button></div><section class="panel"><form id="account-form" class="panel-body form-grid">${profileFields(state.user, catalog.categories)}<button type="submit" class="primary accent">${t('save')}</button></form></section>`, 'settings');
     bindProfileForm($('#account-form'), '/api/auth/profile', 'PATCH', async result => { state.user = result.user; await accountPage(); toast(t('saved')); });
   }
-  async function usersPage() {
+  async function usersPage(edit = '') {
     const [directory, catalog] = await Promise.all([api('/api/users'), api('/api/settings/catalog')]);
-    const users = directory.users, edit = new URLSearchParams(location.search).get('edit');
+    const users = directory.users;
     const creating = edit === 'new', user = creating ? {} : users.find(u => String(u.id) === edit);
+    if (edit && !creating && !user) return go(pageURL('accounts'));
     if (creating || user) {
       shell(`<div class="page-head"><div><h1>${t('accounts')}</h1><p class="subtitle">${t(creating ? 'createUser' : 'editAccount')}</p></div><button class="outline" data-go="${pageURL('accounts')}">${t('backAccounts')}</button></div><section class="panel"><form id="user-form" class="form-grid panel-body">${profileFields(user, catalog.categories, true, creating)}<button type="submit" class="primary accent">${t(creating ? 'createUser' : 'save')}</button></form></section>`, 'accounts');
       bindProfileForm($('#user-form'), '/api/users' + (creating ? '' : '/' + user.id), creating ? 'POST' : 'PATCH', async result => {
@@ -201,7 +211,7 @@
       });
       return;
     }
-    shell(`<div class="page-head"><h1>${t('accounts')}</h1><button class="primary accent" data-go="${pageURL('accounts')}&edit=new">${t('createUser')}</button></div><section class="panel"><div class="panel-body"><input id="account-search" aria-label="${t('searchPlayers')}" placeholder="${t('searchPlayers')}"><p class="help">${t('accountDeleteHint')}</p></div><div class="table-wrap"><table class="table"><thead><tr><th>${t('account')}</th><th>${t('role')}</th><th>${t('category')}</th><th>${t('actions')}</th></tr></thead><tbody>${users.map(u => `<tr data-account-row="${esc((u.username + ' ' + u.display_name).toLowerCase())}"><td>${person(u)}</td><td>${t(u.role)}</td><td>${esc(u.category_name || '—')}</td><td><div class="account-actions"><button class="link" data-go="${pageURL('accounts')}&edit=${u.id}">${t('editAccount')}</button><button class="link danger" data-delete-user="${u.id}"${u.can_delete ? '' : ' disabled'} title="${u.can_delete ? '' : t(u.id === state.user.id ? 'cannotDeleteSelf' : 'cannotDeletePlayed')}">${t('delete')}</button></div></td></tr>`).join('')}</tbody></table></div></section>`, 'accounts');
+    shell(`<div class="page-head"><h1>${t('accounts')}</h1><button class="primary accent" data-go="${pageURL('accounts')}/new">${t('createUser')}</button></div><section class="panel"><div class="panel-body"><input id="account-search" aria-label="${t('searchPlayers')}" placeholder="${t('searchPlayers')}"><p class="help">${t('accountDeleteHint')}</p></div><div class="table-wrap"><table class="table"><thead><tr><th>${t('account')}</th><th>${t('role')}</th><th>${t('category')}</th><th>${t('actions')}</th></tr></thead><tbody>${users.map(u => `<tr data-account-row="${esc((u.username + ' ' + u.display_name).toLowerCase())}"><td>${person(u)}</td><td>${t(u.role)}</td><td>${esc(u.category_name || '—')}</td><td><div class="account-actions"><button class="link" data-go="${pageURL('accounts')}/${u.id}">${t('editAccount')}</button><button class="link danger" data-delete-user="${u.id}"${u.can_delete ? '' : ' disabled'} title="${u.can_delete ? '' : t(u.id === state.user.id ? 'cannotDeleteSelf' : 'cannotDeletePlayed')}">${t('delete')}</button></div></td></tr>`).join('')}</tbody></table></div></section>`, 'accounts');
     $('#account-search').oninput = event => { const text = event.target.value.trim().toLowerCase(); $$('[data-account-row]').forEach(row => { row.hidden = !row.dataset.accountRow.includes(text); }); };
     $$('[data-delete-user]').forEach(button => button.onclick = action(async () => { if (!(await confirmAction(t('deleteAccountConfirm')))) return; await api('/api/users/' + button.dataset.deleteUser, { method: 'DELETE' }); await usersPage(); toast(t('saved')); }));
   }
@@ -882,14 +892,15 @@
     }
     closeStream(); state.event = null;
     if (path === '/login') return loginPage();
-    const page = new URLSearchParams(location.search).get('page') || 'home';
+    const page = pageForPath(path);
     if (page === 'home') return homePage();
-    if (!state.user) return go('/login');
+    if (!page) return go('/');
+    if (!state.user) return go('/login?return=' + encodeURIComponent(path + location.search));
     if (page === 'settings') return accountPage();
     if (state.user.role !== 'superadmin') return go('/');
-    if (page === 'createEvent' || page === 'events') return eventEditor('create', preserve);
-    if (['accounts', 'createUser', 'users', 'passwords'].includes(page)) return usersPage();
-    if (page === 'siteSettings' || page === 'site-settings') return siteSettingsPage();
+    if (page === 'createEvent') return eventEditor('create', preserve);
+    if (page === 'accounts') return usersPage(path.split('/')[2] || '');
+    if (page === 'siteSettings') return siteSettingsPage();
     if (page === 'backgrounds') return backgroundsPage();
     if (page === 'archive') return archivePage(preserve);
     return homePage();
