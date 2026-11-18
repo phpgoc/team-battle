@@ -13,6 +13,12 @@ team-battle-*.exe
 *.sqlite-wal
 *.sqlite-journal
 uploads/
+!uploads/
+uploads/**
+!uploads/backgrounds/
+uploads/backgrounds/**
+!uploads/backgrounds/background-1.png
+!uploads/backgrounds/background-2.png
 
 # IDE 和系统文件
 .idea/

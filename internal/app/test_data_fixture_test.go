@@ -11,6 +11,8 @@ import (
 	"image/color"
 	"image/png"
 	mathrand "math/rand"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -39,7 +41,7 @@ const testAvatarPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42
 
 func seedTestData(db *sql.DB) error {
 	var existing int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM users WHERE username='test-admin'`).Scan(&existing); err != nil {
+	if err := db.QueryRow(`SELECT COUNT(*) FROM users WHERE username='admin'`).Scan(&existing); err != nil {
 		return err
 	}
 	if existing > 0 {
@@ -70,15 +72,31 @@ func seedTestData(db *sql.DB) error {
 			return err
 		}
 	}
-	accounts := []testAccount{{"test-admin", "BoxeR", roleSuperAdmin, "人族"}, {"test-manager-1", "Flash", roleUser, "人族"}, {"test-manager-2", "Jaedong", roleUser, "虫族"}}
+	for _, background := range []struct {
+		id       int
+		name     string
+		filePath string
+	}{
+		{1, "星际战场·暮光前线", "background-1.png"},
+		{2, "星际战场·轨道风暴", "background-2.png"},
+	} {
+		data, err := readDemoBackground(background.filePath)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`INSERT INTO backgrounds(id,name,image_data,image_mime,file_path,image_size,sort_order) VALUES(?,?,X'', 'image/png', ?,?,?)`, background.id, background.name, background.filePath, len(data), background.id-1); err != nil {
+			return err
+		}
+	}
+	accounts := []testAccount{{"admin", "超级管理员", roleSuperAdmin, "人族"}, {"2", "Flash", roleUser, "人族"}, {"3", "Jaedong", roleUser, "虫族"}}
 	players := []testAccount{
-		{"test-player-01", "Bisu", roleUser, "神族"},
-		{"test-player-02", "Stork", roleUser, "神族"},
-		{"test-player-03", "sAviOr", roleUser, "虫族"},
-		{"test-player-04", "iloveoov", roleUser, "人族"},
-		{"test-player-05", "NaDa", roleUser, "人族"},
-		{"test-player-06", "Rain", roleUser, "神族"},
-		{"test-player-07", "soO", roleUser, "虫族"},
+		{"4", "Bisu", roleUser, "神族"},
+		{"5", "Stork", roleUser, "神族"},
+		{"6", "sAviOr", roleUser, "虫族"},
+		{"7", "iloveoov", roleUser, "人族"},
+		{"8", "NaDa", roleUser, "人族"},
+		{"9", "Rain", roleUser, "神族"},
+		{"10", "soO", roleUser, "虫族"},
 	}
 	accounts = append(accounts, players...)
 	hash, err := bcrypt.GenerateFromPassword([]byte("test1234"), bcrypt.DefaultCost)
@@ -100,12 +118,12 @@ func seedTestData(db *sql.DB) error {
 		}
 		ids[account.username] = userID
 	}
-	playerIDs := []int64{ids["test-manager-1"], ids["test-manager-2"]}
-	for i := 1; i <= 7; i++ {
-		playerIDs = append(playerIDs, ids[fmt.Sprintf("test-player-%02d", i)])
+	playerIDs := []int64{ids["2"], ids["3"]}
+	for _, username := range []string{"4", "5", "6", "7", "8", "9", "10"} {
+		playerIDs = append(playerIDs, ids[username])
 	}
-	managerID := ids["test-manager-1"]
-	adminID := ids["test-admin"]
+	managerID := ids["2"]
+	adminID := ids["admin"]
 	for i, winners := range []string{"aa", "ba", "ab"} {
 		if err := seedCompletedTestEvent(tx, managerID, adminID, playerIDs, []string{"OSL 经典赛", "MSL KOF 夜", "ASL 邀请赛"}[i], time.Now().AddDate(0, 0, -i-1).Format("2006-01-02T15"), winners); err != nil {
 			return err
@@ -133,13 +151,28 @@ func seedTestData(db *sql.DB) error {
 	if err := seedLiveTestEvent(tx, managerID, adminID, playerIDs); err != nil {
 		return err
 	}
+	if err := seedWorkflowDemoEvents(tx, managerID, adminID, ids); err != nil {
+		return err
+	}
 	return tx.Commit()
+}
+
+func readDemoBackground(name string) ([]byte, error) {
+	path := filepath.Join("..", "..", "uploads", "backgrounds", name)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) < 8 || string(data[:8]) != "\x89PNG\r\n\x1a\n" {
+		return nil, fmt.Errorf("演示背景不是有效的 PNG 图片: %s", path)
+	}
+	return data, nil
 }
 
 // 特殊历史数据包含不对称候选组，便于检查两队抽签人数不同的展示。
 func seedSpecialTestEvent(tx *sql.Tx, managerID, creatorID int64, ids map[string]int64, name, eventTime, source string, skewed bool) error {
-	teamAPlayers := []int64{ids["test-manager-1"], ids["test-player-01"], ids["test-player-02"], ids["test-player-03"]}
-	teamBPlayers := []int64{ids["test-manager-2"], ids["test-player-04"], ids["test-player-05"], ids["test-player-06"]}
+	teamAPlayers := []int64{ids["2"], ids["4"], ids["5"], ids["6"]}
+	teamBPlayers := []int64{ids["3"], ids["7"], ids["8"], ids["9"]}
 	candidatesA := [][]int64{{teamAPlayers[0]}, {teamAPlayers[1], teamAPlayers[2], teamAPlayers[3]}}
 	candidatesB := [][]int64{{teamBPlayers[0], teamBPlayers[1]}, {teamBPlayers[2], teamBPlayers[3]}}
 	if !skewed {
@@ -162,7 +195,11 @@ func seedSpecialTestEvent(tx *sql.Tx, managerID, creatorID int64, ids map[string
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`UPDATE events SET round1_target=2,round2_target=2,rules_json=? WHERE id=?`, string(raw), eventID); err != nil {
+	backgroundID := 2
+	if skewed {
+		backgroundID = 1
+	}
+	if _, err := tx.Exec(`UPDATE events SET round1_target=2,round2_target=2,rules_json=?,background_id=? WHERE id=?`, string(raw), backgroundID, eventID); err != nil {
 		return err
 	}
 	for _, playerID := range teamAPlayers {
@@ -240,6 +277,22 @@ func seedCompletedTestEvent(tx *sql.Tx, managerID, creatorID int64, players []in
 		return err
 	}
 	if err := seedPlayers(tx, eventID, teamA, teamB, players); err != nil {
+		return err
+	}
+	rules := defaultRules()
+	rules.Round1Mode = "random"
+	rulesJSON, err := json.Marshal(rules)
+	if err != nil {
+		return err
+	}
+	backgroundID := any(nil)
+	switch name {
+	case "MSL KOF 夜":
+		backgroundID = 1
+	case "ASL 邀请赛":
+		backgroundID = 2
+	}
+	if _, err := tx.Exec(`UPDATE events SET background_id=?,rules_json=? WHERE id=?`, backgroundID, string(rulesJSON), eventID); err != nil {
 		return err
 	}
 	engine := &matchEngine{db: tx, eventID: eventID, actorID: creatorID, rng: mathrand.New(mathrand.NewSource(eventID))}
@@ -337,6 +390,15 @@ func seedLiveTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64) 
 	if err := seedPlayers(tx, eventID, teamA, teamB, players); err != nil {
 		return err
 	}
+	rules := defaultRules()
+	rules.Round1Mode = "random"
+	rulesJSON, err := json.Marshal(rules)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE events SET background_id=1,rules_json=? WHERE id=?`, string(rulesJSON), eventID); err != nil {
+		return err
+	}
 	for _, stage := range []string{stageRound1, stageRound2, stageAce} {
 		target := 1
 		if stage == stageRound1 {
@@ -369,6 +431,200 @@ func seedLiveTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64) 
 		if err := engine.record(match, winner, ""); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// 不同阶段的实时赛事用于试用队长选举、排阵、KOF、大将战和结束确认。
+func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[string]int64) error {
+	eventID, _, _, err := seedEventShell(tx, managerID, creatorID, "待分队示例", time.Now().Format("2006-01-02T15"), statusDraft)
+	if err != nil {
+		return err
+	}
+	for _, stage := range []string{stageRound1, stageRound2, stageAce} {
+		target := 1
+		if stage == stageRound1 {
+			target = 4
+		} else if stage == stageRound2 {
+			target = 5
+		}
+		if _, err := tx.Exec(`INSERT INTO rounds(event_id,stage,target_score) VALUES(?,?,?)`, eventID, stage, target); err != nil {
+			return err
+		}
+	}
+	players := []int64{ids["2"], ids["3"], ids["4"], ids["5"], ids["6"], ids["7"]}
+	newEvent := func(name, status string) (int64, int64, int64, error) {
+		eventID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, name, time.Now().Format("2006-01-02T15"), status)
+		if err != nil {
+			return 0, 0, 0, err
+		}
+		for index, playerID := range players {
+			teamID := teamB
+			if index%2 == 0 {
+				teamID = teamA
+			}
+			if _, err := tx.Exec(`INSERT INTO event_players(event_id,user_id,team_id) VALUES(?,?,?)`, eventID, playerID, teamID); err != nil {
+				return 0, 0, 0, err
+			}
+		}
+		for _, stage := range []string{stageRound1, stageRound2, stageAce} {
+			target := 1
+			if stage == stageRound1 {
+				target = 4
+			} else if stage == stageRound2 {
+				target = 5
+			}
+			if _, err := tx.Exec(`INSERT INTO rounds(event_id,stage,target_score) VALUES(?,?,?)`, eventID, stage, target); err != nil {
+				return 0, 0, 0, err
+			}
+		}
+		rules := defaultRules()
+		rules.Round1Mode = "random"
+		rulesJSON, err := json.Marshal(rules)
+		if err != nil {
+			return 0, 0, 0, err
+		}
+		if _, err := tx.Exec(`UPDATE events SET background_id=2,rules_json=? WHERE id=?`, string(rulesJSON), eventID); err != nil {
+			return 0, 0, 0, err
+		}
+		return eventID, teamA, teamB, nil
+	}
+	addMatch := func(eventID, roundID, teamA, teamB, playerA, playerB int64, seq int, winner int64, status string) error {
+		_, err := tx.Exec(`INSERT INTO matches(event_id,round_id,seq,team_a_id,team_b_id,player_a_id,player_b_id,winner_team_id,status,created_by,finished_at) VALUES(?,?,?,?,?,?,?,?,?,?,CASE WHEN ?='finished' THEN CURRENT_TIMESTAMP END)`, eventID, roundID, seq, teamA, teamB, playerA, playerB, nullableInt64(winner), status, creatorID, status)
+		return err
+	}
+	getRoundID := func(eventID int64, stage string) (int64, error) {
+		var id int64
+		err := tx.QueryRow(`SELECT id FROM rounds WHERE event_id=? AND stage=?`, eventID, stage).Scan(&id)
+		return id, err
+	}
+
+	eventID, teamA, teamB, err := newEvent("队长投票示例", statusCaptainVote)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`INSERT INTO captain_votes(event_id,team_id,voter_id,target_id) VALUES(?,?,?,?)`, eventID, teamA, players[0], players[2]); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`INSERT INTO captain_votes(event_id,team_id,voter_id,target_id) VALUES(?,?,?,?)`, eventID, teamB, players[1], players[3]); err != nil {
+		return err
+	}
+
+	eventID, teamA, teamB, err = newEvent("第一轮排阵示例", statusLineup)
+	if err != nil {
+		return err
+	}
+	for index, captain := range []int64{players[0], players[1]} {
+		if _, err := tx.Exec(`UPDATE event_players SET is_captain=1 WHERE event_id=? AND user_id=?`, eventID, captain); err != nil {
+			return err
+		}
+		teamID := teamA
+		if index == 1 {
+			teamID = teamB
+		}
+		if _, err := tx.Exec(`INSERT INTO lineup_entries(event_id,team_id,position,player_id,source) VALUES(?,?,1,?,'manual')`, eventID, teamID, captain); err != nil {
+			return err
+		}
+	}
+
+	eventID, teamA, teamB, err = newEvent("KOF 阶段示例", statusRound2)
+	if err != nil {
+		return err
+	}
+	r1, err := getRoundID(eventID, stageRound1)
+	if err != nil {
+		return err
+	}
+	r2, err := getRoundID(eventID, stageRound2)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE events SET round1_target=1 WHERE id=?`, eventID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE rounds SET target_score=1,score_a=1,winner_team_id=?,status='finished' WHERE id=?`, teamA, r1); err != nil {
+		return err
+	}
+	if err := addMatch(eventID, r1, teamA, teamB, players[0], players[1], 1, teamA, statusFinished); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE rounds SET status='active' WHERE id=?`, r2); err != nil {
+		return err
+	}
+	if err := addMatch(eventID, r2, teamA, teamB, players[2], players[3], 1, 0, statusPending); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE event_players SET is_captain=1 WHERE event_id=? AND user_id IN (?,?)`, eventID, players[0], players[1]); err != nil {
+		return err
+	}
+
+	eventID, teamA, teamB, err = newEvent("大将战示例", statusAce)
+	if err != nil {
+		return err
+	}
+	r1, err = getRoundID(eventID, stageRound1)
+	if err != nil {
+		return err
+	}
+	r2, err = getRoundID(eventID, stageRound2)
+	if err != nil {
+		return err
+	}
+	r3, err := getRoundID(eventID, stageAce)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE events SET round1_target=1,round2_target=1 WHERE id=?`, eventID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE rounds SET target_score=1,score_a=1,winner_team_id=?,status='finished' WHERE id=?`, teamA, r1); err != nil {
+		return err
+	}
+	if err := addMatch(eventID, r1, teamA, teamB, players[0], players[1], 1, teamA, statusFinished); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE rounds SET target_score=1,score_b=1,winner_team_id=?,status='finished' WHERE id=?`, teamB, r2); err != nil {
+		return err
+	}
+	if err := addMatch(eventID, r2, teamA, teamB, players[2], players[3], 1, teamB, statusFinished); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE rounds SET status='active' WHERE id=?`, r3); err != nil {
+		return err
+	}
+	if err := addMatch(eventID, r3, teamA, teamB, players[4], players[5], 1, 0, statusPending); err != nil {
+		return err
+	}
+	if err := seedAceSourceAction(tx, eventID, "most_wins"); err != nil {
+		return err
+	}
+
+	eventID, teamA, teamB, err = newEvent("结束确认示例", statusFinalConfirm)
+	if err != nil {
+		return err
+	}
+	r1, err = getRoundID(eventID, stageRound1)
+	if err != nil {
+		return err
+	}
+	r2, err = getRoundID(eventID, stageRound2)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE events SET round1_target=1,round2_target=1 WHERE id=?`, eventID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE rounds SET target_score=1,score_a=1,winner_team_id=?,status='finished' WHERE id=?`, teamA, r1); err != nil {
+		return err
+	}
+	if err := addMatch(eventID, r1, teamA, teamB, players[0], players[1], 1, teamA, statusFinished); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE rounds SET target_score=1,score_a=1,winner_team_id=?,status='finished' WHERE id=?`, teamA, r2); err != nil {
+		return err
+	}
+	if err := addMatch(eventID, r2, teamA, teamB, players[2], players[3], 1, teamA, statusFinished); err != nil {
+		return err
 	}
 	return nil
 }

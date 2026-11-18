@@ -30,10 +30,19 @@ func TestHomeSummariesAndCachedHistoryFilters(t *testing.T) {
 		}
 		return result
 	}
-	// 进行中的首轮已有小分，但尚未产生阶段胜场，不能直接累加小分。
+	// 进行中的赛事包含不同工作阶段示例；直播赛首轮已有小分，但尚未产生阶段胜场。
 	live := read("/api/public/events")
-	if len(live.Events) != 1 || live.Events[0].PlayerCount != 9 || live.Events[0].WinsA != 0 || live.Events[0].WinsB != 0 {
+	if len(live.Events) != 4 {
 		t.Fatalf("实时赛事摘要有误: %+v", live)
+	}
+	var foundLive bool
+	for _, event := range live.Events {
+		if event.Name == "GSL 直播赛" {
+			foundLive = event.PlayerCount == 9 && event.WinsA == 0 && event.WinsB == 0
+		}
+	}
+	if !foundLive {
+		t.Fatalf("直播赛事摘要有误: %+v", live)
 	}
 	history := read("/api/public/history?page_size=1")
 	if history.Total != 5 || len(history.Events) != 1 || history.Events[0].Name != "OSL 经典赛" || history.Events[0].WinsA != 2 || history.Events[0].WinsB != 0 {
