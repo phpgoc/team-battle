@@ -30,9 +30,9 @@ func TestHomeSummariesAndCachedHistoryFilters(t *testing.T) {
 		}
 		return result
 	}
-	// 进行中的赛事包含不同工作阶段示例；直播赛已经进入KOF，等待管理员安排下一位。
+	// 尚未确认结束的赛事均属于正在进行，包含分队、选队长和排阵阶段。
 	live := read("/api/public/events")
-	if len(live.Events) != 4 {
+	if len(live.Events) != 7 {
 		t.Fatalf("实时赛事摘要有误: %+v", live)
 	}
 	var foundLive bool
