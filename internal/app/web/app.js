@@ -906,16 +906,7 @@
     return homePage();
   }
   window.addEventListener('popstate', () => { closeStream(); state.editor = null; state.operations = false; renderRoute().catch(error => toast(error.message)); });
-  // 公开SSE保持一致，登录是否已在其他设备被替换通过独立鉴权检查确认。
-  let checkingSession = false;
-  async function checkSession() {
-    if (!state.user || document.hidden || checkingSession) return;
-    checkingSession = true;
-    try { await api('/api/auth/me'); } catch (_) {} finally { checkingSession = false; }
-  }
-  setInterval(checkSession, 10000);
-  window.addEventListener('focus', checkSession);
-  document.addEventListener('visibilitychange', checkSession);
+  // 由接口的401响应处理会话失效，不为检查登录状态发起轮询。
   // 分队前公开SSE尚不可连接，轮询检查其他管理端是否已抽签，及时锁定录入控件。
   let checkingGrouping = false;
   setInterval(async () => {

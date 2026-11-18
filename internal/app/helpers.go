@@ -41,5 +41,9 @@ func ok(c *gin.Context, body any) {
 }
 
 func fail(c *gin.Context, status int, message string) {
+	// 旧会话失效属于未登录，不能与仍有登录态的权限不足混为一谈。
+	if status == http.StatusForbidden && c.GetBool("session_invalid") {
+		status, message = http.StatusUnauthorized, "未登录"
+	}
 	c.JSON(status, gin.H{"error": message})
 }

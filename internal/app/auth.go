@@ -195,10 +195,12 @@ func (a *App) currentUser(c *gin.Context) (User, error) {
 	// 每次鉴权都核对数据库中的有效会话，避免进程内缓存让已被顶掉的设备继续操作。
 	var userID int64
 	if err := a.db.QueryRow(`SELECT user_id FROM sessions WHERE token=?`, token).Scan(&userID); err != nil {
+		c.Set("session_invalid", true)
 		return User{}, errors.New("unauthorized")
 	}
 	user, err := a.userByID(userID)
 	if err != nil || user.Status != "active" || user.IsDeleted {
+		c.Set("session_invalid", true)
 		return User{}, errors.New("unauthorized")
 	}
 	setSessionCookie(c, token)

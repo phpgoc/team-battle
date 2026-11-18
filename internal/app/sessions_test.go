@@ -129,6 +129,27 @@ func TestFailedLoginPreservesCurrentSession(t *testing.T) {
 	}
 }
 
+func TestReplacedSessionReturnsUnauthorizedOnProtectedActions(t *testing.T) {
+	f := newWorkflowFixture(t)
+	cookie := &http.Cookie{Name: "tb_session", Value: f.tokens[1]}
+	if _, err := f.app.db.Exec(`UPDATE sessions SET token='replacement-token' WHERE user_id=1`); err != nil {
+		t.Fatal(err)
+	}
+	for _, endpoint := range []struct{ method, path string }{
+		{"GET", "/api/users"}, {"POST", "/api/users"}, {"PATCH", "/api/users/3/password"},
+		{"POST", "/api/events"}, {"POST", "/api/events/archive"}, {"POST", "/api/events/1/confirm"},
+		{"GET", "/api/site-settings"}, {"PATCH", "/api/auth/profile"},
+	} {
+		response := sessionRequest(f.handler, endpoint.method, endpoint.path, nil, cookie)
+		if response.Code != http.StatusUnauthorized {
+			t.Fatalf("旧会话访问 %s %s 应返回401: %d %s", endpoint.method, endpoint.path, response.Code, response.Body.String())
+		}
+	}
+	// 真正的越权仍然返回403，前端不能因此把有效会话退出。
+	f.request(t, 3, "GET", "/api/users", nil, http.StatusForbidden)
+	f.request(t, 3, "GET", "/api/auth/me", nil, http.StatusOK)
+}
+
 func TestConcurrentLoginsLeaveOneValidSession(t *testing.T) {
 	f := newWorkflowFixture(t)
 	credentials := prepareSessionLogin(t, f)
