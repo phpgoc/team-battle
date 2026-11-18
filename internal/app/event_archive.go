@@ -20,7 +20,7 @@ func (a *App) archiveEvent(c *gin.Context) {
 		fail(c, 400, "请输入赛事名称")
 		return
 	}
-	eventTime, err := normalizeEventTime(req.EventTime)
+	startTime, err := normalizeStartTime(req.StartTime)
 	if err != nil {
 		fail(c, 400, err.Error())
 		return
@@ -99,7 +99,7 @@ func (a *App) archiveEvent(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback()
-	r, err := tx.Exec(`INSERT INTO tournaments(name,description,event_time,status,round1_target,round2_target,manager_id,created_by,background_id) VALUES(?,?,?,'completed',?,?,?,?,?)`, strings.TrimSpace(req.Name), req.Description, eventTime, targets[0], targets[1], actor.ID, actor.ID, nullableInt64(req.BackgroundID))
+	r, err := tx.Exec(`INSERT INTO tournaments(name,description,start_time,status,round1_target,round2_target,manager_id,created_by,background_id) VALUES(?,?,?,'completed',?,?,?,?,?)`, strings.TrimSpace(req.Name), req.Description, startTime, targets[0], targets[1], actor.ID, actor.ID, nullableInt64(req.BackgroundID))
 	if err != nil {
 		fail(c, 400, err.Error())
 		return
@@ -114,7 +114,7 @@ func (a *App) archiveEvent(c *gin.Context) {
 		fail(c, 400, err.Error())
 		return
 	}
-	engine := &matchEngine{db: tx, eventID: id, actorID: actor.ID, rng: a.rng}
+	engine := &matchEngine{db: tx, tournamentID: id, actorID: actor.ID, rng: a.rng}
 	var rosters [2][]int64
 	for side, team := range teams {
 		rosters[side], err = engine.players(team)
@@ -140,7 +140,7 @@ func (a *App) archiveEvent(c *gin.Context) {
 		if len(grouped[i]) == 0 {
 			status = statusPending
 		}
-		result, err := tx.Exec(`INSERT INTO rounds(event_id,stage,target_score,score_a,score_b,winner_team_id,status) VALUES(?,?,?,?,?,?,?)`, id, stage, target, scores[i][0], scores[i][1], nullableInt64(winner), status)
+		result, err := tx.Exec(`INSERT INTO rounds(tournament_id,stage,target_score,score_a,score_b,winner_team_id,status) VALUES(?,?,?,?,?,?,?)`, id, stage, target, scores[i][0], scores[i][1], nullableInt64(winner), status)
 		if err != nil {
 			fail(c, 500, err.Error())
 			return
@@ -149,7 +149,7 @@ func (a *App) archiveEvent(c *gin.Context) {
 		for seq, m := range grouped[i] {
 			for side, player := range []int64{m.AID, m.BID} {
 				var exists int
-				if err := tx.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND team_id=? AND user_id=?`, id, teams[side], player).Scan(&exists); err != nil || exists != 1 {
+				if err := tx.QueryRow(`SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND team_id=? AND user_id=?`, id, teams[side], player).Scan(&exists); err != nil || exists != 1 {
 					fail(c, 400, "对局选手必须属于对应队伍")
 					return
 				}
@@ -158,7 +158,7 @@ func (a *App) archiveEvent(c *gin.Context) {
 			if m.WhoWin == "b" {
 				matchWinner = teams[1]
 			}
-			if _, err := tx.Exec(`INSERT INTO matches(event_id,round_id,seq,team_a_id,team_b_id,player_a_id,player_b_id,winner_team_id,status,created_by,finished_at) VALUES(?,?,?,?,?,?,?,?,'finished',?,CURRENT_TIMESTAMP)`, id, round, seq+1, teams[0], teams[1], m.AID, m.BID, matchWinner, actor.ID); err != nil {
+			if _, err := tx.Exec(`INSERT INTO matches(tournament_id,round_id,seq,team_a_id,team_b_id,player_a_id,player_b_id,winner_team_id,status,created_by,finished_at) VALUES(?,?,?,?,?,?,?,?,'finished',?,CURRENT_TIMESTAMP)`, id, round, seq+1, teams[0], teams[1], m.AID, m.BID, matchWinner, actor.ID); err != nil {
 				fail(c, 500, err.Error())
 				return
 			}
@@ -170,7 +170,7 @@ func (a *App) archiveEvent(c *gin.Context) {
 	}
 	if len(grouped[2]) == 1 {
 		var matchID int64
-		if err := tx.QueryRow(`SELECT id FROM matches WHERE event_id=? AND round_no=3`, id).Scan(&matchID); err != nil {
+		if err := tx.QueryRow(`SELECT id FROM matches WHERE tournament_id=? AND round_no=3`, id).Scan(&matchID); err != nil {
 			fail(c, 500, err.Error())
 			return
 		}

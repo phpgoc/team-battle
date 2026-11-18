@@ -11,12 +11,12 @@ import (
 
 // 公开推送地址同时服务登录用户和访客，登录状态只影响写操作权限。
 func (a *App) publicStream(c *gin.Context) {
-	eventID, err := parseID(c.Param("id"))
-	if err != nil || eventID <= 0 {
+	tournamentID, err := parseID(c.Param("id"))
+	if err != nil || tournamentID <= 0 {
 		fail(c, http.StatusBadRequest, "赛事编号无效")
 		return
 	}
-	initial, updates, unsubscribe, err := a.subscribeEvent(eventID)
+	initial, updates, unsubscribe, err := a.subscribeEvent(tournamentID)
 	if err != nil {
 		fail(c, http.StatusNotFound, "赛事不存在")
 		return
@@ -65,8 +65,8 @@ func (a *App) publicStream(c *gin.Context) {
 	}
 }
 
-func (a *App) publicEventPayload(eventID int64) ([]byte, error) {
-	data, err := a.buildEvent(eventID, false)
+func (a *App) publicEventPayload(tournamentID int64) ([]byte, error) {
+	data, err := a.buildEvent(tournamentID, false)
 	if err != nil {
 		return nil, err
 	}

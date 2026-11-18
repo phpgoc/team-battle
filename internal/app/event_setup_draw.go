@@ -10,7 +10,7 @@ import (
 )
 
 // 赛前名单先保存选择意向，只有点击开始抽签才落入正式分队。
-func saveSetupRoster(tx *sql.Tx, eventID int64, ids []int64, fixed map[string]string) error {
+func saveSetupRoster(tx *sql.Tx, tournamentID int64, ids []int64, fixed map[string]string) error {
 	if len(ids) > 12 {
 		return errors.New("参赛列表最多12人")
 	}
@@ -25,7 +25,7 @@ func saveSetupRoster(tx *sql.Tx, eventID int64, ids []int64, fixed map[string]st
 			return errors.New("参赛选手列表中存在无效账号")
 		}
 	}
-	if _, err := tx.Exec(`DELETE FROM event_setup_roster WHERE event_id=?`, eventID); err != nil {
+	if _, err := tx.Exec(`DELETE FROM tournament_setup_roster WHERE tournament_id=?`, tournamentID); err != nil {
 		return err
 	}
 	for position, id := range ids {
@@ -33,7 +33,7 @@ func saveSetupRoster(tx *sql.Tx, eventID int64, ids []int64, fixed map[string]st
 		if side != "A" && side != "B" {
 			side = ""
 		}
-		if _, err := tx.Exec(`INSERT INTO event_setup_roster(event_id,user_id,fixed_team,position) VALUES(?,?,?,?)`, eventID, id, side, position); err != nil {
+		if _, err := tx.Exec(`INSERT INTO tournament_setup_roster(tournament_id,user_id,fixed_team,position) VALUES(?,?,?,?)`, tournamentID, id, side, position); err != nil {
 			return err
 		}
 	}
@@ -68,7 +68,7 @@ func (a *App) drawEventSetup(c *gin.Context) {
 		if grouped {
 			return errors.New("已完成分组抽签，不能重复抽签")
 		}
-		rows, err := e.db.Query(`SELECT user_id,fixed_team FROM event_setup_roster WHERE event_id=? ORDER BY position,user_id`, id)
+		rows, err := e.db.Query(`SELECT user_id,fixed_team FROM tournament_setup_roster WHERE tournament_id=? ORDER BY position,user_id`, id)
 		if err != nil {
 			return err
 		}
@@ -166,7 +166,7 @@ func (a *App) drawEventSetup(c *gin.Context) {
 					} else {
 						step.B = player
 					}
-					if _, err := e.db.Exec(`INSERT INTO lineup_entries(event_id,team_id,position,player_id,source) VALUES(?,?,?,?,'setup_draw')`, id, teams[side], pos+1, player); err != nil {
+					if _, err := e.db.Exec(`INSERT INTO lineup_entries(tournament_id,team_id,position,player_id,source) VALUES(?,?,?,?,'setup_draw')`, id, teams[side], pos+1, player); err != nil {
 						return err
 					}
 				}

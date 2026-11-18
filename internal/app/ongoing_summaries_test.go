@@ -34,7 +34,7 @@ func TestOngoingSummariesKeepUnconfirmedEvents(t *testing.T) {
 	if _, err := f.app.db.Exec(`UPDATE tournaments SET status='draft' WHERE id=?`, id); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.app.db.Exec(`DELETE FROM event_players WHERE event_id=?`, id); err != nil {
+	if _, err := f.app.db.Exec(`DELETE FROM tournament_players WHERE tournament_id=?`, id); err != nil {
 		t.Fatal(err)
 	}
 	f.request(t, 0, "GET", fmt.Sprintf("/live/%d", id), nil, 404)

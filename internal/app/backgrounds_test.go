@@ -80,7 +80,7 @@ func TestBackgroundManagementAndPublicEventSelection(t *testing.T) {
 		f.request(t, user, http.MethodPatch, path, map[string]any{"background_id": backgroundID}, http.StatusForbidden)
 	}
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND background_id IS NULL`, id)
-	f.assertCount(t, 0, `SELECT COUNT(*) FROM event_actions WHERE event_id=? AND action='event_background_updated'`, id)
+	f.assertCount(t, 0, `SELECT COUNT(*) FROM tournament_actions WHERE tournament_id=? AND action='event_background_updated'`, id)
 	f.request(t, 2, http.MethodPatch, path, map[string]any{"background_id": backgroundID}, http.StatusOK)
 	f.request(t, 1, http.MethodPatch, path, map[string]any{"background_id": 0}, http.StatusOK)
 	f.request(t, 1, http.MethodPatch, path, map[string]any{"background_id": backgroundID}, http.StatusOK)
@@ -92,7 +92,7 @@ func TestBackgroundManagementAndPublicEventSelection(t *testing.T) {
 	}
 	f.request(t, 2, http.MethodPatch, path, map[string]any{"background_id": backgroundID + 999}, http.StatusBadRequest)
 	f.request(t, 1, http.MethodPost, "/api/events/archive", map[string]any{
-		"name": "带背景历史赛事", "event_time": "2026-11-17T19", "background_id": backgroundID,
+		"name": "带背景历史赛事", "start_time": "2026-11-17T19", "background_id": backgroundID,
 		"player_ids":        []int{3, 4, 5, 6, 7, 8},
 		"fixed_assignments": map[string]string{"3": "A", "4": "A", "5": "A", "6": "B", "7": "B", "8": "B"},
 		"matches": []map[string]any{

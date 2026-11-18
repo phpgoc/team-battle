@@ -54,11 +54,11 @@ func TestAceSpecialGroupsAndFullRandomFallback(t *testing.T) {
 			rules.AceSpecials = test.groups
 			f.request(t, 2, "PATCH", fmt.Sprintf("/api/events/%d/settings", id), map[string]any{"rules": rules}, 200)
 			f.enterKOF(t, id)
-			match := f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=2`, id)
+			match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2`, id)
 			f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": f.teams(t, id)[1]}, 200)
 			f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/ace/draw", id), nil, 200)
 			var payload string
-			if err := f.app.db.QueryRow(`SELECT payload FROM event_actions WHERE event_id=? AND action='ace_drawn' ORDER BY id DESC LIMIT 1`, id).Scan(&payload); err != nil {
+			if err := f.app.db.QueryRow(`SELECT payload FROM tournament_actions WHERE tournament_id=? AND action='ace_drawn' ORDER BY id DESC LIMIT 1`, id).Scan(&payload); err != nil {
 				t.Fatal(err)
 			}
 			var draw struct {
@@ -75,7 +75,7 @@ func TestAceSpecialGroupsAndFullRandomFallback(t *testing.T) {
 			if draw.Source != test.source || !reflect.DeepEqual(draw.Counts, test.counts) || !containsID(test.poolA, draw.A) || !containsID(test.poolB, draw.B) {
 				t.Fatalf("大将战候选池不符合配置: %+v", draw)
 			}
-			if draw.MatchID != f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=3`, id) || !reflect.DeepEqual(draw.Candidates, [][]int64{test.poolA, test.poolB}) {
+			if draw.MatchID != f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=3`, id) || !reflect.DeepEqual(draw.Candidates, [][]int64{test.poolA, test.poolB}) {
 				t.Fatalf("没有保存准确的对局与候选快照: %+v", draw)
 			}
 			view, err := f.app.loadAceDrawResult(id)
@@ -93,7 +93,7 @@ func TestAceSideCandidatesValidationAndRosterCleanup(t *testing.T) {
 	f := newWorkflowFixture(t)
 	base := func() map[string]any {
 		return map[string]any{
-			"name": "双侧特殊对战", "event_time": "2026-11-18T20", "manager_id": 2,
+			"name": "双侧特殊对战", "start_time": "2026-11-18T20", "manager_id": 2,
 			"player_ids": []int64{3, 4, 5, 6, 7, 8},
 			"rules":      map[string]any{"ace_specials": []map[string]any{{"team_a_ids": []int64{3}, "team_b_ids": []int64{6, 7}, "probability": 20}}},
 		}

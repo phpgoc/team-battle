@@ -63,7 +63,7 @@ func seedTestData(db *sql.DB) error {
 		categoryIDs[category.name] = categoryID
 	}
 	for i, name := range []string{"OSL 经典赛", "MSL KOF 夜", "ASL 邀请赛"} {
-		if _, err := tx.Exec(`INSERT INTO site_event_names(name,sort_order) VALUES(?,?)`, name, i); err != nil {
+		if _, err := tx.Exec(`INSERT INTO site_tournament_names(name,sort_order) VALUES(?,?)`, name, i); err != nil {
 			return err
 		}
 	}
@@ -133,11 +133,11 @@ func seedTestData(db *sql.DB) error {
 			if i == 2 {
 				source = "most_losses"
 			}
-			var eventID int64
-			if err := tx.QueryRow(`SELECT id FROM tournaments WHERE name=?`, []string{"OSL 经典赛", "MSL KOF 夜", "ASL 邀请赛"}[i]).Scan(&eventID); err != nil {
+			var tournamentID int64
+			if err := tx.QueryRow(`SELECT id FROM tournaments WHERE name=?`, []string{"OSL 经典赛", "MSL KOF 夜", "ASL 邀请赛"}[i]).Scan(&tournamentID); err != nil {
 				return err
 			}
-			if err := seedAceSourceAction(tx, eventID, source); err != nil {
+			if err := seedAceSourceAction(tx, tournamentID, source); err != nil {
 				return err
 			}
 		}
@@ -170,7 +170,7 @@ func readDemoBackground(name string) ([]byte, error) {
 }
 
 // 特殊历史数据包含不对称候选组，便于检查两队抽签人数不同的展示。
-func seedSpecialTestEvent(tx *sql.Tx, managerID, creatorID int64, ids map[string]int64, name, eventTime, source string, skewed bool) error {
+func seedSpecialTestEvent(tx *sql.Tx, managerID, creatorID int64, ids map[string]int64, name, startTime, source string, skewed bool) error {
 	teamAPlayers := []int64{ids["2"], ids["4"], ids["5"], ids["6"]}
 	teamBPlayers := []int64{ids["3"], ids["7"], ids["8"], ids["9"]}
 	candidatesA := [][]int64{{teamAPlayers[0]}, {teamAPlayers[1], teamAPlayers[2], teamAPlayers[3]}}
@@ -191,7 +191,7 @@ func seedSpecialTestEvent(tx *sql.Tx, managerID, creatorID int64, ids map[string
 	if err != nil {
 		return err
 	}
-	eventID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, name, eventTime, statusCompleted)
+	tournamentID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, name, startTime, statusCompleted)
 	if err != nil {
 		return err
 	}
@@ -199,16 +199,16 @@ func seedSpecialTestEvent(tx *sql.Tx, managerID, creatorID int64, ids map[string
 	if skewed {
 		backgroundID = 1
 	}
-	if _, err := tx.Exec(`UPDATE tournaments SET round1_target=2,round2_target=2,rules_json=?,background_id=? WHERE id=?`, string(raw), backgroundID, eventID); err != nil {
+	if _, err := tx.Exec(`UPDATE tournaments SET round1_target=2,round2_target=2,rules_json=?,background_id=? WHERE id=?`, string(raw), backgroundID, tournamentID); err != nil {
 		return err
 	}
 	for _, playerID := range teamAPlayers {
-		if _, err := tx.Exec(`INSERT INTO event_players(event_id,user_id,team_id) VALUES(?,?,?)`, eventID, playerID, teamA); err != nil {
+		if _, err := tx.Exec(`INSERT INTO tournament_players(tournament_id,user_id,team_id) VALUES(?,?,?)`, tournamentID, playerID, teamA); err != nil {
 			return err
 		}
 	}
 	for _, playerID := range teamBPlayers {
-		if _, err := tx.Exec(`INSERT INTO event_players(event_id,user_id,team_id) VALUES(?,?,?)`, eventID, playerID, teamB); err != nil {
+		if _, err := tx.Exec(`INSERT INTO tournament_players(tournament_id,user_id,team_id) VALUES(?,?,?)`, tournamentID, playerID, teamB); err != nil {
 			return err
 		}
 	}
@@ -223,7 +223,7 @@ func seedSpecialTestEvent(tx *sql.Tx, managerID, creatorID int64, ids map[string
 		} else {
 			scoreA, target = 1, 1
 		}
-		result, err := tx.Exec(`INSERT INTO rounds(event_id,stage,target_score,score_a,score_b,winner_team_id,status) VALUES(?,?,?,?,?,?,'finished')`, eventID, stage, target, scoreA, scoreB, winner)
+		result, err := tx.Exec(`INSERT INTO rounds(tournament_id,stage,target_score,score_a,score_b,winner_team_id,status) VALUES(?,?,?,?,?,?,'finished')`, tournamentID, stage, target, scoreA, scoreB, winner)
 		if err != nil {
 			return err
 		}
@@ -248,15 +248,15 @@ func seedSpecialTestEvent(tx *sql.Tx, managerID, creatorID int64, ids map[string
 			if skewed && stage == stageRound1 && seq == 1 {
 				win = teamB
 			}
-			if _, err := tx.Exec(`INSERT INTO matches(event_id,round_id,seq,team_a_id,team_b_id,player_a_id,player_b_id,winner_team_id,status,created_by,finished_at) VALUES(?,?,?,?,?,?,?,?, 'finished',?,CURRENT_TIMESTAMP)`, eventID, roundID, seq+1, teamA, teamB, teamAPlayers[pair[0]], teamBPlayers[pair[1]], win, creatorID); err != nil {
+			if _, err := tx.Exec(`INSERT INTO matches(tournament_id,round_id,seq,team_a_id,team_b_id,player_a_id,player_b_id,winner_team_id,status,created_by,finished_at) VALUES(?,?,?,?,?,?,?,?, 'finished',?,CURRENT_TIMESTAMP)`, tournamentID, roundID, seq+1, teamA, teamB, teamAPlayers[pair[0]], teamBPlayers[pair[1]], win, creatorID); err != nil {
 				return err
 			}
 		}
 	}
-	return seedAceSourceAction(tx, eventID, source)
+	return seedAceSourceAction(tx, tournamentID, source)
 }
 
-func seedAceSourceAction(tx *sql.Tx, eventID int64, source string) error {
+func seedAceSourceAction(tx *sql.Tx, tournamentID int64, source string) error {
 	sources := []string{source, source}
 	if strings.HasPrefix(source, "special:") {
 		sources[0] = "special:0"
@@ -266,17 +266,17 @@ func seedAceSourceAction(tx *sql.Tx, eventID int64, source string) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(`INSERT INTO event_actions(event_id,action,payload) VALUES(?,'ace_drawn',?)`, eventID, string(payload))
+	_, err = tx.Exec(`INSERT INTO tournament_actions(tournament_id,action,payload) VALUES(?,'ace_drawn',?)`, tournamentID, string(payload))
 	return err
 }
 
 // 用正式比赛引擎生成演示战绩，确保分队、胜者留场、阶段比分与对局一致。
-func seedCompletedTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64, name, eventTime, winners string) error {
-	eventID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, name, eventTime, statusDraft)
+func seedCompletedTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64, name, startTime, winners string) error {
+	tournamentID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, name, startTime, statusDraft)
 	if err != nil {
 		return err
 	}
-	if err := seedPlayers(tx, eventID, teamA, teamB, players); err != nil {
+	if err := seedPlayers(tx, tournamentID, teamA, teamB, players); err != nil {
 		return err
 	}
 	rules := defaultRules()
@@ -292,10 +292,10 @@ func seedCompletedTestEvent(tx *sql.Tx, managerID, creatorID int64, players []in
 	case "ASL 邀请赛":
 		backgroundID = 2
 	}
-	if _, err := tx.Exec(`UPDATE tournaments SET background_id=?,rules_json=? WHERE id=?`, backgroundID, string(rulesJSON), eventID); err != nil {
+	if _, err := tx.Exec(`UPDATE tournaments SET background_id=?,rules_json=? WHERE id=?`, backgroundID, string(rulesJSON), tournamentID); err != nil {
 		return err
 	}
-	engine := &matchEngine{db: tx, eventID: eventID, actorID: creatorID, rng: mathrand.New(mathrand.NewSource(eventID))}
+	engine := &matchEngine{db: tx, tournamentID: tournamentID, actorID: creatorID, rng: mathrand.New(mathrand.NewSource(tournamentID))}
 	for _, stage := range []string{stageRound1, stageRound2, stageAce} {
 		target := 1
 		if stage == stageRound1 {
@@ -304,7 +304,7 @@ func seedCompletedTestEvent(tx *sql.Tx, managerID, creatorID int64, players []in
 		if stage == stageRound2 {
 			target = 5
 		}
-		if _, err := tx.Exec("INSERT INTO rounds(event_id,stage,target_score) VALUES(?,?,?)", eventID, stage, target); err != nil {
+		if _, err := tx.Exec("INSERT INTO rounds(tournament_id,stage,target_score) VALUES(?,?,?)", tournamentID, stage, target); err != nil {
 			return err
 		}
 	}
@@ -320,7 +320,7 @@ func seedCompletedTestEvent(tx *sql.Tx, managerID, creatorID int64, players []in
 			return engine.setStage(statusCompleted)
 		}
 		var matchID int64
-		err = tx.QueryRow("SELECT id FROM matches WHERE event_id=? AND status='pending'", eventID).Scan(&matchID)
+		err = tx.QueryRow("SELECT id FROM matches WHERE tournament_id=? AND status='pending'", tournamentID).Scan(&matchID)
 		if err == sql.ErrNoRows && status == stageAce {
 			if err := engine.beginAceDraw(); err != nil {
 				return err
@@ -329,7 +329,7 @@ func seedCompletedTestEvent(tx *sql.Tx, managerID, creatorID int64, players []in
 		}
 		if err == sql.ErrNoRows && status == stageRound2 {
 			var lastID int64
-			if err := tx.QueryRow("SELECT id FROM matches WHERE event_id=? AND round_no=2 ORDER BY seq DESC LIMIT 1", eventID).Scan(&lastID); err != nil {
+			if err := tx.QueryRow("SELECT id FROM matches WHERE tournament_id=? AND round_no=2 ORDER BY seq DESC LIMIT 1", tournamentID).Scan(&lastID); err != nil {
 				return err
 			}
 			previous, err := engine.match(lastID)
@@ -389,11 +389,11 @@ func seedCompletedTestEvent(tx *sql.Tx, managerID, creatorID int64, players []in
 }
 
 func seedLiveTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64) error {
-	eventID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, "GSL 直播赛", time.Now().Format("2006-01-02T15"), statusDraft)
+	tournamentID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, "GSL 直播赛", time.Now().Format("2006-01-02T15"), statusDraft)
 	if err != nil {
 		return err
 	}
-	if err := seedPlayers(tx, eventID, teamA, teamB, players); err != nil {
+	if err := seedPlayers(tx, tournamentID, teamA, teamB, players); err != nil {
 		return err
 	}
 	rules := defaultRules()
@@ -402,7 +402,7 @@ func seedLiveTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64) 
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`UPDATE tournaments SET background_id=1,rules_json=? WHERE id=?`, string(rulesJSON), eventID); err != nil {
+	if _, err := tx.Exec(`UPDATE tournaments SET background_id=1,rules_json=? WHERE id=?`, string(rulesJSON), tournamentID); err != nil {
 		return err
 	}
 	for _, stage := range []string{stageRound1, stageRound2, stageAce} {
@@ -413,18 +413,18 @@ func seedLiveTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64) 
 		if stage == stageRound2 {
 			target = 5
 		}
-		if _, err := tx.Exec("INSERT INTO rounds(event_id,stage,target_score) VALUES(?,?,?)", eventID, stage, target); err != nil {
+		if _, err := tx.Exec("INSERT INTO rounds(tournament_id,stage,target_score) VALUES(?,?,?)", tournamentID, stage, target); err != nil {
 			return err
 		}
 	}
-	engine := &matchEngine{db: tx, eventID: eventID, actorID: creatorID, rng: mathrand.New(mathrand.NewSource(42))}
+	engine := &matchEngine{db: tx, tournamentID: tournamentID, actorID: creatorID, rng: mathrand.New(mathrand.NewSource(42))}
 	if err := engine.start(); err != nil {
 		return err
 	}
 	// 直播演示直接停在KOF阶段，管理员登录后可以为下一位置报名或派人。
 	for n := 0; n < 4; n++ {
 		var id int64
-		if err := tx.QueryRow("SELECT id FROM matches WHERE event_id=? AND status='pending'", eventID).Scan(&id); err != nil {
+		if err := tx.QueryRow("SELECT id FROM matches WHERE tournament_id=? AND status='pending'", tournamentID).Scan(&id); err != nil {
 			return err
 		}
 		match, err := engine.match(id)
@@ -441,7 +441,7 @@ func seedLiveTestEvent(tx *sql.Tx, managerID, creatorID int64, players []int64) 
 
 // 不同阶段的实时赛事用于试用队长选举、排阵、KOF、大将战和结束确认。
 func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[string]int64) error {
-	eventID, _, _, err := seedEventShell(tx, managerID, creatorID, "待分队示例", time.Now().Format("2006-01-02T15"), statusDraft)
+	tournamentID, _, _, err := seedEventShell(tx, managerID, creatorID, "待分队示例", time.Now().Format("2006-01-02T15"), statusDraft)
 	if err != nil {
 		return err
 	}
@@ -452,14 +452,14 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 		} else if stage == stageRound2 {
 			target = 5
 		}
-		if _, err := tx.Exec(`INSERT INTO rounds(event_id,stage,target_score) VALUES(?,?,?)`, eventID, stage, target); err != nil {
+		if _, err := tx.Exec(`INSERT INTO rounds(tournament_id,stage,target_score) VALUES(?,?,?)`, tournamentID, stage, target); err != nil {
 			return err
 		}
 	}
 	// 工作流示例统一使用4v4，避免用3v3抢1分展示不合理的赛事配置。
 	players := []int64{ids["2"], ids["3"], ids["4"], ids["5"], ids["6"], ids["7"], ids["8"], ids["9"]}
 	newEvent := func(name, status string) (int64, int64, int64, error) {
-		eventID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, name, time.Now().Format("2006-01-02T15"), status)
+		tournamentID, teamA, teamB, err := seedEventShell(tx, managerID, creatorID, name, time.Now().Format("2006-01-02T15"), status)
 		if err != nil {
 			return 0, 0, 0, err
 		}
@@ -468,7 +468,7 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 			if index%2 == 0 {
 				teamID = teamA
 			}
-			if _, err := tx.Exec(`INSERT INTO event_players(event_id,user_id,team_id) VALUES(?,?,?)`, eventID, playerID, teamID); err != nil {
+			if _, err := tx.Exec(`INSERT INTO tournament_players(tournament_id,user_id,team_id) VALUES(?,?,?)`, tournamentID, playerID, teamID); err != nil {
 				return 0, 0, 0, err
 			}
 		}
@@ -479,7 +479,7 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 			} else if stage == stageRound2 {
 				target = 5
 			}
-			if _, err := tx.Exec(`INSERT INTO rounds(event_id,stage,target_score) VALUES(?,?,?)`, eventID, stage, target); err != nil {
+			if _, err := tx.Exec(`INSERT INTO rounds(tournament_id,stage,target_score) VALUES(?,?,?)`, tournamentID, stage, target); err != nil {
 				return 0, 0, 0, err
 			}
 		}
@@ -489,58 +489,58 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 		if err != nil {
 			return 0, 0, 0, err
 		}
-		if _, err := tx.Exec(`UPDATE tournaments SET background_id=2,rules_json=? WHERE id=?`, string(rulesJSON), eventID); err != nil {
+		if _, err := tx.Exec(`UPDATE tournaments SET background_id=2,rules_json=? WHERE id=?`, string(rulesJSON), tournamentID); err != nil {
 			return 0, 0, 0, err
 		}
-		return eventID, teamA, teamB, nil
+		return tournamentID, teamA, teamB, nil
 	}
-	addMatch := func(eventID, roundID, teamA, teamB, playerA, playerB int64, seq int, winner int64, status string) error {
-		_, err := tx.Exec(`INSERT INTO matches(event_id,round_id,seq,team_a_id,team_b_id,player_a_id,player_b_id,winner_team_id,status,created_by,finished_at) VALUES(?,?,?,?,?,?,?,?,?,?,CASE WHEN ?='finished' THEN CURRENT_TIMESTAMP END)`, eventID, roundID, seq, teamA, teamB, playerA, playerB, nullableInt64(winner), status, creatorID, status)
+	addMatch := func(tournamentID, roundID, teamA, teamB, playerA, playerB int64, seq int, winner int64, status string) error {
+		_, err := tx.Exec(`INSERT INTO matches(tournament_id,round_id,seq,team_a_id,team_b_id,player_a_id,player_b_id,winner_team_id,status,created_by,finished_at) VALUES(?,?,?,?,?,?,?,?,?,?,CASE WHEN ?='finished' THEN CURRENT_TIMESTAMP END)`, tournamentID, roundID, seq, teamA, teamB, playerA, playerB, nullableInt64(winner), status, creatorID, status)
 		return err
 	}
-	getRoundID := func(eventID int64, stage string) (int64, error) {
+	getRoundID := func(tournamentID int64, stage string) (int64, error) {
 		var id int64
-		err := tx.QueryRow(`SELECT id FROM rounds WHERE event_id=? AND stage=?`, eventID, stage).Scan(&id)
+		err := tx.QueryRow(`SELECT id FROM rounds WHERE tournament_id=? AND stage=?`, tournamentID, stage).Scan(&id)
 		return id, err
 	}
 
-	eventID, teamA, teamB, err := newEvent("队长投票示例", statusCaptainVote)
+	tournamentID, teamA, teamB, err := newEvent("队长投票示例", statusCaptainVote)
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`INSERT INTO captain_votes(event_id,team_id,voter_id,target_id) VALUES(?,?,?,?)`, eventID, teamA, players[0], players[2]); err != nil {
+	if _, err := tx.Exec(`INSERT INTO captain_votes(tournament_id,team_id,voter_id,target_id) VALUES(?,?,?,?)`, tournamentID, teamA, players[0], players[2]); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`INSERT INTO captain_votes(event_id,team_id,voter_id,target_id) VALUES(?,?,?,?)`, eventID, teamB, players[1], players[3]); err != nil {
+	if _, err := tx.Exec(`INSERT INTO captain_votes(tournament_id,team_id,voter_id,target_id) VALUES(?,?,?,?)`, tournamentID, teamB, players[1], players[3]); err != nil {
 		return err
 	}
 
-	eventID, teamA, teamB, err = newEvent("第一轮排阵示例", statusLineup)
+	tournamentID, teamA, teamB, err = newEvent("第一轮排阵示例", statusLineup)
 	if err != nil {
 		return err
 	}
 	for index, captain := range []int64{players[0], players[1]} {
-		if _, err := tx.Exec(`UPDATE event_players SET is_captain=1 WHERE event_id=? AND user_id=?`, eventID, captain); err != nil {
+		if _, err := tx.Exec(`UPDATE tournament_players SET is_captain=1 WHERE tournament_id=? AND user_id=?`, tournamentID, captain); err != nil {
 			return err
 		}
 		teamID := teamA
 		if index == 1 {
 			teamID = teamB
 		}
-		if _, err := tx.Exec(`INSERT INTO lineup_entries(event_id,team_id,position,player_id,source) VALUES(?,?,1,?,'manual')`, eventID, teamID, captain); err != nil {
+		if _, err := tx.Exec(`INSERT INTO lineup_entries(tournament_id,team_id,position,player_id,source) VALUES(?,?,1,?,'manual')`, tournamentID, teamID, captain); err != nil {
 			return err
 		}
 	}
 
-	eventID, teamA, teamB, err = newEvent("KOF 阶段示例", statusRound2)
+	tournamentID, teamA, teamB, err = newEvent("KOF 阶段示例", statusRound2)
 	if err != nil {
 		return err
 	}
-	r1, err := getRoundID(eventID, stageRound1)
+	r1, err := getRoundID(tournamentID, stageRound1)
 	if err != nil {
 		return err
 	}
-	r2, err := getRoundID(eventID, stageRound2)
+	r2, err := getRoundID(tournamentID, stageRound2)
 	if err != nil {
 		return err
 	}
@@ -548,33 +548,33 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 		return err
 	}
 	for seq := 1; seq <= 4; seq++ {
-		if err := addMatch(eventID, r1, teamA, teamB, players[(seq-1)*2], players[(seq-1)*2+1], seq, teamA, statusFinished); err != nil {
+		if err := addMatch(tournamentID, r1, teamA, teamB, players[(seq-1)*2], players[(seq-1)*2+1], seq, teamA, statusFinished); err != nil {
 			return err
 		}
 	}
 	if _, err := tx.Exec(`UPDATE rounds SET status='active' WHERE id=?`, r2); err != nil {
 		return err
 	}
-	if err := addMatch(eventID, r2, teamA, teamB, players[2], players[3], 1, 0, statusPending); err != nil {
+	if err := addMatch(tournamentID, r2, teamA, teamB, players[2], players[3], 1, 0, statusPending); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`UPDATE event_players SET is_captain=1 WHERE event_id=? AND user_id IN (?,?)`, eventID, players[0], players[1]); err != nil {
+	if _, err := tx.Exec(`UPDATE tournament_players SET is_captain=1 WHERE tournament_id=? AND user_id IN (?,?)`, tournamentID, players[0], players[1]); err != nil {
 		return err
 	}
 
-	eventID, teamA, teamB, err = newEvent("大将战示例", statusAce)
+	tournamentID, teamA, teamB, err = newEvent("大将战示例", statusAce)
 	if err != nil {
 		return err
 	}
-	r1, err = getRoundID(eventID, stageRound1)
+	r1, err = getRoundID(tournamentID, stageRound1)
 	if err != nil {
 		return err
 	}
-	r2, err = getRoundID(eventID, stageRound2)
+	r2, err = getRoundID(tournamentID, stageRound2)
 	if err != nil {
 		return err
 	}
-	r3, err := getRoundID(eventID, stageAce)
+	r3, err := getRoundID(tournamentID, stageAce)
 	if err != nil {
 		return err
 	}
@@ -582,7 +582,7 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 		return err
 	}
 	for seq := 1; seq <= 4; seq++ {
-		if err := addMatch(eventID, r1, teamA, teamB, players[(seq-1)*2], players[(seq-1)*2+1], seq, teamA, statusFinished); err != nil {
+		if err := addMatch(tournamentID, r1, teamA, teamB, players[(seq-1)*2], players[(seq-1)*2+1], seq, teamA, statusFinished); err != nil {
 			return err
 		}
 	}
@@ -591,29 +591,29 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 	}
 	for seq := 1; seq <= 5; seq++ {
 		index := ((seq - 1) % 4) * 2
-		if err := addMatch(eventID, r2, teamA, teamB, players[index], players[1], seq, teamB, statusFinished); err != nil {
+		if err := addMatch(tournamentID, r2, teamA, teamB, players[index], players[1], seq, teamB, statusFinished); err != nil {
 			return err
 		}
 	}
 	if _, err := tx.Exec(`UPDATE rounds SET status='active' WHERE id=?`, r3); err != nil {
 		return err
 	}
-	if err := addMatch(eventID, r3, teamA, teamB, players[4], players[5], 1, 0, statusPending); err != nil {
+	if err := addMatch(tournamentID, r3, teamA, teamB, players[4], players[5], 1, 0, statusPending); err != nil {
 		return err
 	}
-	if err := seedAceSourceAction(tx, eventID, "most_wins"); err != nil {
+	if err := seedAceSourceAction(tx, tournamentID, "most_wins"); err != nil {
 		return err
 	}
 
-	eventID, teamA, teamB, err = newEvent("结束确认示例", statusFinalConfirm)
+	tournamentID, teamA, teamB, err = newEvent("结束确认示例", statusFinalConfirm)
 	if err != nil {
 		return err
 	}
-	r1, err = getRoundID(eventID, stageRound1)
+	r1, err = getRoundID(tournamentID, stageRound1)
 	if err != nil {
 		return err
 	}
-	r2, err = getRoundID(eventID, stageRound2)
+	r2, err = getRoundID(tournamentID, stageRound2)
 	if err != nil {
 		return err
 	}
@@ -621,7 +621,7 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 		return err
 	}
 	for seq := 1; seq <= 4; seq++ {
-		if err := addMatch(eventID, r1, teamA, teamB, players[(seq-1)*2], players[(seq-1)*2+1], seq, teamA, statusFinished); err != nil {
+		if err := addMatch(tournamentID, r1, teamA, teamB, players[(seq-1)*2], players[(seq-1)*2+1], seq, teamA, statusFinished); err != nil {
 			return err
 		}
 	}
@@ -630,29 +630,29 @@ func seedWorkflowDemoEvents(tx *sql.Tx, managerID, creatorID int64, ids map[stri
 	}
 	for seq := 1; seq <= 5; seq++ {
 		index := ((seq - 1) % 4) * 2
-		if err := addMatch(eventID, r2, teamA, teamB, players[0], players[index+1], seq, teamA, statusFinished); err != nil {
+		if err := addMatch(tournamentID, r2, teamA, teamB, players[0], players[index+1], seq, teamA, statusFinished); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func seedEventShell(tx *sql.Tx, managerID, creatorID int64, name, eventTime, status string) (int64, int64, int64, error) {
-	result, err := tx.Exec(`INSERT INTO tournaments(name,event_time,status,round1_target,round2_target,manager_id,created_by) VALUES(?,?,?,?,?,?,?)`, name, eventTime, status, 4, 5, managerID, creatorID)
+func seedEventShell(tx *sql.Tx, managerID, creatorID int64, name, startTime, status string) (int64, int64, int64, error) {
+	result, err := tx.Exec(`INSERT INTO tournaments(name,start_time,status,round1_target,round2_target,manager_id,created_by) VALUES(?,?,?,?,?,?,?)`, name, startTime, status, 4, 5, managerID, creatorID)
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	eventID, _ := result.LastInsertId()
-	return eventID, eventID*2 - 1, eventID * 2, nil
+	tournamentID, _ := result.LastInsertId()
+	return tournamentID, tournamentID*2 - 1, tournamentID * 2, nil
 }
 
-func seedPlayers(tx *sql.Tx, eventID, teamA, teamB int64, players []int64) error {
+func seedPlayers(tx *sql.Tx, tournamentID, teamA, teamB int64, players []int64) error {
 	for i, playerID := range players {
 		teamID := teamB
 		if i%2 == 0 {
 			teamID = teamA
 		}
-		if _, err := tx.Exec(`INSERT INTO event_players(event_id,user_id,team_id) VALUES(?,?,?)`, eventID, playerID, teamID); err != nil {
+		if _, err := tx.Exec(`INSERT INTO tournament_players(tournament_id,user_id,team_id) VALUES(?,?,?)`, tournamentID, playerID, teamID); err != nil {
 			return err
 		}
 	}

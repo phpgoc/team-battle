@@ -10,10 +10,10 @@ import (
 )
 
 // 正式开始即锁定设置，不能通过删除或尚未录入比分绕过。
-func requireEditableSettings(db sqlRunner, eventID int64) error {
+func requireEditableSettings(db sqlRunner, tournamentID int64) error {
 	var stage string
 	var scored int
-	if err := db.QueryRow(`SELECT status,(SELECT COUNT(*) FROM matches WHERE event_id=tournaments.id AND status='finished') FROM tournaments WHERE id=?`, eventID).Scan(&stage, &scored); err != nil {
+	if err := db.QueryRow(`SELECT status,(SELECT COUNT(*) FROM matches WHERE tournament_id=tournaments.id AND status='finished') FROM tournaments WHERE id=?`, tournamentID).Scan(&stage, &scored); err != nil {
 		return err
 	}
 	if !preMatch(stage) || scored != 0 {
@@ -24,9 +24,9 @@ func requireEditableSettings(db sqlRunner, eventID int64) error {
 
 // eventHasGrouping 表示赛事是否已经完成过一次选手分队抽签。
 // 分队完成后，第一轮和KOF的规则必须保持不变；大将战规则仍可在首场开赛前调整。
-func eventHasGrouping(db sqlRunner, eventID int64) (bool, error) {
+func eventHasGrouping(db sqlRunner, tournamentID int64) (bool, error) {
 	var count int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND active=1`, eventID).Scan(&count); err != nil {
+	if err := db.QueryRow(`SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND active=1`, tournamentID).Scan(&count); err != nil {
 		return false, err
 	}
 	return count > 0, nil
@@ -37,7 +37,7 @@ func roundSetupChanged(before, after EventRules) bool {
 }
 
 func (a *App) updateEventSettings(c *gin.Context) {
-	actor, eventID, access := a.managerEvent(c)
+	actor, tournamentID, access := a.managerEvent(c)
 	if !access {
 		return
 	}
@@ -50,7 +50,7 @@ func (a *App) updateEventSettings(c *gin.Context) {
 		fail(c, 403, "只有超级管理员可以更换赛事管理员")
 		return
 	}
-	err := a.runMatchMutation(eventID, actor.ID, func(e *matchEngine) error {
+	err := a.runMatchMutation(tournamentID, actor.ID, func(e *matchEngine) error {
 		tx := e.db.(*sql.Tx)
 		beforeRules, err := e.rules()
 		if err != nil {
@@ -62,12 +62,12 @@ func (a *App) updateEventSettings(c *gin.Context) {
 			if err != nil || *req.BackgroundID < 0 || !valid {
 				return errors.New("背景不存在")
 			}
-			if _, err := tx.Exec(`UPDATE tournaments SET background_id=? WHERE id=?`, nullableInt64(*req.BackgroundID), eventID); err != nil {
+			if _, err := tx.Exec(`UPDATE tournaments SET background_id=? WHERE id=?`, nullableInt64(*req.BackgroundID), tournamentID); err != nil {
 				return err
 			}
 		}
-		if err := requireEditableSettings(e.db, eventID); err != nil {
-			if req.Name != "" || req.EventTime != "" || req.Description != "" || req.ManagerID != nil || req.PlayerIDs != nil || req.Rules != nil || req.Round1Target != 0 || req.Round2Target != 0 {
+		if err := requireEditableSettings(e.db, tournamentID); err != nil {
+			if req.Name != "" || req.StartTime != "" || req.Description != "" || req.ManagerID != nil || req.PlayerIDs != nil || req.Rules != nil || req.Round1Target != 0 || req.Round2Target != 0 {
 				return err
 			}
 			rules := beforeRules
@@ -80,7 +80,7 @@ func (a *App) updateEventSettings(c *gin.Context) {
 			if err := rules.validate(); err != nil {
 				return err
 			}
-			if err := saveRules(tx, eventID, rules); err != nil {
+			if err := saveRules(tx, tournamentID, rules); err != nil {
 				return err
 			}
 			if req.Correction != nil {
@@ -98,10 +98,10 @@ func (a *App) updateEventSettings(c *gin.Context) {
 			return errors.New("只能修正已录入对局的合法胜者")
 		}
 		var beforeRound1Target, beforeRound2Target int
-		if err := tx.QueryRow(`SELECT round1_target,round2_target FROM tournaments WHERE id=?`, eventID).Scan(&beforeRound1Target, &beforeRound2Target); err != nil {
+		if err := tx.QueryRow(`SELECT round1_target,round2_target FROM tournaments WHERE id=?`, tournamentID).Scan(&beforeRound1Target, &beforeRound2Target); err != nil {
 			return err
 		}
-		grouped, err := eventHasGrouping(tx, eventID)
+		grouped, err := eventHasGrouping(tx, tournamentID)
 		if err != nil {
 			return err
 		}
@@ -130,7 +130,7 @@ func (a *App) updateEventSettings(c *gin.Context) {
 		}
 		rosterChanged := false
 		if req.PlayerIDs != nil {
-			changed, err := eventRosterChanged(tx, eventID, *req.PlayerIDs, req.FixedAssignments)
+			changed, err := eventRosterChanged(tx, tournamentID, *req.PlayerIDs, req.FixedAssignments)
 			if err != nil {
 				return err
 			}
@@ -142,12 +142,12 @@ func (a *App) updateEventSettings(c *gin.Context) {
 				return errors.New("分组抽签后不能修改参赛阵容")
 			}
 			if changed {
-				for _, table := range []string{"captain_votes", "event_players"} {
-					if _, err := tx.Exec(`DELETE FROM `+table+` WHERE event_id=?`, eventID); err != nil {
+				for _, table := range []string{"captain_votes", "tournament_players"} {
+					if _, err := tx.Exec(`DELETE FROM `+table+` WHERE tournament_id=?`, tournamentID); err != nil {
 						return err
 					}
 				}
-				if err := saveSetupRoster(tx, eventID, *req.PlayerIDs, req.FixedAssignments); err != nil {
+				if err := saveSetupRoster(tx, tournamentID, *req.PlayerIDs, req.FixedAssignments); err != nil {
 					return err
 				}
 			}
@@ -155,7 +155,7 @@ func (a *App) updateEventSettings(c *gin.Context) {
 		for _, group := range rules.AceSpecials {
 			for _, player := range group.allPlayerIDs() {
 				var exists int
-				if err := tx.QueryRow(`SELECT (SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=? AND active=1)+(SELECT COUNT(*) FROM event_setup_roster WHERE event_id=? AND user_id=?)`, eventID, player, eventID, player).Scan(&exists); err != nil {
+				if err := tx.QueryRow(`SELECT (SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND user_id=? AND active=1)+(SELECT COUNT(*) FROM tournament_setup_roster WHERE tournament_id=? AND user_id=?)`, tournamentID, player, tournamentID, player).Scan(&exists); err != nil {
 					return err
 				}
 				if exists == 0 {
@@ -172,40 +172,40 @@ func (a *App) updateEventSettings(c *gin.Context) {
 			if err := tx.QueryRow(`SELECT COUNT(*) FROM users WHERE id=? AND status='active' AND is_deleted=0`, manager).Scan(&valid); err != nil || valid != 1 {
 				return errors.New("赛事管理员账号无效")
 			}
-			if _, err := tx.Exec(`UPDATE tournaments SET manager_id=? WHERE id=?`, manager, eventID); err != nil {
+			if _, err := tx.Exec(`UPDATE tournaments SET manager_id=? WHERE id=?`, manager, tournamentID); err != nil {
 				return err
 			}
 		}
-		if req.Name != "" || req.EventTime != "" {
-			eventTime, err := normalizeEventTime(req.EventTime)
+		if req.Name != "" || req.StartTime != "" {
+			startTime, err := normalizeStartTime(req.StartTime)
 			if err != nil || strings.TrimSpace(req.Name) == "" || round1Target < 1 || round2Target < 1 || round1Target > 99 || round2Target > 99 {
 				return errors.New("赛事名称、开始时间或抢分目标无效")
 			}
-			if _, err := tx.Exec(`UPDATE tournaments SET name=?,description=?,event_time=?,round1_target=?,round2_target=? WHERE id=?`, strings.TrimSpace(req.Name), req.Description, eventTime, round1Target, round2Target, eventID); err != nil {
+			if _, err := tx.Exec(`UPDATE tournaments SET name=?,description=?,start_time=?,round1_target=?,round2_target=? WHERE id=?`, strings.TrimSpace(req.Name), req.Description, startTime, round1Target, round2Target, tournamentID); err != nil {
 				return err
 			}
-			if _, err := tx.Exec(`UPDATE rounds SET target_score=CASE stage WHEN 'round1' THEN ? WHEN 'round2' THEN ? ELSE 1 END WHERE event_id=?`, round1Target, round2Target, eventID); err != nil {
+			if _, err := tx.Exec(`UPDATE rounds SET target_score=CASE stage WHEN 'round1' THEN ? WHEN 'round2' THEN ? ELSE 1 END WHERE tournament_id=?`, round1Target, round2Target, tournamentID); err != nil {
 				return err
 			}
 		}
-		if err := saveRules(tx, eventID, rules); err != nil {
+		if err := saveRules(tx, tournamentID, rules); err != nil {
 			return err
 		}
 		// 仅修改大将战规则、赛事资料或管理员时保留当前的队长和排阵阶段。
 		// 未分队或重新分队时仍清空依赖旧阵容的流程数据。
 		if !grouped || rosterChanged {
-			if _, err := tx.Exec(`UPDATE tournaments SET lineup_a_submitted=0,lineup_b_submitted=0 WHERE id=?`, eventID); err != nil {
+			if _, err := tx.Exec(`UPDATE tournaments SET lineup_a_submitted=0,lineup_b_submitted=0 WHERE id=?`, tournamentID); err != nil {
 				return err
 			}
 			for _, table := range []string{"kof_reservations", "player_selections", "matches", "lineup_entries"} {
-				if _, err := tx.Exec(`DELETE FROM `+table+` WHERE event_id=?`, eventID); err != nil {
+				if _, err := tx.Exec(`DELETE FROM `+table+` WHERE tournament_id=?`, tournamentID); err != nil {
 					return err
 				}
 			}
-			if _, err := tx.Exec(`UPDATE rounds SET status='pending' WHERE event_id=?`, eventID); err != nil {
+			if _, err := tx.Exec(`UPDATE rounds SET status='pending' WHERE tournament_id=?`, tournamentID); err != nil {
 				return err
 			}
-			if _, err := tx.Exec(`UPDATE tournaments SET status='draft',round1_no_repeat=?,kof_initial_a=NULL,kof_initial_b=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`, boolInt(rules.NoRepeat), eventID); err != nil {
+			if _, err := tx.Exec(`UPDATE tournaments SET status='draft',round1_no_repeat=?,kof_initial_a=NULL,kof_initial_b=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`, boolInt(rules.NoRepeat), tournamentID); err != nil {
 				return err
 			}
 		}
@@ -219,11 +219,11 @@ func (a *App) updateEventSettings(c *gin.Context) {
 }
 
 // 固定分队与当前阵容一致时保留队长及投票；主动随机分队则重新确认。
-func eventRosterChanged(db sqlRunner, eventID int64, ids []int64, fixed map[string]string) (bool, error) {
+func eventRosterChanged(db sqlRunner, tournamentID int64, ids []int64, fixed map[string]string) (bool, error) {
 	if len(ids) > 12 {
 		return false, errors.New("参赛列表最多12人")
 	}
-	rows, err := db.Query(`SELECT ep.user_id,CASE WHEN ep.team_id=(?*2-1) THEN 'A' ELSE 'B' END FROM event_players ep WHERE ep.event_id=? AND ep.active=1`, eventID, eventID)
+	rows, err := db.Query(`SELECT ep.user_id,CASE WHEN ep.team_id=(?*2-1) THEN 'A' ELSE 'B' END FROM tournament_players ep WHERE ep.tournament_id=? AND ep.active=1`, tournamentID, tournamentID)
 	if err != nil {
 		return false, err
 	}

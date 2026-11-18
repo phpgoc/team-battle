@@ -122,7 +122,7 @@ type archiveEventRequest struct {
 	BackgroundID     int64             `json:"background_id"`
 	Name             string            `json:"name" binding:"required"`
 	Description      string            `json:"description"`
-	EventTime        string            `json:"event_time" binding:"required"`
+	StartTime        string            `json:"start_time" binding:"required"`
 	PlayerIDs        []int64           `json:"player_ids"`
 	Round1ScoreA     int               `json:"round1_score_a"`
 	Round1ScoreB     int               `json:"round1_score_b"`
@@ -146,7 +146,7 @@ type createUserRequest struct {
 type createEventRequest struct {
 	Name             string            `json:"name" binding:"required"`
 	Description      string            `json:"description"`
-	EventTime        string            `json:"event_time"`
+	StartTime        string            `json:"start_time"`
 	ManagerID        int64             `json:"manager_id"`
 	PlayerIDs        []int64           `json:"player_ids"`
 	FixedAssignments map[string]string `json:"fixed_assignments"`
@@ -165,7 +165,7 @@ type eventSettingsRequest struct {
 	PlayerIDs         *[]int64               `json:"player_ids"`
 	FixedAssignments  map[string]string      `json:"fixed_assignments"`
 	Name              string                 `json:"name"`
-	EventTime         string                 `json:"event_time"`
+	StartTime         string                 `json:"start_time"`
 	Description       string                 `json:"description"`
 	Round1Target      int                    `json:"round1_target"`
 	Round2Target      int                    `json:"round2_target"`

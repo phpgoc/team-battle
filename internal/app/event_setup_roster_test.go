@@ -45,7 +45,7 @@ func TestSetupRosterPreservesEntryOrderAndChoices(t *testing.T) {
 	// 抽签后不能删除或重排成员，其他设置保存也不能覆盖原始选择。
 	f.request(t, 2, "PATCH", path+"/settings", map[string]any{"player_ids": ids[:5], "fixed_assignments": fixed}, 400)
 	f.request(t, 2, "POST", path+"/players", map[string]any{"player_ids": ids[:5]}, 400)
-	f.request(t, 2, "PATCH", path+"/settings", map[string]any{"name": "保留原始录入", "event_time": "2026-11-18T20"}, 200)
+	f.request(t, 2, "PATCH", path+"/settings", map[string]any{"name": "保留原始录入", "start_time": "2026-11-18T20"}, 200)
 	f.request(t, 2, "POST", path+"/start", nil, 200)
 	assertRoster()
 	// 选手停用后仍有公开资料，设置页不能因可选账号目录变化而丢失录入行。
@@ -59,7 +59,7 @@ func TestSetupRosterPreservesEntryOrderAndChoices(t *testing.T) {
 func TestArchivePreservesOriginalRoster(t *testing.T) {
 	f := newWorkflowFixture(t)
 	f.request(t, 1, "POST", "/api/events/archive", map[string]any{
-		"name": "历史原始录入", "event_time": "2026-11-17T19",
+		"name": "历史原始录入", "start_time": "2026-11-17T19",
 		"player_ids":        []int64{8, 3, 6, 4, 7, 5},
 		"fixed_assignments": map[string]string{"3": "A", "4": "A", "5": "A", "6": "B", "7": "B", "8": "B"},
 		"matches":           []archivedMatch{{1, 3, 6, "a"}, {2, 4, 7, "a"}},

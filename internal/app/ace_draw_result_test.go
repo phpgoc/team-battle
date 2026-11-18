@@ -23,7 +23,7 @@ func TestAceDrawRecordPersistsAndSurvivesOverride(t *testing.T) {
 			}
 			f.request(t, 2, "PATCH", fmt.Sprintf("/api/events/%d/settings", id), map[string]any{"rules": rules}, 200)
 			f.enterKOF(t, id)
-			match := f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=2`, id)
+			match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2`, id)
 			teams := f.teams(t, id)
 			f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[1]}, 200)
 			f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/ace/draw", id), nil, 200)
@@ -65,7 +65,7 @@ func TestAceDrawRecordLegacyAndWrongMatch(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "random")
 	f.enterKOF(t, id)
-	match := f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND round_no=2`, id)
+	match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2`, id)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": f.teams(t, id)[1]}, 200)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/ace/draw", id), nil, 200)
 	for _, test := range []struct {
@@ -76,7 +76,7 @@ func TestAceDrawRecordLegacyAndWrongMatch(t *testing.T) {
 		{`{"rules":["most_wins","most_losses"]}`, "mixed", 0},
 		{`{"source":"random_fallback"}`, "random", 0},
 	} {
-		if _, err := f.app.db.Exec(`UPDATE event_actions SET payload=? WHERE event_id=? AND action='ace_drawn'`, test.payload, id); err != nil {
+		if _, err := f.app.db.Exec(`UPDATE tournament_actions SET payload=? WHERE tournament_id=? AND action='ace_drawn'`, test.payload, id); err != nil {
 			t.Fatal(err)
 		}
 		draw, err := f.app.loadAceDrawResult(id)
@@ -84,7 +84,7 @@ func TestAceDrawRecordLegacyAndWrongMatch(t *testing.T) {
 			t.Fatalf("旧记录不能补造候选与结果: %+v %v", draw, err)
 		}
 	}
-	if _, err := f.app.db.Exec(`UPDATE event_actions SET payload='{"match_id":999999,"source":"most_wins"}' WHERE event_id=? AND action='ace_drawn'`, id); err != nil {
+	if _, err := f.app.db.Exec(`UPDATE tournament_actions SET payload='{"match_id":999999,"source":"most_wins"}' WHERE tournament_id=? AND action='ace_drawn'`, id); err != nil {
 		t.Fatal(err)
 	}
 	if draw, err := f.app.loadAceDrawResult(id); err != nil || draw != nil {

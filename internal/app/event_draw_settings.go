@@ -14,7 +14,7 @@ type drawSettingsRequest struct {
 
 // 抽选时长是赛事进行中唯一允许继续修改的赛事设置。
 func (a *App) updateDrawSettings(c *gin.Context) {
-	actor, eventID, access := a.managerEvent(c)
+	actor, tournamentID, access := a.managerEvent(c)
 	if !access {
 		return
 	}
@@ -23,7 +23,7 @@ func (a *App) updateDrawSettings(c *gin.Context) {
 		fail(c, 400, "抽选时间设置格式不正确")
 		return
 	}
-	err := a.runMatchMutation(eventID, actor.ID, func(e *matchEngine) error {
+	err := a.runMatchMutation(tournamentID, actor.ID, func(e *matchEngine) error {
 		rules, err := e.rules()
 		if err != nil {
 			return err
@@ -41,7 +41,7 @@ func (a *App) updateDrawSettings(c *gin.Context) {
 		if !ok {
 			return errors.New("赛事设置事务不可用")
 		}
-		if err := saveRules(tx, eventID, rules); err != nil {
+		if err := saveRules(tx, tournamentID, rules); err != nil {
 			return err
 		}
 		return e.log("draw_settings_updated", req)
@@ -50,12 +50,12 @@ func (a *App) updateDrawSettings(c *gin.Context) {
 		fail(c, 400, err.Error())
 		return
 	}
-	ok(c, gin.H{"ok": true, "rules": mustEventRules(a.db, eventID)})
+	ok(c, gin.H{"ok": true, "rules": mustEventRules(a.db, tournamentID)})
 }
 
-func mustEventRules(db *sql.DB, eventID int64) EventRules {
+func mustEventRules(db *sql.DB, tournamentID int64) EventRules {
 	var raw string
-	if err := db.QueryRow(`SELECT rules_json FROM tournaments WHERE id=?`, eventID).Scan(&raw); err != nil {
+	if err := db.QueryRow(`SELECT rules_json FROM tournaments WHERE id=?`, tournamentID).Scan(&raw); err != nil {
 		return defaultRules()
 	}
 	rules, err := decodeRules(raw)

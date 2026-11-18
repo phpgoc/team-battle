@@ -33,18 +33,8 @@ func openDatabase(path string) (*sql.DB, error) {
 }
 
 func migrate(db *sql.DB) error {
-	// 开发期表名调整沿用启动初始化；版本化迁移机制在1.0前补齐。
-	var oldTable, newTable int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='events'`).Scan(&oldTable); err != nil {
+	if err := initializeTournamentNames(db); err != nil {
 		return err
-	}
-	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='tournaments'`).Scan(&newTable); err != nil {
-		return err
-	}
-	if oldTable != 0 && newTable == 0 {
-		if _, err := db.Exec(`ALTER TABLE events RENAME TO tournaments`); err != nil {
-			return err
-		}
 	}
 	statements := []string{
 		`PRAGMA foreign_keys = ON`,
@@ -61,7 +51,7 @@ func migrate(db *sql.DB) error {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL,
 			description TEXT NOT NULL DEFAULT '',
-			event_time TEXT NOT NULL DEFAULT '',
+			start_time TEXT NOT NULL DEFAULT '',
 			status TEXT NOT NULL DEFAULT 'draft',
 			round1_target INTEGER NOT NULL DEFAULT 4,
 			round2_target INTEGER NOT NULL DEFAULT 5,
@@ -72,43 +62,43 @@ func migrate(db *sql.DB) error {
 			FOREIGN KEY(manager_id) REFERENCES users(id),
 			FOREIGN KEY(created_by) REFERENCES users(id)
 		)`,
-		`CREATE TABLE IF NOT EXISTS event_players (
+		`CREATE TABLE IF NOT EXISTS tournament_players (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			event_id INTEGER NOT NULL,
+			tournament_id INTEGER NOT NULL,
 			user_id INTEGER NOT NULL,
 			team_id INTEGER NOT NULL,
 			is_captain INTEGER NOT NULL DEFAULT 0,
 			active INTEGER NOT NULL DEFAULT 1,
-			UNIQUE(event_id, user_id),
-			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE,
+			UNIQUE(tournament_id, user_id),
+			FOREIGN KEY(tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
 			FOREIGN KEY(user_id) REFERENCES users(id)
 		)`,
 		`CREATE TABLE IF NOT EXISTS captain_votes (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			event_id INTEGER NOT NULL,
+			tournament_id INTEGER NOT NULL,
 			team_id INTEGER NOT NULL,
 			voter_id INTEGER NOT NULL,
 			target_id INTEGER NOT NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE(event_id, voter_id),
-			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE,
+			UNIQUE(tournament_id, voter_id),
+			FOREIGN KEY(tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
 			FOREIGN KEY(voter_id) REFERENCES users(id),
 			FOREIGN KEY(target_id) REFERENCES users(id)
 		)`,
 		`CREATE TABLE IF NOT EXISTS lineup_entries (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			event_id INTEGER NOT NULL,
+			tournament_id INTEGER NOT NULL,
 			team_id INTEGER NOT NULL,
 			position INTEGER NOT NULL,
 			player_id INTEGER NOT NULL,
 			source TEXT NOT NULL DEFAULT 'manual',
-			UNIQUE(event_id, team_id, position),
-			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE,
+			UNIQUE(tournament_id, team_id, position),
+			FOREIGN KEY(tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
 			FOREIGN KEY(player_id) REFERENCES users(id)
 		)`,
 		`CREATE TABLE IF NOT EXISTS rounds (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			event_id INTEGER NOT NULL,
+			tournament_id INTEGER NOT NULL,
 			stage TEXT NOT NULL,
 			target_score INTEGER NOT NULL DEFAULT 0,
 			score_a INTEGER NOT NULL DEFAULT 0,
@@ -117,12 +107,12 @@ func migrate(db *sql.DB) error {
 			status TEXT NOT NULL DEFAULT 'pending',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE(event_id, stage),
-			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE
+			UNIQUE(tournament_id, stage),
+			FOREIGN KEY(tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE
 		)`,
 		`CREATE TABLE IF NOT EXISTS matches (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			event_id INTEGER NOT NULL,
+			tournament_id INTEGER NOT NULL,
 			round_id INTEGER NOT NULL,
 			seq INTEGER NOT NULL,
 			team_a_id INTEGER NOT NULL,
@@ -137,33 +127,33 @@ func migrate(db *sql.DB) error {
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			finished_at DATETIME,
 			UNIQUE(round_id, seq),
-			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE,
+			FOREIGN KEY(tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
 			FOREIGN KEY(round_id) REFERENCES rounds(id) ON DELETE CASCADE,
 			FOREIGN KEY(player_a_id) REFERENCES users(id),
 			FOREIGN KEY(player_b_id) REFERENCES users(id),
 			FOREIGN KEY(next_player_id) REFERENCES users(id),
 			FOREIGN KEY(created_by) REFERENCES users(id)
 		)`,
-		`CREATE TABLE IF NOT EXISTS event_actions (
+		`CREATE TABLE IF NOT EXISTS tournament_actions (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			event_id INTEGER NOT NULL,
+			tournament_id INTEGER NOT NULL,
 			actor_id INTEGER,
 			action TEXT NOT NULL,
 			payload TEXT NOT NULL DEFAULT '{}',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY(event_id) REFERENCES tournaments(id) ON DELETE CASCADE,
+			FOREIGN KEY(tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
 			FOREIGN KEY(actor_id) REFERENCES users(id)
 		)`,
 		`CREATE INDEX IF NOT EXISTS matches_player_a_records ON matches(player_a_id) WHERE status='finished'`,
 		`CREATE INDEX IF NOT EXISTS matches_player_b_records ON matches(player_b_id) WHERE status='finished'`,
 		`CREATE TABLE IF NOT EXISTS player_selections (
-			event_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+			tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
 			stage TEXT NOT NULL,
 			team_id INTEGER NOT NULL,
 			player_id INTEGER NOT NULL REFERENCES users(id),
-			PRIMARY KEY(event_id, stage, team_id)
+			PRIMARY KEY(tournament_id, stage, team_id)
 		)`,
-		`CREATE TABLE IF NOT EXISTS site_event_names (
+		`CREATE TABLE IF NOT EXISTS site_tournament_names (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL UNIQUE,
 			sort_order INTEGER NOT NULL DEFAULT 0,
@@ -179,7 +169,7 @@ func migrate(db *sql.DB) error {
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE IF NOT EXISTS kof_reservations (
-			event_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+			tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
 			match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
 			team_id INTEGER NOT NULL,
 			player_id INTEGER NOT NULL REFERENCES users(id),
@@ -211,7 +201,7 @@ func migrate(db *sql.DB) error {
 			return err
 		}
 	}
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS event_setup_roster(event_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,user_id INTEGER NOT NULL REFERENCES users(id),fixed_team TEXT NOT NULL DEFAULT '',position INTEGER NOT NULL,PRIMARY KEY(event_id,user_id))`); err != nil {
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS tournament_setup_roster(tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,user_id INTEGER NOT NULL REFERENCES users(id),fixed_team TEXT NOT NULL DEFAULT '',position INTEGER NOT NULL,PRIMARY KEY(tournament_id,user_id))`); err != nil {
 		return err
 	}
 	if err := ensureColumn(db, "users", "avatar_data", "BLOB"); err != nil {

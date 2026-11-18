@@ -19,10 +19,10 @@ type aceDrawResult struct {
 	Adjusted     bool      `json:"adjusted,omitempty"`
 }
 
-func (a *App) loadAceDrawResult(eventID int64) (*aceDrawResult, error) {
+func (a *App) loadAceDrawResult(tournamentID int64) (*aceDrawResult, error) {
 	var matchID, playerA, playerB int64
 	var payload string
-	err := a.db.QueryRow(`SELECT m.id,m.player_a_id,m.player_b_id,a.payload FROM matches m JOIN event_actions a ON a.id=(SELECT id FROM event_actions WHERE event_id=m.event_id AND action='ace_drawn' ORDER BY id DESC LIMIT 1) WHERE m.event_id=? AND m.round_no=3 ORDER BY m.id DESC LIMIT 1`, eventID).Scan(&matchID, &playerA, &playerB, &payload)
+	err := a.db.QueryRow(`SELECT m.id,m.player_a_id,m.player_b_id,a.payload FROM matches m JOIN tournament_actions a ON a.id=(SELECT id FROM tournament_actions WHERE tournament_id=m.tournament_id AND action='ace_drawn' ORDER BY id DESC LIMIT 1) WHERE m.tournament_id=? AND m.round_no=3 ORDER BY m.id DESC LIMIT 1`, tournamentID).Scan(&matchID, &playerA, &playerB, &payload)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

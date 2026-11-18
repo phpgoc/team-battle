@@ -22,14 +22,14 @@ func (a *App) listEvents(c *gin.Context) {
 		fail(c, http.StatusUnauthorized, "未登录")
 		return
 	}
-	query := `SELECT e.id, e.name, e.description, e.event_time, e.status, e.round1_target, e.round2_target, e.manager_id, COALESCE(u.display_name,''), e.created_at,
-		(SELECT COUNT(*) FROM event_players ep WHERE ep.event_id=e.id) AS player_count,
-		(SELECT COALESCE(SUM(r.score_a),0) FROM rounds r WHERE r.event_id=e.id) AS score_a,
-		(SELECT COALESCE(SUM(r.score_b),0) FROM rounds r WHERE r.event_id=e.id) AS score_b
+	query := `SELECT e.id, e.name, e.description, e.start_time, e.status, e.round1_target, e.round2_target, e.manager_id, COALESCE(u.display_name,''), e.created_at,
+		(SELECT COUNT(*) FROM tournament_players ep WHERE ep.tournament_id=e.id) AS player_count,
+		(SELECT COALESCE(SUM(r.score_a),0) FROM rounds r WHERE r.tournament_id=e.id) AS score_a,
+		(SELECT COALESCE(SUM(r.score_b),0) FROM rounds r WHERE r.tournament_id=e.id) AS score_b
 		FROM tournaments e LEFT JOIN users u ON u.id=e.manager_id`
 	args := []any{}
 	if user.Role != roleSuperAdmin {
-		query += ` WHERE e.manager_id = ? OR EXISTS (SELECT 1 FROM event_players ep2 WHERE ep2.event_id=e.id AND ep2.user_id=?)`
+		query += ` WHERE e.manager_id = ? OR EXISTS (SELECT 1 FROM tournament_players ep2 WHERE ep2.tournament_id=e.id AND ep2.user_id=?)`
 		args = append(args, user.ID, user.ID)
 	}
 	query += ` ORDER BY CASE e.status WHEN 'round1' THEN 0 WHEN 'round2' THEN 0 WHEN 'ace' THEN 0 WHEN 'draft' THEN 1 ELSE 2 END, e.updated_at DESC`
@@ -43,15 +43,15 @@ func (a *App) listEvents(c *gin.Context) {
 	for rows.Next() {
 		var item = map[string]any{}
 		var id, managerID, playerCount, round1Target, round2Target, scoreA, scoreB int64
-		var name, description, eventTime, status, managerName, createdAt string
-		if err := rows.Scan(&id, &name, &description, &eventTime, &status, &round1Target, &round2Target, &managerID, &managerName, &createdAt, &playerCount, &scoreA, &scoreB); err != nil {
+		var name, description, startTime, status, managerName, createdAt string
+		if err := rows.Scan(&id, &name, &description, &startTime, &status, &round1Target, &round2Target, &managerID, &managerName, &createdAt, &playerCount, &scoreA, &scoreB); err != nil {
 			fail(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 		item["id"] = id
 		item["name"] = name
 		item["description"] = description
-		item["event_time"] = eventTime
+		item["start_time"] = startTime
 		item["status"] = status
 		item["round1_target"] = round1Target
 		item["round2_target"] = round2Target
@@ -120,15 +120,15 @@ func (a *App) publicHistory(c *gin.Context) {
 			continue
 		}
 		itemName, _ := item["name"].(string)
-		eventTime, _ := item["event_time"].(string)
-		eventTime = strings.ReplaceAll(eventTime, "T", " ")
+		startTime, _ := item["start_time"].(string)
+		startTime = strings.ReplaceAll(startTime, "T", " ")
 		if name != "" && !strings.Contains(strings.ToLower(itemName), strings.ToLower(name)) {
 			continue
 		}
-		if from != "" && eventTime < from {
+		if from != "" && startTime < from {
 			continue
 		}
-		if to != "" && eventTime > to+" 23:59:59" {
+		if to != "" && startTime > to+" 23:59:59" {
 			continue
 		}
 		filtered = append(filtered, item)
@@ -175,18 +175,18 @@ func (a *App) historyItems() ([]map[string]any, error) {
 		return nil, err
 	}
 	// 批量读取历史参赛ID并随摘要缓存，筛选时无需逐场查询或关联账号表。
-	rows, err := a.db.Query(`SELECT p.event_id,p.user_id FROM event_players p JOIN tournaments e ON e.id=p.event_id WHERE e.status='completed' AND p.active=1 ORDER BY p.event_id,p.user_id`)
+	rows, err := a.db.Query(`SELECT p.tournament_id,p.user_id FROM tournament_players p JOIN tournaments e ON e.id=p.tournament_id WHERE e.status='completed' AND p.active=1 ORDER BY p.tournament_id,p.user_id`)
 	if err != nil {
 		return nil, err
 	}
 	participants := map[int64][]int64{}
 	for rows.Next() {
-		var eventID, userID int64
-		if err := rows.Scan(&eventID, &userID); err != nil {
+		var tournamentID, userID int64
+		if err := rows.Scan(&tournamentID, &userID); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		participants[eventID] = append(participants[eventID], userID)
+		participants[tournamentID] = append(participants[tournamentID], userID)
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
@@ -229,12 +229,12 @@ func (a *App) createEvent(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "赛事最多12人")
 		return
 	}
-	eventTime, err := normalizeEventTime(req.EventTime)
+	startTime, err := normalizeStartTime(req.StartTime)
 	if err != nil || strings.TrimSpace(req.Name) == "" {
 		fail(c, http.StatusBadRequest, "请填写赛事名称和有效的比赛开始时间")
 		return
 	}
-	req.EventTime = eventTime
+	req.StartTime = startTime
 	if req.Round1Target == 0 {
 		req.Round1Target = 4
 	}
@@ -288,14 +288,14 @@ func (a *App) createEvent(c *gin.Context) {
 		return
 	}
 	defer transaction.Rollback()
-	result, err := transaction.Exec(`INSERT INTO tournaments(name, description, event_time, status, round1_target, round2_target, manager_id, created_by, rules_json, background_id) VALUES(?,?,?,?,?,?,?,?,?,?)`, strings.TrimSpace(req.Name), strings.TrimSpace(req.Description), req.EventTime, statusDraft, req.Round1Target, req.Round2Target, req.ManagerID, actor.ID, string(rulesJSON), nullableInt64(req.BackgroundID))
+	result, err := transaction.Exec(`INSERT INTO tournaments(name, description, start_time, status, round1_target, round2_target, manager_id, created_by, rules_json, background_id) VALUES(?,?,?,?,?,?,?,?,?,?)`, strings.TrimSpace(req.Name), strings.TrimSpace(req.Description), req.StartTime, statusDraft, req.Round1Target, req.Round2Target, req.ManagerID, actor.ID, string(rulesJSON), nullableInt64(req.BackgroundID))
 	if err != nil {
 		fail(c, http.StatusBadRequest, "创建赛事失败")
 		return
 	}
-	eventID, _ := result.LastInsertId()
+	tournamentID, _ := result.LastInsertId()
 	if len(req.PlayerIDs) > 0 {
-		if err := saveSetupRoster(transaction, eventID, req.PlayerIDs, req.FixedAssignments); err != nil {
+		if err := saveSetupRoster(transaction, tournamentID, req.PlayerIDs, req.FixedAssignments); err != nil {
 			fail(c, http.StatusBadRequest, err.Error())
 			return
 		}
@@ -304,7 +304,7 @@ func (a *App) createEvent(c *gin.Context) {
 		stage  string
 		target int
 	}{{stageRound1, req.Round1Target}, {stageRound2, req.Round2Target}, {stageAce, 1}} {
-		if _, err := transaction.Exec(`INSERT INTO rounds(event_id,stage,target_score) VALUES(?,?,?)`, eventID, round.stage, round.target); err != nil {
+		if _, err := transaction.Exec(`INSERT INTO rounds(tournament_id,stage,target_score) VALUES(?,?,?)`, tournamentID, round.stage, round.target); err != nil {
 			fail(c, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -313,17 +313,17 @@ func (a *App) createEvent(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, err.Error())
 		return
 	}
-	a.logAction(eventID, actor.ID, "event_created", gin.H{"name": req.Name})
-	ok(c, gin.H{"id": eventID})
+	a.logAction(tournamentID, actor.ID, "event_created", gin.H{"name": req.Name})
+	ok(c, gin.H{"id": tournamentID})
 }
 
 func (a *App) confirmEvent(c *gin.Context) {
-	actor, eventID, okAccess := a.managerEvent(c)
+	actor, tournamentID, okAccess := a.managerEvent(c)
 	if !okAccess {
 		return
 	}
 	var status string
-	if err := a.db.QueryRow(`SELECT status FROM tournaments WHERE id=?`, eventID).Scan(&status); err != nil {
+	if err := a.db.QueryRow(`SELECT status FROM tournaments WHERE id=?`, tournamentID).Scan(&status); err != nil {
 		fail(c, http.StatusNotFound, "赛事不存在")
 		return
 	}
@@ -331,11 +331,11 @@ func (a *App) confirmEvent(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "当前赛事还不能确认结束")
 		return
 	}
-	if _, err := a.db.Exec(`UPDATE tournaments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, statusCompleted, eventID); err != nil {
+	if _, err := a.db.Exec(`UPDATE tournaments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, statusCompleted, tournamentID); err != nil {
 		fail(c, http.StatusInternalServerError, "确认赛事结束失败")
 		return
 	}
-	a.logAction(eventID, actor.ID, "event_completed", nil)
+	a.logAction(tournamentID, actor.ID, "event_completed", nil)
 	a.invalidateHistoryCache()
 	ok(c, gin.H{"ok": true})
 }
@@ -347,7 +347,7 @@ func boolInt(value bool) int {
 	return 0
 }
 
-func assignPlayers(tx *sql.Tx, eventID, teamA, teamB int64, ids []int64, fixed map[string]string, rng *mathrand.Rand) error {
+func assignPlayers(tx *sql.Tx, tournamentID, teamA, teamB int64, ids []int64, fixed map[string]string, rng *mathrand.Rand) error {
 	seen := map[int64]bool{}
 	for _, id := range ids {
 		if seen[id] {
@@ -397,7 +397,7 @@ func assignPlayers(tx *sql.Tx, eventID, teamA, teamB int64, ids []int64, fixed m
 		}
 	}
 	for _, id := range ids {
-		if _, err := tx.Exec(`INSERT INTO event_players(event_id,user_id,team_id) VALUES(?,?,?)`, eventID, id, assignments[id]); err != nil {
+		if _, err := tx.Exec(`INSERT INTO tournament_players(tournament_id,user_id,team_id) VALUES(?,?,?)`, tournamentID, id, assignments[id]); err != nil {
 			return err
 		}
 	}

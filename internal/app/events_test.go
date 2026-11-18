@@ -88,7 +88,7 @@ func TestPublicSSEMatchesAcrossIdentitiesAndPushesResults(t *testing.T) {
 	if err := json.Unmarshal([]byte(updated), &changedBackground); err != nil || changedBackground.BackgroundID != nil {
 		t.Fatalf("清除背景后 SSE 应同步清空背景: %s", updated)
 	}
-	match := f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND status='pending'`, id)
+	match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND status='pending'`, id)
 	teams := f.teams(t, id)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[0]}, 200)
 	updated = read(guest)
@@ -102,7 +102,7 @@ func TestPublicSSEMatchesAcrossIdentitiesAndPushesResults(t *testing.T) {
 		t.Fatalf("推送未包含录分后的KOF阶段: %s", updated)
 	}
 	// 历史详情仍可读取，但已结束赛事不再建立SSE连接。
-	match = f.scalar(t, `SELECT id FROM matches WHERE event_id=? AND status='pending'`, id)
+	match = f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND status='pending'`, id)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[0]}, 200)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/events/%d/confirm", id), nil, 200)
 	f.request(t, 0, "GET", path, nil, http.StatusNoContent)

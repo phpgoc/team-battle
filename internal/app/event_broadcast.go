@@ -26,8 +26,8 @@ type eventBroadcast struct {
 	events map[int64]*eventSubscribers
 }
 
-func (a *App) streamSnapshot(eventID int64) (streamSnapshot, error) {
-	view, err := a.buildEvent(eventID, false)
+func (a *App) streamSnapshot(tournamentID int64) (streamSnapshot, error) {
+	view, err := a.buildEvent(tournamentID, false)
 	if err != nil {
 		return streamSnapshot{}, err
 	}
@@ -36,13 +36,13 @@ func (a *App) streamSnapshot(eventID int64) (streamSnapshot, error) {
 		return streamSnapshot{}, err
 	}
 	var assigned int
-	if err := a.db.QueryRow(`SELECT COUNT(DISTINCT team_id) FROM event_players WHERE event_id=? AND active=1`, eventID).Scan(&assigned); err != nil {
+	if err := a.db.QueryRow(`SELECT COUNT(DISTINCT team_id) FROM tournament_players WHERE tournament_id=? AND active=1`, tournamentID).Scan(&assigned); err != nil {
 		return streamSnapshot{}, err
 	}
 	return streamSnapshot{payload: payload, status: view["status"].(string), grouped: assigned == 2}, nil
 }
 
-func (a *App) subscribeEvent(eventID int64) (streamSnapshot, <-chan streamSnapshot, func(), error) {
+func (a *App) subscribeEvent(tournamentID int64) (streamSnapshot, <-chan streamSnapshot, func(), error) {
 	// 与写事务使用同一把锁，避免在初始快照和登记订阅之间漏掉更新。
 	a.writeMu.Lock()
 	defer a.writeMu.Unlock()
@@ -52,14 +52,14 @@ func (a *App) subscribeEvent(eventID int64) (streamSnapshot, <-chan streamSnapsh
 	if hub.events == nil {
 		hub.events = make(map[int64]*eventSubscribers)
 	}
-	entry := hub.events[eventID]
+	entry := hub.events[tournamentID]
 	if entry == nil {
-		snapshot, err := a.streamSnapshot(eventID)
+		snapshot, err := a.streamSnapshot(tournamentID)
 		if err != nil {
 			return streamSnapshot{}, nil, nil, err
 		}
 		entry = &eventSubscribers{latest: snapshot, clients: make(map[chan streamSnapshot]struct{})}
-		hub.events[eventID] = entry
+		hub.events[tournamentID] = entry
 	}
 	client := make(chan streamSnapshot, 1)
 	entry.clients[client] = struct{}{}
@@ -68,20 +68,20 @@ func (a *App) subscribeEvent(eventID int64) (streamSnapshot, <-chan streamSnapsh
 		defer hub.mu.Unlock()
 		delete(entry.clients, client)
 		if len(entry.clients) == 0 {
-			delete(hub.events, eventID)
+			delete(hub.events, tournamentID)
 		}
 	}
 	return entry.latest, client, unsubscribe, nil
 }
 
-func (a *App) publishEvents(eventID int64) {
+func (a *App) publishEvents(tournamentID int64) {
 	a.writeMu.Lock()
 	defer a.writeMu.Unlock()
 	hub := &a.broadcast
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
 	for id, entry := range hub.events {
-		if eventID != 0 && eventID != id {
+		if tournamentID != 0 && tournamentID != id {
 			continue
 		}
 		next, err := a.streamSnapshot(id)

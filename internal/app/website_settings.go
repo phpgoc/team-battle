@@ -48,7 +48,7 @@ func (a *App) siteSettings(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "读取背景失败")
 		return
 	}
-	ok(c, gin.H{"event_names": names, "categories": categories, "backgrounds": backgrounds})
+	ok(c, gin.H{"tournament_names": names, "categories": categories, "backgrounds": backgrounds})
 }
 
 func (a *App) createEventName(c *gin.Context) {
@@ -60,7 +60,7 @@ func (a *App) createEventName(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "常用赛事名不能为空")
 		return
 	}
-	if _, err := a.db.Exec(`INSERT INTO site_event_names(name,sort_order) VALUES(?,COALESCE((SELECT MAX(sort_order)+1 FROM site_event_names),0))`, strings.TrimSpace(req.Name)); err != nil {
+	if _, err := a.db.Exec(`INSERT INTO site_tournament_names(name,sort_order) VALUES(?,COALESCE((SELECT MAX(sort_order)+1 FROM site_tournament_names),0))`, strings.TrimSpace(req.Name)); err != nil {
 		fail(c, http.StatusBadRequest, "常用赛事名已存在或无法创建")
 		return
 	}
@@ -81,7 +81,7 @@ func (a *App) updateEventName(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "常用赛事名不能为空")
 		return
 	}
-	if _, err := a.db.Exec(`UPDATE site_event_names SET name=? WHERE id=?`, strings.TrimSpace(req.Name), id); err != nil {
+	if _, err := a.db.Exec(`UPDATE site_tournament_names SET name=? WHERE id=?`, strings.TrimSpace(req.Name), id); err != nil {
 		fail(c, http.StatusBadRequest, "常用赛事名已存在或无法修改")
 		return
 	}
@@ -97,7 +97,7 @@ func (a *App) deleteEventName(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "名称编号无效")
 		return
 	}
-	if _, err := a.db.Exec(`DELETE FROM site_event_names WHERE id=?`, id); err != nil {
+	if _, err := a.db.Exec(`DELETE FROM site_tournament_names WHERE id=?`, id); err != nil {
 		fail(c, http.StatusInternalServerError, "删除常用赛事名失败")
 		return
 	}
@@ -239,7 +239,7 @@ func (a *App) requireSuperAdmin(c *gin.Context) bool {
 }
 
 func (a *App) loadEventNames() ([]map[string]any, error) {
-	rows, err := a.db.Query(`SELECT id,name FROM site_event_names ORDER BY sort_order,id`)
+	rows, err := a.db.Query(`SELECT id,name FROM site_tournament_names ORDER BY sort_order,id`)
 	if err != nil {
 		return nil, err
 	}

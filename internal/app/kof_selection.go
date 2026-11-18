@@ -23,7 +23,7 @@ func (e *matchEngine) authorizeKOFSelection(team, player int64, manager bool) er
 		return errors.New("只能操作本队出场位置")
 	}
 	var captain int64
-	err = e.db.QueryRow(`SELECT user_id FROM event_players WHERE event_id=? AND team_id=? AND is_captain=1 AND active=1 LIMIT 1`, e.eventID, team).Scan(&captain)
+	err = e.db.QueryRow(`SELECT user_id FROM tournament_players WHERE tournament_id=? AND team_id=? AND is_captain=1 AND active=1 LIMIT 1`, e.tournamentID, team).Scan(&captain)
 	if err != nil && err != sql.ErrNoRows {
 		return err
 	}
@@ -65,7 +65,7 @@ func (e *matchEngine) reserveKOF(matchID, team, player int64, manager bool) erro
 			return errors.New("只有败方队伍需要派下一名选手")
 		}
 	} else if team == 0 {
-		if err := e.db.QueryRow(`SELECT team_id FROM event_players WHERE event_id=? AND user_id=? AND active=1`, e.eventID, e.actorID).Scan(&team); err != nil {
+		if err := e.db.QueryRow(`SELECT team_id FROM tournament_players WHERE tournament_id=? AND user_id=? AND active=1`, e.tournamentID, e.actorID).Scan(&team); err != nil {
 			return errors.New("请选择队伍")
 		}
 	}
@@ -99,7 +99,7 @@ func (e *matchEngine) reserveKOF(matchID, team, player int64, manager bool) erro
 	if selected != 0 && !manager {
 		return errors.New("下一位置已经有人报名或已由队长安排")
 	}
-	if _, err := e.db.Exec(`INSERT INTO kof_reservations(event_id,match_id,team_id,player_id) VALUES(?,?,?,?) ON CONFLICT(match_id,team_id) DO UPDATE SET player_id=excluded.player_id`, e.eventID, m.id, team, player); err != nil {
+	if _, err := e.db.Exec(`INSERT INTO kof_reservations(tournament_id,match_id,team_id,player_id) VALUES(?,?,?,?) ON CONFLICT(match_id,team_id) DO UPDATE SET player_id=excluded.player_id`, e.tournamentID, m.id, team, player); err != nil {
 		return err
 	}
 	return e.log("kof_next_reserved", map[string]any{"match_id": matchID, "team_id": team, "player_id": player})
@@ -117,7 +117,7 @@ func (a *App) kofOptions(c *gin.Context) {
 		fail(c, 400, "赛事编号无效")
 		return
 	}
-	engine := &matchEngine{db: a.db, eventID: id, actorID: actor.ID}
+	engine := &matchEngine{db: a.db, tournamentID: id, actorID: actor.ID}
 	stage, err := engine.status()
 	if err != nil {
 		fail(c, 404, "赛事不存在")
@@ -125,7 +125,7 @@ func (a *App) kofOptions(c *gin.Context) {
 	}
 	manager := a.canManageEvent(actor.ID, actor.Role, id)
 	var membership int
-	if err := a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=? AND active=1`, id, actor.ID).Scan(&membership); err != nil {
+	if err := a.db.QueryRow(`SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND user_id=? AND active=1`, id, actor.ID).Scan(&membership); err != nil {
 		fail(c, 500, "读取队伍失败")
 		return
 	}
@@ -140,7 +140,7 @@ func (a *App) kofOptions(c *gin.Context) {
 		return
 	}
 	var matchID int64
-	err = a.db.QueryRow(`SELECT id FROM matches WHERE event_id=? AND round_no=2 ORDER BY seq DESC LIMIT 1`, id).Scan(&matchID)
+	err = a.db.QueryRow(`SELECT id FROM matches WHERE tournament_id=? AND round_no=2 ORDER BY seq DESC LIMIT 1`, id).Scan(&matchID)
 	if err != nil && err != sql.ErrNoRows {
 		fail(c, 500, "读取对局失败")
 		return
@@ -168,14 +168,14 @@ func (a *App) kofOptions(c *gin.Context) {
 			continue
 		}
 		var captain int64
-		err = a.db.QueryRow(`SELECT user_id FROM event_players WHERE event_id=? AND team_id=? AND is_captain=1 AND active=1 LIMIT 1`, id, team).Scan(&captain)
+		err = a.db.QueryRow(`SELECT user_id FROM tournament_players WHERE tournament_id=? AND team_id=? AND is_captain=1 AND active=1 LIMIT 1`, id, team).Scan(&captain)
 		if err != nil && err != sql.ErrNoRows {
 			fail(c, 500, "读取队长失败")
 			return
 		}
 		selected := int64(0)
 		if matchID == 0 {
-			err = a.db.QueryRow(`SELECT player_id FROM player_selections WHERE event_id=? AND stage='round2' AND team_id=?`, id, team).Scan(&selected)
+			err = a.db.QueryRow(`SELECT player_id FROM player_selections WHERE tournament_id=? AND stage='round2' AND team_id=?`, id, team).Scan(&selected)
 		} else {
 			err = a.db.QueryRow(`SELECT player_id FROM kof_reservations WHERE match_id=? AND team_id=?`, matchID, team).Scan(&selected)
 		}

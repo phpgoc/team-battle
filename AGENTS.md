@@ -10,7 +10,7 @@
 - HTTP 使用 Gin。
 - SQLite 使用纯 Go 驱动，避免依赖 CGO，保证单文件部署和跨平台编译。
 - 前端使用内嵌的 HTML、CSS、JavaScript，不能依赖独立 Node 服务或外部 CDN。
-- 数据库启动时幂等初始化表结构；当前开发阶段不引入版本化迁移框架，1.0发布前补齐。赛事主表命名为`tournaments`，不能再使用易与SSE混淆的`events`表名；现有数据库启动时原位改名并保留关联。不要要求用户手动初始化表结构。
+- 数据库启动时幂等初始化表结构；当前开发阶段不引入版本化迁移框架，1.0发布前补齐。赛事主表命名为`tournaments`，不能再使用易与SSE混淆的`events`表名；赛事相关表统一使用`tournament_players`、`tournament_actions`、`tournament_setup_roster`、`site_tournament_names`；所有赛事外键命名`tournament_id`，赛事开始时间命名`start_time`，接口及前端表单字段同步，不能继续用`event_id/event_time`表示赛事。现有数据库启动时在事务内原位改名并保留关联、自增上限；名称冲突时回滚，演示数据库同步。不要要求用户手动初始化表结构。
 - 数据库使用WAL；连接池每条连接通过驱动DSN启用外键与5秒锁等待，写事务使用immediate。SSE持有读快照时必须仍可提交设置，不依赖仅在第一条连接生效的PRAGMA。
 - 默认数据库路径为当前目录 `runtime/team-battle.sqlite`，启动时会自动创建 `runtime` 目录，支持 `--db` 覆盖。
 - 启动参数为 `--db`、`--host`、`--port`；默认值分别为 `./runtime/team-battle.sqlite`、`localhost`、`9527`。
@@ -24,7 +24,7 @@
 ## 角色和权限
 
 - `superadmin`：可以管理所有账号、赛事和比赛状态。
-- `user`：非超级管理员账号；账号是否为某场赛事管理员由 `tournaments.manager_id` 决定，是否为参赛选手由 `event_players` 决定。
+- `user`：非超级管理员账号；账号是否为某场赛事管理员由 `tournaments.manager_id` 决定，是否为参赛选手由 `tournament_players` 决定。
 - 未登录用户只能访问公开赛事实时页和历史页，不能写入任何数据。
 
 ## 赛事业务规则
@@ -32,8 +32,8 @@
 - 不建立`teams`表；每场固定A、B两队，内部队伍编号分别为`赛事ID*2-1`、`赛事ID*2`，只通过统一辅助函数计算。赛事表保存双方排阵提交标记；对局、参赛者、投票及KOF报名继续按同一编号关联。旧结构转换保留数据、自增上限、索引和触发器并校验外键，演示数据库也应用相同结构。
 - 每场赛事固定两支队伍，总参赛人数为 6–12 人，两队人数允许不同。
 - 创建赛事时允许固定部分选手队伍，其他选手随机分配。
-- 创建与保存只写入 `event_setup_roster` 的参赛意向，不提前随机分队。管理员通过 `POST /api/events/:id/setup-draw` 在同一事务内完成正式分队、随机首轮排阵及随机KOF首发，重复请求、越权及非法阶段须拒绝；旧有正式阵容继续视为已抽签。分组后锁定阵容和前两轮规则。
-- 设置页选手通过搜索联想逐个添加，按录入顺序展示 A/B/随机下拉框；抽签后隐藏添加、删除并锁定下拉框。始终读取 `event_setup_roster`，不能用 `event_players` 的实际分队覆盖录入意向。历史导入也保存原始录入；旧赛事缺失记录时标为未记录，不猜测固定队伍。
+- 创建与保存只写入 `tournament_setup_roster` 的参赛意向，不提前随机分队。管理员通过 `POST /api/events/:id/setup-draw` 在同一事务内完成正式分队、随机首轮排阵及随机KOF首发，重复请求、越权及非法阶段须拒绝；旧有正式阵容继续视为已抽签。分组后锁定阵容和前两轮规则。
+- 设置页选手通过搜索联想逐个添加，按录入顺序展示 A/B/随机下拉框；抽签后隐藏添加、删除并锁定下拉框。始终读取 `tournament_setup_roster`，不能用 `tournament_players` 的实际分队覆盖录入意向。历史导入也保存原始录入；旧赛事缺失记录时标为未记录，不猜测固定队伍。
 - 赛前抽签动画由主动请求响应的步骤计划驱动，仅本次操作的管理员端连续播放，SSE仍为统一公开结果且不携带补播指令。双方在当前对战位置每250ms切换，按 `random_draw_seconds` 停定并飞入名单或对阵表；奇数末位无独立转盘，随末轮进入A队。随机首轮排阵保存在 `lineup_entries.source='setup_draw'`，随机KOF首发保存在 `kof_initial_a/b`，正式开赛与进入KOF必须沿用并避免二次抽签。
 - 设置页使用固定底部操作栏，背景、时长和可选的比分纠错统一保存到 `/settings` 事务；进行中只接受背景、两项时长及 `correction`。非法纠错必须整体回滚。抽签成功返回直播页，首轮人工排阵在未安排时清空当前对战位。
 - 每队通过一人一票产生队长，候选人达到本队人数一半（奇数向上取整）即当选；管理员可直接指定，队长也可为空。
@@ -64,17 +64,17 @@
 
 ## 推荐数据边界
 
-核心表包括：`users`、`tournaments`、`event_players`、`captain_votes`、`lineup_entries`、`rounds`、`matches`、`event_actions`、`categories` 和 `site_event_names`。
+核心表包括：`users`、`tournaments`、`tournament_players`、`captain_votes`、`lineup_entries`、`rounds`、`matches`、`tournament_actions`、`categories` 和 `site_tournament_names`。
 
 历史录入和实时推进都写入 `rounds` 与 `matches`；`matches.round_no`、`a_id`、`b_id`、`who_win` 保持与规范字段同步，其中 `who_win` 使用 `0`、`a`、`b`。
 
 历史录入使用`archive-page.js/css`分步页面，基本资料、第一轮、KOF、必要时的大将战、核对保存分别展示。草稿及当前步骤保存在页面内存，切换语言不清空；重录某局须确认后截断该局及全部后续轮次，队伍或目标变更也须确认清空已有对局。服务端从逐局胜负计算比分及赛事胜者，验证目标分、结束后无多余对局、KOF胜者留场及复活资格；历史复活人选由录入者选择实际出场者，不重新随机。旧API未传目标分时仍从最终比分推导。
 
-账号只有 `superadmin` 和非超级管理员两层；赛事管理员由 `tournaments.manager_id` 关联，参赛选手由 `event_players` 关联。分类目录在进程内缓存，分类变更后失效并重新加载。分类图标以图片二进制和 MIME 保存，不使用 emoji 字符代替图片。
+账号只有 `superadmin` 和非超级管理员两层；赛事管理员由 `tournaments.manager_id` 关联，参赛选手由 `tournament_players` 关联。分类目录在进程内缓存，分类变更后失效并重新加载。分类图标以图片二进制和 MIME 保存，不使用 emoji 字符代替图片。
 
 比赛阶段建议使用：`draft`、`captain_vote`、`lineup_confirm`、`round1`、`round2`、`ace`、`completed`、`cancelled`。
 
-实时赛事统一使用公开 SSE 接口 `GET /api/public/events/:id/stream`，登录用户和访客使用同一个地址并接收完全相同的公开数据。登录状态只影响操作权限，不影响实时推送内容。客户端使用 EventSource 自动重连，不维护登录用户专用的推送通道。SSE订阅和最新公开快照只保存在Go内存中，不建消息表、不按连接轮询SQLite；成功修改后广播，同一赛事每次只构建一份公开快照，慢连接仅保留最新状态，最后一个连接离开即释放；心跳只保活、不读库。公开接口不得返回密码哈希、会话信息或内部管理字段。没有完成 `event_players` 分队的赛事不得进入 `/live/:id`；超级管理员或赛事管理员访问时重定向到 `/live/:id/setting`，其他访问者返回不可用状态。
+实时赛事统一使用公开 SSE 接口 `GET /api/public/events/:id/stream`，登录用户和访客使用同一个地址并接收完全相同的公开数据。登录状态只影响操作权限，不影响实时推送内容。客户端使用 EventSource 自动重连，不维护登录用户专用的推送通道。SSE订阅和最新公开快照只保存在Go内存中，不建消息表、不按连接轮询SQLite；成功修改后广播，同一赛事每次只构建一份公开快照，慢连接仅保留最新状态，最后一个连接离开即释放；心跳只保活、不读库。公开接口不得返回密码哈希、会话信息或内部管理字段。没有完成 `tournament_players` 分队的赛事不得进入 `/live/:id`；超级管理员或赛事管理员访问时重定向到 `/live/:id/setting`，其他访问者返回不可用状态。
 
 赛事背景用于统一的广告和赞助展示，仅超级管理员及该赛事管理员可在赛事设置页修改；比赛进行中也可修改，并通过公开 SSE 同步给所有观众。观众、队长和普通选手无切换入口，服务端同样校验权限；已结束赛事仍不可编辑。
 

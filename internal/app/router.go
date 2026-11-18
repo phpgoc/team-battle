@@ -143,15 +143,15 @@ func (a *App) router() *gin.Engine {
 
 // 没有完成参赛分队时，赛事只允许有权限的账号进入设置页。
 func (a *App) serveLiveEntry(c *gin.Context, setting bool) {
-	eventID, err := parseID(c.Param("id"))
-	if err != nil || !a.eventExists(eventID) {
+	tournamentID, err := parseID(c.Param("id"))
+	if err != nil || !a.eventExists(tournamentID) {
 		c.Status(http.StatusNotFound)
 		return
 	}
 	user, loggedIn := a.currentUser(c)
-	manager := loggedIn == nil && a.canManageEvent(user.ID, user.Role, eventID)
+	manager := loggedIn == nil && a.canManageEvent(user.ID, user.Role, tournamentID)
 	var assignedTeams int
-	if err := a.db.QueryRow(`SELECT COUNT(DISTINCT team_id) FROM event_players WHERE event_id=? AND active=1`, eventID).Scan(&assignedTeams); err != nil {
+	if err := a.db.QueryRow(`SELECT COUNT(DISTINCT team_id) FROM tournament_players WHERE tournament_id=? AND active=1`, tournamentID).Scan(&assignedTeams); err != nil {
 		c.Status(http.StatusInternalServerError)
 		return
 	}
@@ -165,7 +165,7 @@ func (a *App) serveLiveEntry(c *gin.Context, setting bool) {
 	}
 	if assignedTeams != 2 {
 		if manager {
-			c.Redirect(http.StatusFound, "/live/"+strconv.FormatInt(eventID, 10)+"/setting")
+			c.Redirect(http.StatusFound, "/live/"+strconv.FormatInt(tournamentID, 10)+"/setting")
 			return
 		}
 		c.Status(http.StatusNotFound)

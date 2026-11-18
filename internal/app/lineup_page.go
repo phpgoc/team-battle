@@ -21,7 +21,7 @@ func (a *App) lineupOptions(c *gin.Context) {
 	}
 	manager := a.canManageEvent(actor.ID, actor.Role, id)
 	var captain int
-	if err := a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=? AND active=1 AND is_captain=1`, id, actor.ID).Scan(&captain); err != nil {
+	if err := a.db.QueryRow(`SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND user_id=? AND active=1 AND is_captain=1`, id, actor.ID).Scan(&captain); err != nil {
 		fail(c, 500, "读取排阵失败")
 		return
 	}
@@ -29,7 +29,7 @@ func (a *App) lineupOptions(c *gin.Context) {
 		fail(c, http.StatusForbidden, "只有本队队长或赛事管理员可以排阵")
 		return
 	}
-	rows, err := a.db.Query(`SELECT team_id,position,player_id,source FROM lineup_entries WHERE event_id=? AND (? OR team_id IN (SELECT team_id FROM event_players WHERE event_id=? AND user_id=? AND active=1 AND is_captain=1)) ORDER BY team_id,position`, id, manager, id, actor.ID)
+	rows, err := a.db.Query(`SELECT team_id,position,player_id,source FROM lineup_entries WHERE tournament_id=? AND (? OR team_id IN (SELECT team_id FROM tournament_players WHERE tournament_id=? AND user_id=? AND active=1 AND is_captain=1)) ORDER BY team_id,position`, id, manager, id, actor.ID)
 	if err != nil {
 		fail(c, 500, "读取排阵失败")
 		return
@@ -68,7 +68,7 @@ func (a *App) serveLineupEntry(c *gin.Context) {
 	}
 	manager := a.canManageEvent(actor.ID, actor.Role, id)
 	var captain int
-	if err := a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=? AND active=1 AND is_captain=1`, id, actor.ID).Scan(&captain); err != nil {
+	if err := a.db.QueryRow(`SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND user_id=? AND active=1 AND is_captain=1`, id, actor.ID).Scan(&captain); err != nil {
 		c.Status(http.StatusInternalServerError)
 		return
 	}
@@ -87,7 +87,7 @@ func (a *App) serveLineupEntry(c *gin.Context) {
 		return
 	}
 	var teams int
-	if err := a.db.QueryRow(`SELECT COUNT(DISTINCT team_id) FROM event_players WHERE event_id=? AND active=1`, id).Scan(&teams); err != nil {
+	if err := a.db.QueryRow(`SELECT COUNT(DISTINCT team_id) FROM tournament_players WHERE tournament_id=? AND active=1`, id).Scan(&teams); err != nil {
 		c.Status(http.StatusInternalServerError)
 		return
 	}

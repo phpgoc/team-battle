@@ -18,11 +18,11 @@
   }
 
   function create(time) {
-    return { step: 0, name: '', event_time: time, background_id: 0, round1_target: 4, round2_target: 5, ace_source: 'random', entries: [], matches: { 1: [], 2: [], 3: [] }, picks: {}, signature: '' };
+    return { step: 0, name: '', start_time: time, background_id: 0, round1_target: 4, round2_target: 5, ace_source: 'random', entries: [], matches: { 1: [], 2: [], 3: [] }, picks: {}, signature: '' };
   }
 
   function render(ctx) {
-    const { draft: d, users, t, esc, field, input, eventTimeInput, eventTimeValue, backgroundOptions, backgrounds, shell, action, toast, person } = ctx;
+    const { draft: d, users, t, esc, field, input, startTimeInput, startTimeValue, backgroundOptions, backgrounds, shell, action, toast, person } = ctx;
     const redraw = () => render(ctx);
     const label = side => t(side === 'a' ? 'teamA' : 'teamB');
     const name = id => users.find(user => user.id === id)?.display_name || String(id);
@@ -35,11 +35,11 @@
     const stageSummary = stage => `<div class="archive-stage-summary"><span>${roundName(stage)}</span><strong>A ${score(d.matches[stage]).join(' : ')} B</strong><span>${label(winner(d.matches[stage]))} ${t('win')}</span></div>`;
     let body;
     if (d.step === 0) {
-      body = `<section class="panel"><div class="panel-body form-grid">${field('name', input('name', d.name, 'text', 'required'), true)}${field('time', eventTimeInput(d.event_time))}${field('background', `<select name="background_id">${backgroundOptions(backgrounds, d.background_id)}</select>`)}${field('round1Target', input('round1_target', d.round1_target, 'number', 'min="1" max="99" required'))}${field('round2Target', input('round2_target', d.round2_target, 'number', 'min="1" max="99" required'))}</div></section>` + window.TBRosterEditor.markup({ users, entries: d.entries, editable: true, allowRandom: false, t, esc, person });
+      body = `<section class="panel"><div class="panel-body form-grid">${field('name', input('name', d.name, 'text', 'required'), true)}${field('time', startTimeInput(d.start_time))}${field('background', `<select name="background_id">${backgroundOptions(backgrounds, d.background_id)}</select>`)}${field('round1Target', input('round1_target', d.round1_target, 'number', 'min="1" max="99" required'))}${field('round2Target', input('round2_target', d.round2_target, 'number', 'min="1" max="99" required'))}</div></section>` + window.TBRosterEditor.markup({ users, entries: d.entries, editable: true, allowRandom: false, t, esc, person });
     } else if (d.step === 4) {
       const stages = [1, 2, ...(needsAce(d) ? [3] : [])];
       const wins = stages.filter(stage => winner(d.matches[stage]) === 'a').length;
-      body = `<section class="panel"><div class="panel-head"><h2>${esc(d.name)}</h2><strong>${label(wins >= 2 ? 'a' : 'b')} ${t('win')} · ${wins} : ${stages.length - wins}</strong></div><div class="panel-body"><p class="help">${esc(d.event_time.slice(0, 10))} · ${esc(d.event_time.slice(11, 13))} ${t('hour')}</p><div class="archive-team-summary">${['a', 'b'].map(side => `<div><strong>${label(side)}</strong><p>${teamIDs(d, side).map(id => esc(name(id))).join('、')}</p></div>`).join('')}</div>${stages.map(stage => `<section class="archive-review-stage">${stageSummary(stage)}${stage === 3 ? `<p class="help">${t('aceSourceLabel')}：${sourceLabel(d.ace_source, t)}</p>` : ''}${rows(stage, false)}</section>`).join('')}<p class="help">${t('confirmEndHint')}</p></div></section>`;
+      body = `<section class="panel"><div class="panel-head"><h2>${esc(d.name)}</h2><strong>${label(wins >= 2 ? 'a' : 'b')} ${t('win')} · ${wins} : ${stages.length - wins}</strong></div><div class="panel-body"><p class="help">${esc(d.start_time.slice(0, 10))} · ${esc(d.start_time.slice(11, 13))} ${t('hour')}</p><div class="archive-team-summary">${['a', 'b'].map(side => `<div><strong>${label(side)}</strong><p>${teamIDs(d, side).map(id => esc(name(id))).join('、')}</p></div>`).join('')}</div>${stages.map(stage => `<section class="archive-review-stage">${stageSummary(stage)}${stage === 3 ? `<p class="help">${t('aceSourceLabel')}：${sourceLabel(d.ace_source, t)}</p>` : ''}${rows(stage, false)}</section>`).join('')}<p class="help">${t('confirmEndHint')}</p></div></section>`;
     } else {
       const complete = finished(d, round), target = round === 3 ? 1 : d['round' + round + '_target'];
       const candidates = Object.fromEntries(['a', 'b'].map(side => [side, round === 2 ? nextPlayers(d, side) : { ids: teamIDs(d, side) }]));
@@ -54,7 +54,7 @@
     const form = document.getElementById('archive-form');
     const readBasics = () => {
       const values = new FormData(form);
-      d.name = String(values.get('name') || ''); d.event_time = eventTimeValue(values); d.background_id = Number(values.get('background_id'));
+      d.name = String(values.get('name') || ''); d.start_time = startTimeValue(values); d.background_id = Number(values.get('background_id'));
       d.round1_target = Number(values.get('round1_target')); d.round2_target = Number(values.get('round2_target'));
     };
     if (d.step === 0) {
@@ -100,7 +100,7 @@
       } else if (d.step === 4) {
         if (![1, 2, ...(needsAce(d) ? [3] : [])].every(stage => finished(d, stage))) throw Error(t('archiveIncomplete'));
         if (!(await window.TBConfirm.ask(t('confirmEndHint')))) return;
-        await ctx.onSave({ name: d.name, event_time: d.event_time, background_id: d.background_id, round1_target: d.round1_target, round2_target: d.round2_target, ace_source: d.ace_source, player_ids: d.entries.map(([id]) => id), fixed_assignments: Object.fromEntries(d.entries), matches: [1, 2, 3].flatMap(stage => d.matches[stage]) });
+        await ctx.onSave({ name: d.name, start_time: d.start_time, background_id: d.background_id, round1_target: d.round1_target, round2_target: d.round2_target, ace_source: d.ace_source, player_ids: d.entries.map(([id]) => id), fixed_assignments: Object.fromEntries(d.entries), matches: [1, 2, 3].flatMap(stage => d.matches[stage]) });
       } else {
         if (finished(d, round)) return;
         const side = event.submitter?.value;

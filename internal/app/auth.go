@@ -220,13 +220,13 @@ func (a *App) managerEvent(c *gin.Context) (User, int64, bool) {
 		fail(c, http.StatusForbidden, "需要赛事管理员权限")
 		return User{}, 0, false
 	}
-	eventID, err := parseID(c.Param("id"))
-	if err != nil || !a.canManageEvent(actor.ID, actor.Role, eventID) {
+	tournamentID, err := parseID(c.Param("id"))
+	if err != nil || !a.canManageEvent(actor.ID, actor.Role, tournamentID) {
 		fail(c, http.StatusForbidden, "无权操作该赛事")
 		return User{}, 0, false
 	}
 	var status string
-	if err := a.db.QueryRow(`SELECT status FROM tournaments WHERE id=?`, eventID).Scan(&status); err != nil {
+	if err := a.db.QueryRow(`SELECT status FROM tournaments WHERE id=?`, tournamentID).Scan(&status); err != nil {
 		fail(c, http.StatusNotFound, "赛事不存在")
 		return User{}, 0, false
 	}
@@ -234,43 +234,43 @@ func (a *App) managerEvent(c *gin.Context) (User, int64, bool) {
 		fail(c, http.StatusBadRequest, "已结束赛事不能编辑")
 		return User{}, 0, false
 	}
-	return actor, eventID, true
+	return actor, tournamentID, true
 }
 
-func (a *App) canManageEvent(userID int64, role string, eventID int64) bool {
+func (a *App) canManageEvent(userID int64, role string, tournamentID int64) bool {
 	if role == roleSuperAdmin {
 		return true
 	}
 	var exists int
-	return isNonSuperAdmin(role) && a.db.QueryRow(`SELECT COUNT(*) FROM tournaments WHERE id=? AND manager_id=?`, eventID, userID).Scan(&exists) == nil && exists == 1
+	return isNonSuperAdmin(role) && a.db.QueryRow(`SELECT COUNT(*) FROM tournaments WHERE id=? AND manager_id=?`, tournamentID, userID).Scan(&exists) == nil && exists == 1
 }
 
-func (a *App) canViewEvent(userID int64, role string, eventID int64) bool {
+func (a *App) canViewEvent(userID int64, role string, tournamentID int64) bool {
 	if role == roleSuperAdmin {
-		return a.eventExists(eventID)
+		return a.eventExists(tournamentID)
 	}
 	if isNonSuperAdmin(role) {
-		if a.canManageEvent(userID, role, eventID) {
+		if a.canManageEvent(userID, role, tournamentID) {
 			return true
 		}
 		var exists int
-		return a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=?`, eventID, userID).Scan(&exists) == nil && exists == 1
+		return a.db.QueryRow(`SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND user_id=?`, tournamentID, userID).Scan(&exists) == nil && exists == 1
 	}
 	var exists int
-	return a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND user_id=?`, eventID, userID).Scan(&exists) == nil && exists == 1
+	return a.db.QueryRow(`SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND user_id=?`, tournamentID, userID).Scan(&exists) == nil && exists == 1
 }
 
-func (a *App) eventExists(eventID int64) bool {
+func (a *App) eventExists(tournamentID int64) bool {
 	var count int
-	return a.db.QueryRow(`SELECT COUNT(*) FROM tournaments WHERE id=?`, eventID).Scan(&count) == nil && count == 1
+	return a.db.QueryRow(`SELECT COUNT(*) FROM tournaments WHERE id=?`, tournamentID).Scan(&count) == nil && count == 1
 }
 
-func (a *App) isEventPlayer(eventID, teamID, userID int64) bool {
+func (a *App) isEventPlayer(tournamentID, teamID, userID int64) bool {
 	var count int
-	return a.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=? AND team_id=? AND user_id=?`, eventID, teamID, userID).Scan(&count) == nil && count == 1
+	return a.db.QueryRow(`SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND team_id=? AND user_id=?`, tournamentID, teamID, userID).Scan(&count) == nil && count == 1
 }
 
-func (a *App) logAction(eventID, actorID int64, action string, payload any) {
+func (a *App) logAction(tournamentID, actorID int64, action string, payload any) {
 	data := "{}"
 	if payload != nil {
 		encoded, err := json.Marshal(payload)
@@ -278,5 +278,5 @@ func (a *App) logAction(eventID, actorID int64, action string, payload any) {
 			data = string(encoded)
 		}
 	}
-	_, _ = a.db.Exec(`INSERT INTO event_actions(event_id,actor_id,action,payload) VALUES(?,?,?,?)`, eventID, actorID, action, data)
+	_, _ = a.db.Exec(`INSERT INTO tournament_actions(tournament_id,actor_id,action,payload) VALUES(?,?,?,?)`, tournamentID, actorID, action, data)
 }

@@ -16,13 +16,13 @@ func (a *App) eventDetail(c *gin.Context) {
 		fail(c, http.StatusUnauthorized, "未登录")
 		return
 	}
-	eventID, err := parseID(c.Param("id"))
-	if err != nil || !a.canViewEvent(user.ID, user.Role, eventID) {
+	tournamentID, err := parseID(c.Param("id"))
+	if err != nil || !a.canViewEvent(user.ID, user.Role, tournamentID) {
 		fail(c, http.StatusForbidden, "无权查看该赛事")
 		return
 	}
 	// 预报名审计含尚未公开的选手，完整审计仅供赛事管理员查看。
-	data, err := a.buildEvent(eventID, a.canManageEvent(user.ID, user.Role, eventID))
+	data, err := a.buildEvent(tournamentID, a.canManageEvent(user.ID, user.Role, tournamentID))
 	if err != nil {
 		fail(c, http.StatusNotFound, "赛事不存在")
 		return
@@ -31,12 +31,12 @@ func (a *App) eventDetail(c *gin.Context) {
 }
 
 func (a *App) publicEvent(c *gin.Context) {
-	eventID, err := parseID(c.Param("id"))
+	tournamentID, err := parseID(c.Param("id"))
 	if err != nil {
 		fail(c, http.StatusBadRequest, "赛事编号无效")
 		return
 	}
-	data, err := a.buildEvent(eventID, false)
+	data, err := a.buildEvent(tournamentID, false)
 	if err != nil {
 		fail(c, http.StatusNotFound, "赛事不存在")
 		return
@@ -44,18 +44,18 @@ func (a *App) publicEvent(c *gin.Context) {
 	ok(c, data)
 }
 
-func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, error) {
+func (a *App) buildEvent(tournamentID int64, includePrivate bool) (map[string]any, error) {
 	var event = map[string]any{}
-	var name, description, eventTime, status, createdAt string
+	var name, description, startTime, status, createdAt string
 	var round1Target, round2Target, managerID int64
 	var backgroundID sql.NullInt64
-	if err := a.db.QueryRow(`SELECT e.name,e.description,e.event_time,e.status,e.round1_target,e.round2_target,e.manager_id,e.created_at,e.background_id FROM tournaments e WHERE e.id=?`, eventID).Scan(&name, &description, &eventTime, &status, &round1Target, &round2Target, &managerID, &createdAt, &backgroundID); err != nil {
+	if err := a.db.QueryRow(`SELECT e.name,e.description,e.start_time,e.status,e.round1_target,e.round2_target,e.manager_id,e.created_at,e.background_id FROM tournaments e WHERE e.id=?`, tournamentID).Scan(&name, &description, &startTime, &status, &round1Target, &round2Target, &managerID, &createdAt, &backgroundID); err != nil {
 		return nil, err
 	}
-	event["id"] = eventID
+	event["id"] = tournamentID
 	event["name"] = name
 	event["description"] = description
-	event["event_time"] = eventTime
+	event["start_time"] = startTime
 	event["status"] = status
 	event["round1_target"] = round1Target
 	event["round2_target"] = round2Target
@@ -74,7 +74,7 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 			event["background_url"] = "/api/backgrounds/" + strconv.FormatInt(backgroundID.Int64, 10) + "/image?v=" + url.QueryEscape(updatedAt)
 		}
 	}
-	teams, err := a.loadTeams(eventID)
+	teams, err := a.loadTeams(tournamentID)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 		return nil, err
 	}
 	setup := []map[string]any{}
-	setupRows, err := a.db.Query(`SELECT user_id,fixed_team FROM event_setup_roster WHERE event_id=? ORDER BY position,user_id`, eventID)
+	setupRows, err := a.db.Query(`SELECT user_id,fixed_team FROM tournament_setup_roster WHERE tournament_id=? ORDER BY position,user_id`, tournamentID)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 	setupRows.Close()
 	event["setup_roster"] = setup
 	var raw string
-	if err := a.db.QueryRow(`SELECT rules_json FROM tournaments WHERE id=?`, eventID).Scan(&raw); err != nil {
+	if err := a.db.QueryRow(`SELECT rules_json FROM tournaments WHERE id=?`, tournamentID).Scan(&raw); err != nil {
 		return nil, err
 	}
 	rules, err := decodeRules(raw)
@@ -114,7 +114,7 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 	}
 	event["rules"] = rules
 	starters := []map[string]any{}
-	selectionRows, err := a.db.Query(`SELECT team_id,player_id FROM player_selections WHERE event_id=? AND stage='round2' AND EXISTS (SELECT 1 FROM matches WHERE event_id=? AND round_no=2) ORDER BY team_id`, eventID, eventID)
+	selectionRows, err := a.db.Query(`SELECT team_id,player_id FROM player_selections WHERE tournament_id=? AND stage='round2' AND EXISTS (SELECT 1 FROM matches WHERE tournament_id=? AND round_no=2) ORDER BY team_id`, tournamentID, tournamentID)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +134,7 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 	event["kof_starters"] = starters
 	if rules.KOFStarter == "random" {
 		var aID, bID sql.NullInt64
-		if err := a.db.QueryRow(`SELECT kof_initial_a,kof_initial_b FROM tournaments WHERE id=?`, eventID).Scan(&aID, &bID); err != nil {
+		if err := a.db.QueryRow(`SELECT kof_initial_a,kof_initial_b FROM tournaments WHERE id=?`, tournamentID).Scan(&aID, &bID); err != nil {
 			return nil, err
 		}
 		if aID.Valid && bID.Valid && len(teams) == 2 {
@@ -142,7 +142,7 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 		}
 	}
 	lineups := []map[string]any{}
-	lineupRows, err := a.db.Query(`SELECT team_id,position,player_id,source FROM lineup_entries WHERE event_id=? ORDER BY team_id,position`, eventID)
+	lineupRows, err := a.db.Query(`SELECT team_id,position,player_id,source FROM lineup_entries WHERE tournament_id=? ORDER BY team_id,position`, tournamentID)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 	}
 	event["lineups"] = lineups
 	votes := []map[string]any{}
-	voteRows, err := a.db.Query(`SELECT target_id,COUNT(*) FROM captain_votes WHERE event_id=? GROUP BY target_id`, eventID)
+	voteRows, err := a.db.Query(`SELECT target_id,COUNT(*) FROM captain_votes WHERE tournament_id=? GROUP BY target_id`, tournamentID)
 	if err != nil {
 		return nil, err
 	}
@@ -184,17 +184,17 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 	}
 	voteRows.Close()
 	event["votes"] = votes
-	rounds, err := a.loadRounds(eventID)
+	rounds, err := a.loadRounds(tournamentID)
 	if err != nil {
 		return nil, err
 	}
 	event["rounds"] = rounds
-	matches, err := a.loadMatches(eventID)
+	matches, err := a.loadMatches(tournamentID)
 	if err != nil {
 		return nil, err
 	}
 	event["matches"] = matches
-	if draw, err := a.loadAceDrawResult(eventID); err == nil && draw != nil {
+	if draw, err := a.loadAceDrawResult(tournamentID); err == nil && draw != nil {
 		event["ace_draw"] = draw
 		event["ace_draw_source"] = draw.Source
 		if draw.Special > 0 {
@@ -202,20 +202,20 @@ func (a *App) buildEvent(eventID int64, includePrivate bool) (map[string]any, er
 		}
 	}
 	if includePrivate {
-		actions, _ := a.loadActions(eventID)
+		actions, _ := a.loadActions(tournamentID)
 		event["actions"] = actions
 	}
 	return event, nil
 }
 
-func (a *App) loadTeams(eventID int64) ([]map[string]any, error) {
-	ready, err := lineupReadiness(a.db, eventID)
+func (a *App) loadTeams(tournamentID int64) ([]map[string]any, error) {
+	ready, err := lineupReadiness(a.db, tournamentID)
 	if err != nil {
 		return nil, err
 	}
 	teams := []map[string]any{}
-	for side, id := range fixedTeamIDs(eventID) {
-		players, err := a.loadPlayers(eventID, id)
+	for side, id := range fixedTeamIDs(tournamentID) {
+		players, err := a.loadPlayers(tournamentID, id)
 		if err != nil {
 			return nil, err
 		}
@@ -224,12 +224,12 @@ func (a *App) loadTeams(eventID int64) ([]map[string]any, error) {
 	return teams, nil
 }
 
-func (a *App) loadPlayers(eventID, teamID int64) ([]map[string]any, error) {
+func (a *App) loadPlayers(tournamentID, teamID int64) ([]map[string]any, error) {
 	users, err := a.userDirectory()
 	if err != nil {
 		return nil, err
 	}
-	rows, err := a.db.Query(`SELECT user_id,is_captain,active FROM event_players WHERE event_id=? AND team_id=? ORDER BY is_captain DESC,user_id`, eventID, teamID)
+	rows, err := a.db.Query(`SELECT user_id,is_captain,active FROM tournament_players WHERE tournament_id=? AND team_id=? ORDER BY is_captain DESC,user_id`, tournamentID, teamID)
 	if err != nil {
 		return nil, err
 	}
@@ -262,8 +262,8 @@ func (a *App) loadPlayers(eventID, teamID int64) ([]map[string]any, error) {
 	return items, nil
 }
 
-func (a *App) loadRounds(eventID int64) ([]map[string]any, error) {
-	rows, err := a.db.Query(`SELECT id,stage,target_score,score_a,score_b,winner_team_id,status,updated_at FROM rounds WHERE event_id=? ORDER BY CASE stage WHEN 'round1' THEN 1 WHEN 'round2' THEN 2 ELSE 3 END`, eventID)
+func (a *App) loadRounds(tournamentID int64) ([]map[string]any, error) {
+	rows, err := a.db.Query(`SELECT id,stage,target_score,score_a,score_b,winner_team_id,status,updated_at FROM rounds WHERE tournament_id=? ORDER BY CASE stage WHEN 'round1' THEN 1 WHEN 'round2' THEN 2 ELSE 3 END`, tournamentID)
 	if err != nil {
 		return nil, err
 	}
@@ -285,12 +285,12 @@ func (a *App) loadRounds(eventID int64) ([]map[string]any, error) {
 	return items, nil
 }
 
-func (a *App) loadMatches(eventID int64) ([]map[string]any, error) {
+func (a *App) loadMatches(tournamentID int64) ([]map[string]any, error) {
 	users, err := a.userDirectory()
 	if err != nil {
 		return nil, err
 	}
-	rows, err := a.db.Query(`SELECT m.id,m.round_id,r.stage,m.seq,m.team_a_id,'A 队',m.team_b_id,'B 队',m.player_a_id,m.player_b_id,m.winner_team_id,m.next_player_id,m.status,m.note,m.created_at,m.finished_at FROM matches m JOIN rounds r ON r.id=m.round_id WHERE m.event_id=? ORDER BY m.round_id,m.seq`, eventID)
+	rows, err := a.db.Query(`SELECT m.id,m.round_id,r.stage,m.seq,m.team_a_id,'A 队',m.team_b_id,'B 队',m.player_a_id,m.player_b_id,m.winner_team_id,m.next_player_id,m.status,m.note,m.created_at,m.finished_at FROM matches m JOIN rounds r ON r.id=m.round_id WHERE m.tournament_id=? ORDER BY m.round_id,m.seq`, tournamentID)
 	if err != nil {
 		return nil, err
 	}
@@ -340,8 +340,8 @@ func (a *App) loadMatches(eventID int64) ([]map[string]any, error) {
 	return items, nil
 }
 
-func (a *App) loadActions(eventID int64) ([]map[string]any, error) {
-	rows, err := a.db.Query(`SELECT ea.id,ea.action,ea.payload,ea.created_at,COALESCE(u.display_name,'系统') FROM event_actions ea LEFT JOIN users u ON u.id=ea.actor_id WHERE ea.event_id=? ORDER BY ea.id DESC LIMIT 30`, eventID)
+func (a *App) loadActions(tournamentID int64) ([]map[string]any, error) {
+	rows, err := a.db.Query(`SELECT ea.id,ea.action,ea.payload,ea.created_at,COALESCE(u.display_name,'系统') FROM tournament_actions ea LEFT JOIN users u ON u.id=ea.actor_id WHERE ea.tournament_id=? ORDER BY ea.id DESC LIMIT 30`, tournamentID)
 	if err != nil {
 		return nil, err
 	}
@@ -358,12 +358,14 @@ func (a *App) loadActions(eventID int64) ([]map[string]any, error) {
 	return items, nil
 }
 
-func (a *App) roundInfo(eventID int64, stage string) (int64, int, int, int, string, error) {
+func (a *App) roundInfo(tournamentID int64, stage string) (int64, int, int, int, string, error) {
 	var target, scoreA, scoreB int
 	var roundID int64
 	var status string
-	err := a.db.QueryRow(`SELECT id,target_score,score_a,score_b,status FROM rounds WHERE event_id=? AND stage=?`, eventID, stage).Scan(&roundID, &target, &scoreA, &scoreB, &status)
+	err := a.db.QueryRow(`SELECT id,target_score,score_a,score_b,status FROM rounds WHERE tournament_id=? AND stage=?`, tournamentID, stage).Scan(&roundID, &target, &scoreA, &scoreB, &status)
 	return roundID, target, scoreA, scoreB, status, err
 }
 
-func (a *App) teamIDs(eventID int64) ([]int64, error) { return loadFixedTeamIDs(a.db, eventID) }
+func (a *App) teamIDs(tournamentID int64) ([]int64, error) {
+	return loadFixedTeamIDs(a.db, tournamentID)
+}

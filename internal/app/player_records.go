@@ -41,11 +41,11 @@ func (a *App) publicPlayerRecords(c *gin.Context) {
 	rows, err := a.db.Query(`SELECT opponent_id,SUM(won),SUM(1-won),SUM(CASE WHEN round_no=3 THEN won ELSE 0 END),SUM(CASE WHEN round_no=3 THEN 1-won ELSE 0 END)
 		FROM (
 			SELECT m.player_b_id AS opponent_id,m.round_no,m.winner_team_id=m.team_a_id AS won
-			FROM matches m JOIN tournaments e ON e.id=m.event_id
+			FROM matches m JOIN tournaments e ON e.id=m.tournament_id
 			WHERE m.player_a_id=? AND m.status='finished' AND m.winner_team_id IN (m.team_a_id,m.team_b_id) AND e.status<>'cancelled'
 			UNION ALL
 			SELECT m.player_a_id AS opponent_id,m.round_no,m.winner_team_id=m.team_b_id AS won
-			FROM matches m JOIN tournaments e ON e.id=m.event_id
+			FROM matches m JOIN tournaments e ON e.id=m.tournament_id
 			WHERE m.player_b_id=? AND m.status='finished' AND m.winner_team_id IN (m.team_a_id,m.team_b_id) AND e.status<>'cancelled'
 		) GROUP BY opponent_id`, id, id)
 	if err != nil {
@@ -92,12 +92,12 @@ func (a *App) publicPlayerRecords(c *gin.Context) {
 	// 团战按确认结束的整场赛事计数，未实际出场的正式队员也共享本队胜负。
 	teamBattle := recordScore{}
 	err = a.db.QueryRow(`SELECT COALESCE(SUM(won_rounds>=2),0),COALESCE(SUM(lost_rounds>=2),0) FROM (
-		SELECT p.event_id,
+		SELECT p.tournament_id,
 			SUM(CASE WHEN r.winner_team_id=p.team_id THEN 1 ELSE 0 END) AS won_rounds,
 			SUM(CASE WHEN r.winner_team_id<>p.team_id THEN 1 ELSE 0 END) AS lost_rounds
-		FROM event_players p JOIN tournaments e ON e.id=p.event_id JOIN rounds r ON r.event_id=e.id
+		FROM tournament_players p JOIN tournaments e ON e.id=p.tournament_id JOIN rounds r ON r.tournament_id=e.id
 		WHERE p.user_id=? AND p.active=1 AND e.status='completed' AND r.status='finished' AND r.stage IN ('round1','round2','ace')
-		GROUP BY p.event_id
+		GROUP BY p.tournament_id
 	)`, id).Scan(&teamBattle.Wins, &teamBattle.Losses)
 	if err != nil {
 		fail(c, http.StatusInternalServerError, "读取团战战绩失败")

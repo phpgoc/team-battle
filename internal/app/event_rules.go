@@ -113,7 +113,7 @@ func (r EventRules) validate() error {
 	return nil
 }
 
-func normalizeEventTime(value string) (string, error) {
+func normalizeStartTime(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	for _, layout := range []string{"2006-01-02T15", "2006-01-02T15:04", "2006-01-02T15:04:05", "2006-01-02 15:04:05", time.RFC3339} {
 		if parsed, err := time.Parse(layout, value); err == nil {
@@ -123,12 +123,12 @@ func normalizeEventTime(value string) (string, error) {
 	return "", errors.New("比赛开始时间格式不正确")
 }
 
-func saveRules(tx *sql.Tx, eventID int64, rules EventRules) error {
+func saveRules(tx *sql.Tx, tournamentID int64, rules EventRules) error {
 	raw, err := json.Marshal(rules)
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(`UPDATE tournaments SET rules_json=? WHERE id=?`, string(raw), eventID)
+	_, err = tx.Exec(`UPDATE tournaments SET rules_json=? WHERE id=?`, string(raw), tournamentID)
 	return err
 }
 
@@ -139,15 +139,15 @@ func normalizeEventMetadata(db *sql.DB) error {
 		return err
 	}
 	defer tx.Rollback()
-	rows, err := tx.Query(`SELECT id,event_time FROM tournaments`)
+	rows, err := tx.Query(`SELECT id,start_time FROM tournaments`)
 	if err != nil {
 		return err
 	}
-	type eventTime struct {
+	type startTime struct {
 		id    int64
 		value string
 	}
-	times := []eventTime{}
+	times := []startTime{}
 	for rows.Next() {
 		var id int64
 		var value string
@@ -155,9 +155,9 @@ func normalizeEventMetadata(db *sql.DB) error {
 			rows.Close()
 			return err
 		}
-		normalized, err := normalizeEventTime(value)
+		normalized, err := normalizeStartTime(value)
 		if err == nil && normalized != value {
-			times = append(times, eventTime{id, normalized})
+			times = append(times, startTime{id, normalized})
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -166,7 +166,7 @@ func normalizeEventMetadata(db *sql.DB) error {
 	}
 	rows.Close()
 	for _, item := range times {
-		if _, err := tx.Exec(`UPDATE tournaments SET event_time=? WHERE id=?`, item.value, item.id); err != nil {
+		if _, err := tx.Exec(`UPDATE tournaments SET start_time=? WHERE id=?`, item.value, item.id); err != nil {
 			return err
 		}
 	}

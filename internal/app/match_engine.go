@@ -16,9 +16,9 @@ type sqlRunner interface {
 	QueryRow(string, ...any) *sql.Row
 }
 type matchEngine struct {
-	db               sqlRunner
-	eventID, actorID int64
-	rng              *rand.Rand
+	db                    sqlRunner
+	tournamentID, actorID int64
+	rng                   *rand.Rand
 }
 
 type engineRound struct {
@@ -34,12 +34,12 @@ type engineMatch struct {
 
 func (e *matchEngine) round(stage string) (engineRound, error) {
 	var r engineRound
-	err := e.db.QueryRow(`SELECT id,target_score,score_a,score_b,COALESCE(winner_team_id,0),status FROM rounds WHERE event_id=? AND stage=?`, e.eventID, stage).Scan(&r.id, &r.target, &r.a, &r.b, &r.winner, &r.status)
+	err := e.db.QueryRow(`SELECT id,target_score,score_a,score_b,COALESCE(winner_team_id,0),status FROM rounds WHERE tournament_id=? AND stage=?`, e.tournamentID, stage).Scan(&r.id, &r.target, &r.a, &r.b, &r.winner, &r.status)
 	return r, err
 }
-func (e *matchEngine) teams() ([]int64, error) { return loadFixedTeamIDs(e.db, e.eventID) }
+func (e *matchEngine) teams() ([]int64, error) { return loadFixedTeamIDs(e.db, e.tournamentID) }
 func (e *matchEngine) players(team int64) ([]int64, error) {
-	rows, err := e.db.Query(`SELECT user_id FROM event_players WHERE event_id=? AND team_id=? AND active=1 ORDER BY user_id`, e.eventID, team)
+	rows, err := e.db.Query(`SELECT user_id FROM tournament_players WHERE tournament_id=? AND team_id=? AND active=1 ORDER BY user_id`, e.tournamentID, team)
 	if err != nil {
 		return nil, err
 	}
@@ -64,12 +64,12 @@ func containsID(ids []int64, id int64) bool {
 }
 func (e *matchEngine) match(id int64) (engineMatch, error) {
 	var m engineMatch
-	err := e.db.QueryRow(`SELECT m.id,m.round_id,m.seq,m.team_a_id,m.team_b_id,m.player_a_id,m.player_b_id,COALESCE(m.winner_team_id,0),COALESCE(m.next_player_id,0),r.stage,m.status FROM matches m JOIN rounds r ON r.id=m.round_id WHERE m.id=? AND m.event_id=?`, id, e.eventID).Scan(&m.id, &m.roundID, &m.seq, &m.teamA, &m.teamB, &m.playerA, &m.playerB, &m.winner, &m.next, &m.stage, &m.status)
+	err := e.db.QueryRow(`SELECT m.id,m.round_id,m.seq,m.team_a_id,m.team_b_id,m.player_a_id,m.player_b_id,COALESCE(m.winner_team_id,0),COALESCE(m.next_player_id,0),r.stage,m.status FROM matches m JOIN rounds r ON r.id=m.round_id WHERE m.id=? AND m.tournament_id=?`, id, e.tournamentID).Scan(&m.id, &m.roundID, &m.seq, &m.teamA, &m.teamB, &m.playerA, &m.playerB, &m.winner, &m.next, &m.stage, &m.status)
 	return m, err
 }
 func (e *matchEngine) rules() (EventRules, error) {
 	var raw string
-	err := e.db.QueryRow(`SELECT rules_json FROM tournaments WHERE id=?`, e.eventID).Scan(&raw)
+	err := e.db.QueryRow(`SELECT rules_json FROM tournaments WHERE id=?`, e.tournamentID).Scan(&raw)
 	if err != nil {
 		return EventRules{}, err
 	}
@@ -77,11 +77,11 @@ func (e *matchEngine) rules() (EventRules, error) {
 }
 func (e *matchEngine) status() (string, error) {
 	var s string
-	err := e.db.QueryRow(`SELECT status FROM tournaments WHERE id=?`, e.eventID).Scan(&s)
+	err := e.db.QueryRow(`SELECT status FROM tournaments WHERE id=?`, e.tournamentID).Scan(&s)
 	return s, err
 }
 func (e *matchEngine) setStage(stage string) error {
-	_, err := e.db.Exec(`UPDATE tournaments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, stage, e.eventID)
+	_, err := e.db.Exec(`UPDATE tournaments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, stage, e.tournamentID)
 	return err
 }
 func (e *matchEngine) log(action string, payload any) error {
@@ -89,7 +89,7 @@ func (e *matchEngine) log(action string, payload any) error {
 	if err != nil {
 		return err
 	}
-	_, err = e.db.Exec(`INSERT INTO event_actions(event_id,actor_id,action,payload) VALUES(?,?,?,?)`, e.eventID, e.actorID, action, string(raw))
+	_, err = e.db.Exec(`INSERT INTO tournament_actions(tournament_id,actor_id,action,payload) VALUES(?,?,?,?)`, e.tournamentID, e.actorID, action, string(raw))
 	return err
 }
 func (e *matchEngine) insertMatch(stage string, a, b int64) error {
@@ -105,7 +105,7 @@ func (e *matchEngine) insertMatch(stage string, a, b int64) error {
 	if err := e.db.QueryRow(`SELECT COALESCE(MAX(seq),0)+1 FROM matches WHERE round_id=?`, r.id).Scan(&seq); err != nil {
 		return err
 	}
-	_, err = e.db.Exec(`INSERT INTO matches(event_id,round_id,seq,team_a_id,team_b_id,player_a_id,player_b_id,status,created_by) VALUES(?,?,?,?,?,?,?,'pending',?)`, e.eventID, r.id, seq, teams[0], teams[1], a, b, e.actorID)
+	_, err = e.db.Exec(`INSERT INTO matches(tournament_id,round_id,seq,team_a_id,team_b_id,player_a_id,player_b_id,status,created_by) VALUES(?,?,?,?,?,?,?,'pending',?)`, e.tournamentID, r.id, seq, teams[0], teams[1], a, b, e.actorID)
 	return err
 }
 func (e *matchEngine) start() error {
@@ -137,7 +137,7 @@ func (e *matchEngine) start() error {
 	if err := e.fillLineups(false); err != nil {
 		return err
 	}
-	if _, err := e.db.Exec(`UPDATE rounds SET status='active' WHERE event_id=? AND stage='round1'`, e.eventID); err != nil {
+	if _, err := e.db.Exec(`UPDATE rounds SET status='active' WHERE tournament_id=? AND stage='round1'`, e.tournamentID); err != nil {
 		return err
 	}
 	if err := e.setStage(stageRound1); err != nil {
@@ -157,7 +157,7 @@ func (e *matchEngine) fillLineups(force bool) error {
 		return errors.New("当前阶段不能随机排阵")
 	}
 	var setupEntries int
-	if err := e.db.QueryRow(`SELECT COUNT(*) FROM lineup_entries WHERE event_id=? AND source='setup_draw'`, e.eventID).Scan(&setupEntries); err != nil {
+	if err := e.db.QueryRow(`SELECT COUNT(*) FROM lineup_entries WHERE tournament_id=? AND source='setup_draw'`, e.tournamentID).Scan(&setupEntries); err != nil {
 		return err
 	}
 	if !force && setupEntries > 0 {
@@ -165,7 +165,7 @@ func (e *matchEngine) fillLineups(force bool) error {
 	}
 	// 已公开的随机排阵同样是正式结果，仅显式重新抽签时才清空。
 	if force {
-		if _, err := e.db.Exec(`DELETE FROM lineup_entries WHERE event_id=?`, e.eventID); err != nil {
+		if _, err := e.db.Exec(`DELETE FROM lineup_entries WHERE tournament_id=?`, e.tournamentID); err != nil {
 			return err
 		}
 	}
@@ -174,7 +174,7 @@ func (e *matchEngine) fillLineups(force bool) error {
 		return err
 	}
 	var total int
-	if err := e.db.QueryRow(`SELECT COUNT(*) FROM event_players WHERE event_id=?`, e.eventID).Scan(&total); err != nil {
+	if err := e.db.QueryRow(`SELECT COUNT(*) FROM tournament_players WHERE tournament_id=?`, e.tournamentID).Scan(&total); err != nil {
 		return err
 	}
 	for _, team := range teams {
@@ -187,13 +187,13 @@ func (e *matchEngine) fillLineups(force bool) error {
 		used := map[int64]bool{}
 		for pos := 1; pos <= limit; pos++ {
 			var id int64
-			if err := e.db.QueryRow(`SELECT player_id FROM lineup_entries WHERE event_id=? AND team_id=? AND position=?`, e.eventID, team, pos).Scan(&id); err == nil {
+			if err := e.db.QueryRow(`SELECT player_id FROM lineup_entries WHERE tournament_id=? AND team_id=? AND position=?`, e.tournamentID, team, pos).Scan(&id); err == nil {
 				used[id] = true
 			}
 		}
 		for pos := 1; pos <= limit; pos++ {
 			var existing int
-			if err := e.db.QueryRow(`SELECT COUNT(*) FROM lineup_entries WHERE event_id=? AND team_id=? AND position=?`, e.eventID, team, pos).Scan(&existing); err != nil {
+			if err := e.db.QueryRow(`SELECT COUNT(*) FROM lineup_entries WHERE tournament_id=? AND team_id=? AND position=?`, e.tournamentID, team, pos).Scan(&existing); err != nil {
 				return err
 			}
 			if existing > 0 {
@@ -210,7 +210,7 @@ func (e *matchEngine) fillLineups(force bool) error {
 				return errors.New("排阵中选手重复")
 			}
 			used[chosen] = true
-			if _, err := e.db.Exec(`INSERT INTO lineup_entries(event_id,team_id,position,player_id,source) VALUES(?,?,?,?,'random')`, e.eventID, team, pos, chosen); err != nil {
+			if _, err := e.db.Exec(`INSERT INTO lineup_entries(tournament_id,team_id,position,player_id,source) VALUES(?,?,?,?,'random')`, e.tournamentID, team, pos, chosen); err != nil {
 				return err
 			}
 		}
@@ -237,7 +237,7 @@ func (e *matchEngine) nextRound1() error {
 	chosen := []int64{}
 	for _, team := range teams {
 		var id int64
-		err := e.db.QueryRow(`SELECT player_id FROM lineup_entries WHERE event_id=? AND team_id=? AND position=?`, e.eventID, team, count+1).Scan(&id)
+		err := e.db.QueryRow(`SELECT player_id FROM lineup_entries WHERE tournament_id=? AND team_id=? AND position=?`, e.tournamentID, team, count+1).Scan(&id)
 		if err == nil {
 			chosen = append(chosen, id)
 			continue
@@ -335,12 +335,12 @@ func (e *matchEngine) afterResult(m engineMatch) error {
 			if err := e.setStage(stageRound2); err != nil {
 				return err
 			}
-			if _, err := e.db.Exec(`UPDATE rounds SET status='active' WHERE event_id=? AND stage='round2'`, e.eventID); err != nil {
+			if _, err := e.db.Exec(`UPDATE rounds SET status='active' WHERE tournament_id=? AND stage='round2'`, e.tournamentID); err != nil {
 				return err
 			}
 			return e.initialKOF()
 		case stageRound2:
-			if _, err := e.db.Exec(`DELETE FROM kof_reservations WHERE event_id=?`, e.eventID); err != nil {
+			if _, err := e.db.Exec(`DELETE FROM kof_reservations WHERE tournament_id=?`, e.tournamentID); err != nil {
 				return err
 			}
 			first, err := e.round(stageRound1)
@@ -354,7 +354,7 @@ func (e *matchEngine) afterResult(m engineMatch) error {
 				return err
 			}
 			// KOF结束只进入待抽签阶段，管理员核对录分后再手动抽取大将。
-			if _, err := e.db.Exec(`UPDATE rounds SET status='pending' WHERE event_id=? AND stage='ace'`, e.eventID); err != nil {
+			if _, err := e.db.Exec(`UPDATE rounds SET status='pending' WHERE tournament_id=? AND stage='ace'`, e.tournamentID); err != nil {
 				return err
 			}
 			return nil
@@ -465,7 +465,7 @@ func (e *matchEngine) chooseKOF(m engineMatch, player int64) error {
 }
 func (e *matchEngine) initialKOF() error {
 	// 重走首轮结果时不能沿用此前的队长首发选择。
-	if _, err := e.db.Exec(`DELETE FROM player_selections WHERE event_id=? AND stage='round2'`, e.eventID); err != nil {
+	if _, err := e.db.Exec(`DELETE FROM player_selections WHERE tournament_id=? AND stage='round2'`, e.tournamentID); err != nil {
 		return err
 	}
 	rules, err := e.rules()
@@ -476,7 +476,7 @@ func (e *matchEngine) initialKOF() error {
 		return nil
 	}
 	var initialA, initialB sql.NullInt64
-	if err := e.db.QueryRow(`SELECT kof_initial_a,kof_initial_b FROM tournaments WHERE id=?`, e.eventID).Scan(&initialA, &initialB); err != nil {
+	if err := e.db.QueryRow(`SELECT kof_initial_a,kof_initial_b FROM tournaments WHERE id=?`, e.tournamentID).Scan(&initialA, &initialB); err != nil {
 		return err
 	}
 	if initialA.Valid && initialB.Valid {
@@ -523,7 +523,7 @@ func (e *matchEngine) selectKOFStarter(teamID, playerID int64, manager bool) err
 		return errors.New("队伍不存在")
 	}
 	var matches int
-	if err := e.db.QueryRow(`SELECT COUNT(*) FROM matches m JOIN rounds r ON r.id=m.round_id WHERE m.event_id=? AND r.stage='round2'`, e.eventID).Scan(&matches); err != nil {
+	if err := e.db.QueryRow(`SELECT COUNT(*) FROM matches m JOIN rounds r ON r.id=m.round_id WHERE m.tournament_id=? AND r.stage='round2'`, e.tournamentID).Scan(&matches); err != nil {
 		return err
 	}
 	if matches > 0 {
@@ -541,14 +541,14 @@ func (e *matchEngine) selectKOFStarter(teamID, playerID int64, manager bool) err
 			return err
 		}
 		var selected int
-		if err := e.db.QueryRow(`SELECT COUNT(*) FROM player_selections WHERE event_id=? AND stage='round2' AND team_id=?`, e.eventID, teamID).Scan(&selected); err != nil {
+		if err := e.db.QueryRow(`SELECT COUNT(*) FROM player_selections WHERE tournament_id=? AND stage='round2' AND team_id=?`, e.tournamentID, teamID).Scan(&selected); err != nil {
 			return err
 		}
 		if selected > 0 {
 			return errors.New("本队已提交首发，如需调整请联系赛事管理员")
 		}
 	}
-	if _, err := e.db.Exec(`INSERT INTO player_selections(event_id,stage,team_id,player_id) VALUES(?,'round2',?,?) ON CONFLICT(event_id,stage,team_id) DO UPDATE SET player_id=excluded.player_id`, e.eventID, teamID, playerID); err != nil {
+	if _, err := e.db.Exec(`INSERT INTO player_selections(tournament_id,stage,team_id,player_id) VALUES(?,'round2',?,?) ON CONFLICT(tournament_id,stage,team_id) DO UPDATE SET player_id=excluded.player_id`, e.tournamentID, teamID, playerID); err != nil {
 		return err
 	}
 	if err := e.log("kof_starter_selected", map[string]any{"team_id": teamID, "player_id": playerID}); err != nil {
@@ -557,7 +557,7 @@ func (e *matchEngine) selectKOFStarter(teamID, playerID int64, manager bool) err
 	chosen := []int64{}
 	for _, team := range teams {
 		var player int64
-		err := e.db.QueryRow(`SELECT player_id FROM player_selections WHERE event_id=? AND stage='round2' AND team_id=?`, e.eventID, team).Scan(&player)
+		err := e.db.QueryRow(`SELECT player_id FROM player_selections WHERE tournament_id=? AND stage='round2' AND team_id=?`, e.tournamentID, team).Scan(&player)
 		if err == sql.ErrNoRows {
 			return nil
 		}
@@ -590,13 +590,13 @@ func (e *matchEngine) beginAceDraw() error {
 		return errors.New("前两轮必须各胜一轮才能抽取大将")
 	}
 	var count int
-	if err := e.db.QueryRow(`SELECT COUNT(*) FROM matches WHERE event_id=? AND round_no=3`, e.eventID).Scan(&count); err != nil {
+	if err := e.db.QueryRow(`SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=3`, e.tournamentID).Scan(&count); err != nil {
 		return err
 	}
 	if count != 0 {
 		return errors.New("大将战已抽签，不能重复抽取")
 	}
-	if _, err := e.db.Exec(`UPDATE rounds SET status='active' WHERE event_id=? AND stage='ace'`, e.eventID); err != nil {
+	if _, err := e.db.Exec(`UPDATE rounds SET status='active' WHERE tournament_id=? AND stage='ace'`, e.tournamentID); err != nil {
 		return err
 	}
 	return e.drawAce()
@@ -675,7 +675,7 @@ func (e *matchEngine) drawAce() error {
 		return err
 	}
 	var matchID int64
-	if err := e.db.QueryRow(`SELECT id FROM matches WHERE event_id=? AND round_no=3`, e.eventID).Scan(&matchID); err != nil {
+	if err := e.db.QueryRow(`SELECT id FROM matches WHERE tournament_id=? AND round_no=3`, e.tournamentID).Scan(&matchID); err != nil {
 		return err
 	}
 	return e.log("ace_drawn", map[string]any{"match_id": matchID, "player_a_id": chosen[0], "player_b_id": chosen[1], "source": mode, "rules": sources, "candidate_ids": candidatesByTeam, "candidate_counts": []int{len(candidatesByTeam[0]), len(candidatesByTeam[1])}})
@@ -694,7 +694,7 @@ func (e *matchEngine) aceRecordCandidates(ids []int64, mostWins bool) ([]int64, 
 	records := make([]aceRecord, 0, len(ids))
 	for _, id := range ids {
 		var wins, losses int
-		if err := e.db.QueryRow(`SELECT COALESCE(SUM(CASE WHEN ((player_a_id=? AND winner_team_id=team_a_id) OR (player_b_id=? AND winner_team_id=team_b_id)) THEN 1 ELSE 0 END),0), COALESCE(SUM(CASE WHEN ((player_a_id=? AND winner_team_id=team_b_id) OR (player_b_id=? AND winner_team_id=team_a_id)) THEN 1 ELSE 0 END),0) FROM matches WHERE event_id=? AND status='finished' AND round_id IN (SELECT id FROM rounds WHERE event_id=? AND stage IN ('round1','round2'))`, id, id, id, id, e.eventID, e.eventID).Scan(&wins, &losses); err != nil {
+		if err := e.db.QueryRow(`SELECT COALESCE(SUM(CASE WHEN ((player_a_id=? AND winner_team_id=team_a_id) OR (player_b_id=? AND winner_team_id=team_b_id)) THEN 1 ELSE 0 END),0), COALESCE(SUM(CASE WHEN ((player_a_id=? AND winner_team_id=team_b_id) OR (player_b_id=? AND winner_team_id=team_a_id)) THEN 1 ELSE 0 END),0) FROM matches WHERE tournament_id=? AND status='finished' AND round_id IN (SELECT id FROM rounds WHERE tournament_id=? AND stage IN ('round1','round2'))`, id, id, id, id, e.tournamentID, e.tournamentID).Scan(&wins, &losses); err != nil {
 			return nil, err
 		}
 		records = append(records, aceRecord{playerID: id, wins: wins, losses: losses})
@@ -735,7 +735,7 @@ func (e *matchEngine) correct(m engineMatch, winner int64, note string) error {
 		return errors.New("胜负未变化，无需修正")
 	}
 	// 修正历史比分时，所有依赖原结果的预报名作废。
-	if _, err := e.db.Exec(`DELETE FROM kof_reservations WHERE event_id=?`, e.eventID); err != nil {
+	if _, err := e.db.Exec(`DELETE FROM kof_reservations WHERE tournament_id=?`, e.tournamentID); err != nil {
 		return err
 	}
 	stages := []string{stageRound1, stageRound2, stageAce}

@@ -7,7 +7,7 @@ import (
 
 // 分组抽签前可以补充选手并调整固定队伍，保存不执行抽签。
 func (a *App) addEventPlayers(c *gin.Context) {
-	actor, eventID, access := a.managerEvent(c)
+	actor, tournamentID, access := a.managerEvent(c)
 	if !access {
 		return
 	}
@@ -29,38 +29,38 @@ func (a *App) addEventPlayers(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback()
-	if err := requireEditableSettings(tx, eventID); err != nil {
+	if err := requireEditableSettings(tx, tournamentID); err != nil {
 		fail(c, 400, err.Error())
 		return
 	}
-	if grouped, err := eventHasGrouping(tx, eventID); err != nil || grouped {
+	if grouped, err := eventHasGrouping(tx, tournamentID); err != nil || grouped {
 		fail(c, 400, "分组抽签后不能修改参赛阵容")
 		return
 	}
-	for _, table := range []string{"kof_reservations", "matches", "captain_votes", "lineup_entries", "player_selections", "event_players"} {
-		if _, err := tx.Exec(`DELETE FROM `+table+` WHERE event_id=?`, eventID); err != nil {
+	for _, table := range []string{"kof_reservations", "matches", "captain_votes", "lineup_entries", "player_selections", "tournament_players"} {
+		if _, err := tx.Exec(`DELETE FROM `+table+` WHERE tournament_id=?`, tournamentID); err != nil {
 			fail(c, 500, err.Error())
 			return
 		}
 	}
-	if _, err := tx.Exec(`UPDATE tournaments SET lineup_a_submitted=0,lineup_b_submitted=0 WHERE id=?`, eventID); err != nil {
+	if _, err := tx.Exec(`UPDATE tournaments SET lineup_a_submitted=0,lineup_b_submitted=0 WHERE id=?`, tournamentID); err != nil {
 		fail(c, 500, err.Error())
 		return
 	}
-	if err := saveSetupRoster(tx, eventID, req.PlayerIDs, req.FixedAssignments); err != nil {
+	if err := saveSetupRoster(tx, tournamentID, req.PlayerIDs, req.FixedAssignments); err != nil {
 		fail(c, 400, err.Error())
 		return
 	}
-	if _, err := tx.Exec(`UPDATE tournaments SET status='draft',kof_initial_a=NULL,kof_initial_b=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`, eventID); err != nil {
+	if _, err := tx.Exec(`UPDATE tournaments SET status='draft',kof_initial_a=NULL,kof_initial_b=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`, tournamentID); err != nil {
 		fail(c, 500, err.Error())
 		return
 	}
-	if _, err := tx.Exec(`UPDATE rounds SET status='pending' WHERE event_id=?`, eventID); err != nil {
+	if _, err := tx.Exec(`UPDATE rounds SET status='pending' WHERE tournament_id=?`, tournamentID); err != nil {
 		fail(c, 500, err.Error())
 		return
 	}
 	var raw string
-	if err := tx.QueryRow(`SELECT rules_json FROM tournaments WHERE id=?`, eventID).Scan(&raw); err != nil {
+	if err := tx.QueryRow(`SELECT rules_json FROM tournaments WHERE id=?`, tournamentID).Scan(&raw); err != nil {
 		fail(c, 500, err.Error())
 		return
 	}
@@ -97,7 +97,7 @@ func (a *App) addEventPlayers(c *gin.Context) {
 		}
 	}
 	rules.AceSpecials = groups
-	if err := saveRules(tx, eventID, rules); err != nil {
+	if err := saveRules(tx, tournamentID, rules); err != nil {
 		fail(c, 500, err.Error())
 		return
 	}
@@ -105,7 +105,7 @@ func (a *App) addEventPlayers(c *gin.Context) {
 		fail(c, 500, err.Error())
 		return
 	}
-	a.logAction(eventID, actor.ID, "event_roster_updated", body)
+	a.logAction(tournamentID, actor.ID, "event_roster_updated", body)
 	ok(c, gin.H{"ok": true})
 }
 

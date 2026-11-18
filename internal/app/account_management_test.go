@@ -120,7 +120,7 @@ func TestAccountCreateDeleteAndRecordProtection(t *testing.T) {
 	id := f.create(t, "random")
 	f.enterKOF(t, id)
 	// 已录分的双方都不能删除，无论输赢；已抽签但未录分不算战绩。
-	match := f.scalar(t, "SELECT id FROM matches WHERE event_id=? AND round_no=1", id)
+	match := f.scalar(t, "SELECT id FROM matches WHERE tournament_id=? AND round_no=1", id)
 	for _, side := range []string{"player_a_id", "player_b_id"} {
 		player := f.scalar(t, "SELECT "+side+" FROM matches WHERE id=?", match)
 		f.request(t, 1, "DELETE", fmt.Sprintf("/api/users/%d", player), nil, 400)

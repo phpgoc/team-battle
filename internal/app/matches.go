@@ -6,13 +6,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (a *App) runMatchMutation(eventID, actorID int64, work func(*matchEngine) error) error {
+func (a *App) runMatchMutation(tournamentID, actorID int64, work func(*matchEngine) error) error {
 	tx, err := a.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	engine := &matchEngine{db: tx, eventID: eventID, actorID: actorID, rng: a.rng}
+	engine := &matchEngine{db: tx, tournamentID: tournamentID, actorID: actorID, rng: a.rng}
 	s, err := engine.status()
 	if err != nil {
 		return err
@@ -82,7 +82,7 @@ func (a *App) submitOpeningResult(c *gin.Context) {
 		}
 		for index, player := range []int64{req.PlayerAID, req.PlayerBID} {
 			var current int64
-			if err := e.db.QueryRow(`SELECT player_id FROM lineup_entries WHERE event_id=? AND team_id=? AND position=1`, id, teams[index]).Scan(&current); err != nil || current != player {
+			if err := e.db.QueryRow(`SELECT player_id FROM lineup_entries WHERE tournament_id=? AND team_id=? AND position=1`, id, teams[index]).Scan(&current); err != nil || current != player {
 				return errors.New("当前对阵已变化，请刷新后录分")
 			}
 		}
@@ -90,7 +90,7 @@ func (a *App) submitOpeningResult(c *gin.Context) {
 			return err
 		}
 		var matchID int64
-		if err := e.db.QueryRow(`SELECT id FROM matches WHERE event_id=? AND round_no=1 AND seq=1 AND status='pending'`, id).Scan(&matchID); err != nil {
+		if err := e.db.QueryRow(`SELECT id FROM matches WHERE tournament_id=? AND round_no=1 AND seq=1 AND status='pending'`, id).Scan(&matchID); err != nil {
 			return err
 		}
 		match, err := e.match(matchID)

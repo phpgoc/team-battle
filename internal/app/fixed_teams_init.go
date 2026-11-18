@@ -33,15 +33,15 @@ func initializeFixedTeams(db *sql.DB) error {
 	}
 	defer tx.Rollback()
 	// 队名固定，只有双方提交状态需要保留；旧队伍ID只用于本次关联转换。
-	if _, err := tx.Exec(`CREATE TEMP TABLE fixed_team_map AS SELECT t.id AS old_id,t.event_id*2-CASE WHEN t.id=(SELECT MIN(id) FROM teams WHERE event_id=t.event_id) THEN 1 ELSE 0 END AS new_id FROM teams t`); err != nil {
+	if _, err := tx.Exec(`CREATE TEMP TABLE fixed_team_map AS SELECT t.id AS old_id,t.tournament_id*2-CASE WHEN t.id=(SELECT MIN(id) FROM teams WHERE tournament_id=t.tournament_id) THEN 1 ELSE 0 END AS new_id FROM teams t`); err != nil {
 		return err
 	}
 	defer conn.ExecContext(ctx, `DROP TABLE IF EXISTS temp.fixed_team_map`)
-	if _, err := tx.Exec(`UPDATE tournaments SET lineup_a_submitted=COALESCE((SELECT lineup_submitted FROM teams WHERE id=(SELECT MIN(id) FROM teams WHERE event_id=tournaments.id)),0),lineup_b_submitted=COALESCE((SELECT lineup_submitted FROM teams WHERE id=(SELECT MAX(id) FROM teams WHERE event_id=tournaments.id)),0)`); err != nil {
+	if _, err := tx.Exec(`UPDATE tournaments SET lineup_a_submitted=COALESCE((SELECT lineup_submitted FROM teams WHERE id=(SELECT MIN(id) FROM teams WHERE tournament_id=tournaments.id)),0),lineup_b_submitted=COALESCE((SELECT lineup_submitted FROM teams WHERE id=(SELECT MAX(id) FROM teams WHERE tournament_id=tournaments.id)),0)`); err != nil {
 		return err
 	}
 	// 重建父表时暂时卸下关联触发器，避免SQLite校验尚未恢复的父表名称。
-	triggerRows, err := tx.Query(`SELECT name,sql FROM sqlite_master WHERE type='trigger' AND tbl_name IN ('event_players','captain_votes','lineup_entries','rounds','matches','player_selections','kof_reservations')`)
+	triggerRows, err := tx.Query(`SELECT name,sql FROM sqlite_master WHERE type='trigger' AND tbl_name IN ('tournament_players','captain_votes','lineup_entries','rounds','matches','player_selections','kof_reservations')`)
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func initializeFixedTeams(db *sql.DB) error {
 			return err
 		}
 	}
-	for _, table := range []string{"event_players", "captain_votes", "lineup_entries", "rounds", "matches", "player_selections", "kof_reservations"} {
+	for _, table := range []string{"tournament_players", "captain_votes", "lineup_entries", "rounds", "matches", "player_selections", "kof_reservations"} {
 		if err := rebuildWithoutTeamTable(tx, table); err != nil {
 			return fmt.Errorf("转换%s: %w", table, err)
 		}
