@@ -47,6 +47,7 @@
     toast(t('sessionReplaced'));
   }
   const post = (url, body = {}, method = 'POST') => api(url, { method, body: JSON.stringify(body) });
+  const confirmAction = message => window.TBConfirm.ask(message);
   function action(fn) {
     return async event => {
       const source = event?.currentTarget;
@@ -71,7 +72,7 @@
   function picker() { return `<select class="language-picker" aria-label="Language">${Object.entries(langs).map(([key, name]) => `<option value="${key}"${state.language === key ? ' selected' : ''}>${name}</option>`).join('')}</select>`; }
   function closeStream() { state.stream?.close(); state.stream = null; if (state.drawTimer) clearInterval(state.drawTimer); state.drawTimer = null; state.drawToken += 1; state.draw = null; state.setupDraw = null; document.querySelectorAll('.setup-flying-player').forEach(node => node.remove()); }
   function pageURL(page) { return page === 'home' ? '/' : `/workspace?page=${page}`; }
-  function go(url) { closeStream(); state.editor = null; state.ruleDraft = null; state.operations = false; history.pushState({}, '', url); renderRoute().catch(error => toast(error.message)); }
+  function go(url) { window.TBConfirm.cancel(); closeStream(); state.editor = null; state.ruleDraft = null; state.operations = false; history.pushState({}, '', url); renderRoute().catch(error => toast(error.message)); }
   // 语言只改变当前视图的文案，保留表单值和路由。
   const formKey = (form, index) => form.id || ['name', 'category', 'kofReserve'].map(key => form.dataset[key] ? `${key}:${form.dataset[key]}` : '').find(Boolean) || `form:${index}`;
   const fieldType = el => el.dataset.passwordField ? 'password' : el.type;
@@ -202,7 +203,7 @@
     }
     shell(`<div class="page-head"><h1>${t('accounts')}</h1><button class="primary accent" data-go="${pageURL('accounts')}&edit=new">${t('createUser')}</button></div><section class="panel"><div class="panel-body"><input id="account-search" aria-label="${t('searchPlayers')}" placeholder="${t('searchPlayers')}"><p class="help">${t('accountDeleteHint')}</p></div><div class="table-wrap"><table class="table"><thead><tr><th>${t('account')}</th><th>${t('role')}</th><th>${t('category')}</th><th>${t('actions')}</th></tr></thead><tbody>${users.map(u => `<tr data-account-row="${esc((u.username + ' ' + u.display_name).toLowerCase())}"><td>${person(u)}</td><td>${t(u.role)}</td><td>${esc(u.category_name || '—')}</td><td><div class="account-actions"><button class="link" data-go="${pageURL('accounts')}&edit=${u.id}">${t('editAccount')}</button><button class="link danger" data-delete-user="${u.id}"${u.can_delete ? '' : ' disabled'} title="${u.can_delete ? '' : t(u.id === state.user.id ? 'cannotDeleteSelf' : 'cannotDeletePlayed')}">${t('delete')}</button></div></td></tr>`).join('')}</tbody></table></div></section>`, 'accounts');
     $('#account-search').oninput = event => { const text = event.target.value.trim().toLowerCase(); $$('[data-account-row]').forEach(row => { row.hidden = !row.dataset.accountRow.includes(text); }); };
-    $$('[data-delete-user]').forEach(button => button.onclick = action(async () => { if (!confirm(t('deleteAccountConfirm'))) return; await api('/api/users/' + button.dataset.deleteUser, { method: 'DELETE' }); await usersPage(); toast(t('saved')); }));
+    $$('[data-delete-user]').forEach(button => button.onclick = action(async () => { if (!(await confirmAction(t('deleteAccountConfirm')))) return; await api('/api/users/' + button.dataset.deleteUser, { method: 'DELETE' }); await usersPage(); toast(t('saved')); }));
   }
 
   async function siteSettingsPage() {
@@ -212,7 +213,7 @@
     $('#category-form').onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/categories', { method: 'POST', body: new FormData(event.target) }); await siteSettingsPage(); });
     $$('[data-name]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); await post('/api/site-settings/event-names/' + form.dataset.name, Object.fromEntries(new FormData(form)), 'PATCH'); await siteSettingsPage(); }));
     $$('[data-category]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/categories/' + form.dataset.category, { method: 'PATCH', body: new FormData(form) }); await siteSettingsPage(); }));
-    for (const kind of ['name', 'category']) $$(`[data-delete-${kind}]`).forEach(button => button.onclick = action(async () => { if (!confirm(t('deleteConfirm'))) return; const id = button.getAttribute('data-delete-' + kind); const path = kind === 'name' ? 'event-names' : kind === 'category' ? 'categories' : 'backgrounds'; await api('/api/site-settings/' + path + '/' + id, { method: 'DELETE' }); await siteSettingsPage(); }));
+    for (const kind of ['name', 'category']) $$(`[data-delete-${kind}]`).forEach(button => button.onclick = action(async () => { if (!(await confirmAction(t('deleteConfirm')))) return; const id = button.getAttribute('data-delete-' + kind); const path = kind === 'name' ? 'event-names' : kind === 'category' ? 'categories' : 'backgrounds'; await api('/api/site-settings/' + path + '/' + id, { method: 'DELETE' }); await siteSettingsPage(); }));
   }
 
   async function backgroundsPage() {
@@ -220,7 +221,7 @@
     shell(`<div class="page-head"><h1>${t('backgrounds')}</h1></div><section class="panel"><div class="panel-head"><h2>${t('backgrounds')}</h2></div><div class="panel-body"><form id="background-form" class="field">${field('backgroundName', input('name', '', 'text', 'required'))}${field('backgroundImage', '<div class="background-file-actions"><input type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp" required><button class="primary">' + t('add') + '</button></div>')}<p class="help">${t('backgroundHint')}</p></form>${data.backgrounds.map(b => `<form class="background-edit item-form" data-background="${b.id}"><img class="background-preview" src="${esc(b.thumbnail_url)}" loading="lazy" decoding="async" alt="">${input('name', b.name, 'text', 'required')}<div class="background-file-actions"><input type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp"><button class="outline">${t('save')}</button><button type="button" class="link danger" data-delete-background="${b.id}">${t('delete')}</button></div></form>`).join('')}</div></section>`, 'backgrounds');
     $('#background-form').onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/backgrounds', { method: 'POST', body: new FormData(event.target) }); await backgroundsPage(); toast(t('saved')); });
     $$('[data-background]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/backgrounds/' + form.dataset.background, { method: 'PATCH', body: new FormData(form) }); await backgroundsPage(); toast(t('saved')); }));
-    $$('[data-delete-background]').forEach(button => button.onclick = action(async () => { if (!confirm(t('deleteConfirm'))) return; await api('/api/site-settings/backgrounds/' + button.dataset.deleteBackground, { method: 'DELETE' }); await backgroundsPage(); toast(t('saved')); }));
+    $$('[data-delete-background]').forEach(button => button.onclick = action(async () => { if (!(await confirmAction(t('deleteConfirm')))) return; await api('/api/site-settings/backgrounds/' + button.dataset.deleteBackground, { method: 'DELETE' }); await backgroundsPage(); toast(t('saved')); }));
   }
 
   const rosterContext = () => ({ t, esc, person });
@@ -381,7 +382,7 @@
       };
       const correctionMatch = e.matches?.find(match => match.id === Number(f.get('correction_match_id')));
       if (correctionMatch && correctionMatch.winner_team_id !== Number(f.get('correction_winner_team_id'))) {
-        if (!confirm(t('correctHint'))) return;
+        if (!(await confirmAction(t('correctHint')))) return;
         body.correction = { match_id: correctionMatch.id, winner_team_id: Number(f.get('correction_winner_team_id')) };
       }
       if (mode === 'create') { const created = await post('/api/events', body); toast(t('eventCreated')); go('/live/' + created.id); }
@@ -418,7 +419,7 @@
     if (match.stage === 'ace' && match.status === 'waiting') return `<section class="board-current-match"><div class="board-current-head"><span class="board-round-no">${t('ace')}</span><span>${t('awaitingAceDraw')}</span></div><div class="board-ace-waiting"><p>${t(editable(e) ? 'aceDrawReviewHint' : 'aceDrawWaitingHint')}</p>${editable(e) ? `<button type="button" class="primary accent" id="draw-ace"${state.drawingAce ? ' disabled' : ''}>${t('drawAce')}</button>` : ''}</div></section>`;
     const a = people.find(p => p.id === match.player_a_id) || { display_name: match.player_a_name }, b = people.find(p => p.id === match.player_b_id) || { display_name: match.player_b_name };
     const canRecord = editable(e) && !state.setupDraw && match.player_a_id && match.player_b_id && (match.status === 'pending' || (preMatch(e) && match.status === 'planned'));
-    const result = side => canRecord ? `<button type="button" class="board-current-win" data-current-winner="${e.teams[side].id}" data-current-match="${match.id || 0}" data-player-a="${match.player_a_id}" data-player-b="${match.player_b_id}">${t('recordWin')}</button>` : '';
+    const result = side => canRecord ? `<button type="button" class="board-current-win" data-current-winner="${e.teams[side].id}" data-current-match="${match.id || 0}" data-player-a="${match.player_a_id}" data-player-b="${match.player_b_id}"${state.recordingResult ? ' disabled' : ''}>${t('recordWin')}</button>` : '';
     return `<section class="board-current-match"><div class="board-current-head"><span class="board-round-no">${t(match.stage)}</span><span>${t('currentMatch')}</span></div><div class="board-draw-roll" id="draw-roll" aria-live="polite" hidden><span>${t('drawing')}</span><div><strong id="draw-roll-a">${esc(a.display_name)}</strong><b>VS</b><strong id="draw-roll-b">${esc(b.display_name)}</strong></div></div><div class="board-current-fighters"><div class="board-current-side">${currentPlayerMarkup(e, a, match.stage, 'a')}${result(0)}</div><div class="board-current-vs">VS</div><div class="board-current-side">${currentPlayerMarkup(e, b, match.stage, 'b')}${result(1)}</div></div></section>`;
   }
   function aceSourceLabel(e) { if (e.ace_draw_source === 'most_wins') return t('sourceMostWins'); if (e.ace_draw_source === 'most_losses') return t('sourceMostLosses'); if (e.ace_draw_source === 'special') return `${t('specialMatchGroup')}${e.ace_draw_special || 1}`; if (e.ace_draw_source === 'mixed') return t('mixed'); return t('random'); }
@@ -535,7 +536,16 @@
       $$('[data-current-winner]').forEach(control => control.disabled = true);
       try {
         const id = Number(button.dataset.currentMatch), winner = Number(button.dataset.currentWinner);
-        await eventAction(id ? '/matches/' + id + '/result' : '/opening-result', { winner_team_id: winner, player_a_id: Number(button.dataset.playerA), player_b_id: Number(button.dataset.playerB) });
+        const playerA = Number(button.dataset.playerA), playerB = Number(button.dataset.playerB);
+        const match = id ? e.matches.find(match => match.id === id) : plannedMatches(e, 'round1').find(match => match.player_a_id === playerA && match.player_b_id === playerB);
+        if (!match) return;
+        const people = e.teams.flatMap(team => team.players);
+        if (!(await window.TBConfirm.result({ stage: t(match.stage), seq: match.seq, a: people.find(player => player.id === playerA)?.display_name || match.player_a_name, b: people.find(player => player.id === playerB)?.display_name || match.player_b_name, winner: winner === e.teams[0].id ? 'a' : 'b' }))) return;
+        // 弹窗期间仍接收SSE；只允许提交打开弹窗时的同一场、同一组对手。
+        const current = state.event;
+        const latest = current?.id === e.id && (id ? current.matches.find(match => match.id === id && match.status === 'pending' && match.stage === current.status) : preMatch(current) && plannedMatches(current, 'round1').find(match => match.seq === 1));
+        if (!latest || !editable(current) || latest.player_a_id !== playerA || latest.player_b_id !== playerB) { toast(t('resultChanged')); return; }
+        await eventAction(id ? '/matches/' + id + '/result' : '/opening-result', { winner_team_id: winner, player_a_id: playerA, player_b_id: playerB });
       } finally {
         state.recordingResult = false;
         $$('[data-current-winner]').forEach(control => control.disabled = false);
@@ -740,7 +750,7 @@
     $('#close-operations')?.addEventListener('click', () => { state.operations = false; $('#event-operations').classList.add('hidden'); });
     $('#operations-lineup')?.addEventListener('click', event => { event.preventDefault(); go('/live/' + e.id + '/lineup'); });
     $('#ace-form')?.addEventListener('submit', action(async event => { event.preventDefault(); const f = new FormData(event.target); await eventAction('/ace/confirm', { player_a_id: Number(f.get('player_a_id')), player_b_id: Number(f.get('player_b_id')) }); }));
-    $('#confirm-end')?.addEventListener('click', action(async () => { if (confirm(t('confirmEndHint'))) await eventAction('/confirm'); }));
+    $('#confirm-end')?.addEventListener('click', action(async () => { if (await confirmAction(t('confirmEndHint'))) await eventAction('/confirm'); }));
   }
   async function openEvent(id, preserve = false, setting = false) {
     if (state.event?.id !== Number(id)) state.event = null;

@@ -72,12 +72,12 @@
           $(`[data-preview="${side}"]`, form).innerHTML = player(Number(select.value)) ? person(player(Number(select.value))) : '';
         }
       });
-      form.querySelectorAll('[data-redo]').forEach(button => button.onclick = () => {
-        if (!confirm(t('archiveRedoConfirm'))) return;
+      form.querySelectorAll('[data-redo]').forEach(button => button.onclick = action(async () => {
+        if (!(await window.TBConfirm.ask(t('archiveRedoConfirm')))) return;
         d.matches[round].splice(Number(button.dataset.redo));
         for (let stage = round + 1; stage <= 3; stage++) d.matches[stage] = [];
         d.picks = {}; redraw();
-      });
+      }));
       $('#archive-next', form).onclick = () => {
         if (!finished(d, round)) return;
         d.step = round === 1 ? 2 : round === 2 && needsAce(d) ? 3 : 4;
@@ -93,13 +93,13 @@
         if (d.entries.length < 6 || d.entries.length > 12 || !teamIDs(d, 'a').length || !teamIDs(d, 'b').length) throw Error(t('archiveRosterRequired'));
         const signature = JSON.stringify([d.entries, d.round1_target, d.round2_target]);
         if (d.signature && d.signature !== signature && Object.values(d.matches).some(matches => matches.length)) {
-          if (!confirm(t('archiveRosterReset'))) return;
+          if (!(await window.TBConfirm.ask(t('archiveRosterReset')))) return;
           d.matches = { 1: [], 2: [], 3: [] }; d.picks = {};
         }
         d.signature = signature; d.step = 1; redraw();
       } else if (d.step === 4) {
         if (![1, 2, ...(needsAce(d) ? [3] : [])].every(stage => finished(d, stage))) throw Error(t('archiveIncomplete'));
-        if (!confirm(t('confirmEndHint'))) return;
+        if (!(await window.TBConfirm.ask(t('confirmEndHint')))) return;
         await ctx.onSave({ name: d.name, event_time: d.event_time, background_id: d.background_id, round1_target: d.round1_target, round2_target: d.round2_target, ace_source: d.ace_source, player_ids: d.entries.map(([id]) => id), fixed_assignments: Object.fromEntries(d.entries), matches: [1, 2, 3].flatMap(stage => d.matches[stage]) });
       } else {
         if (finished(d, round)) return;
@@ -107,6 +107,8 @@
         if (!['a', 'b'].includes(side)) return;
         const picks = d.picks[round];
         if (!picks.a || !picks.b) { toast(t('archiveNoEligible')); return; }
+        if (!(await window.TBConfirm.result({ stage: roundName(round), seq: d.matches[round].length + 1, a: name(picks.a), b: name(picks.b), winner: side }))) return;
+        if (!form.isConnected) return;
         d.matches[round].push({ round, a_id: picks.a, b_id: picks.b, who_win: side });
         delete d.picks[round]; redraw();
       }

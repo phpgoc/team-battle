@@ -1,0 +1,13 @@
+/* 使用视口定位，避免底页横向溢出时把弹窗及按钮挤出手机屏幕。 */
+.confirm-dialog{position:fixed;left:50dvw;top:50dvh;right:auto;bottom:auto;margin:0;transform:translate(-50%,-50%);width:min(520px,calc(100dvw - 32px));max-height:calc(100dvh - 32px);overflow:auto;border:1px solid #e1e7ef;border-radius:18px;padding:0;background:#fff;color:#172c43;box-shadow:0 28px 90px #0006}
+.confirm-dialog::backdrop{background:#091321ba}
+.confirm-heading{padding:24px 26px 0}.confirm-heading h2{font-size:22px;line-height:1.4;margin:0}
+.confirm-body{padding:18px 26px 24px}.confirm-body>p{margin:0;line-height:1.8;color:#63758a;font-size:14px;white-space:pre-line;overflow-wrap:anywhere}
+.confirm-body .confirm-stage{margin:0 0 14px;font-size:13px}
+.confirm-match{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:12px;align-items:center;margin-bottom:20px}
+.confirm-player{display:grid;gap:10px;align-content:center;min-width:0;padding:18px 14px;border:1px solid #e1e7ef;border-radius:12px;background:#f7f9fc;text-align:center}
+.confirm-player span{font-size:13px;color:#63758a}.confirm-player strong{font-size:22px;line-height:1.4;overflow-wrap:anywhere}.confirm-player b{font-size:13px}
+.confirm-winner{background:#fff2ef;border-color:#efb0a2;color:#bf4137}.confirm-loser{color:#268259}.confirm-vs{color:#91a0b2;font-size:13px;font-weight:700}
+.confirm-actions{display:flex;justify-content:flex-end;gap:12px;padding:18px 26px;background:#f7f9fc;border-top:1px solid #e7edf3}
+.confirm-actions button{min-width:90px;min-height:44px}.confirm-actions button:focus-visible{outline:3px solid #3578e5;outline-offset:3px}
+@media(max-width:480px){.confirm-heading{padding:20px 18px 0}.confirm-body{padding:16px 18px 20px}.confirm-actions{padding:16px 18px}.confirm-match{gap:8px}.confirm-player{padding:14px 10px}.confirm-player strong{font-size:19px}}

@@ -21,7 +21,7 @@ func (a *App) router() *gin.Engine {
 	r.GET("/workspace", a.serveIndex)
 	r.GET("/assets/styles.css", a.serveStyles)
 	r.GET("/assets/app.js", a.serveAppScript)
-	for _, asset := range []struct{ path, contentType string }{{"lineup-page.js", "application/javascript"}, {"lineup-page.css", "text/css"}, {"kof-board.js", "application/javascript"}, {"kof-board.css", "text/css"}, {"archive-page.js", "application/javascript"}, {"archive-page.css", "text/css"}} {
+	for _, asset := range []struct{ path, contentType string }{{"lineup-page.js", "application/javascript"}, {"lineup-page.css", "text/css"}, {"kof-board.js", "application/javascript"}, {"kof-board.css", "text/css"}, {"archive-page.js", "application/javascript"}, {"archive-page.css", "text/css"}, {"confirm-dialog.js", "application/javascript"}, {"confirm-dialog.css", "text/css"}} {
 		path, contentType := asset.path, asset.contentType
 		r.GET("/assets/"+path, func(c *gin.Context) {
 			data, err := webFS.ReadFile("web/" + path)

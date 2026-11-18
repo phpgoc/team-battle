@@ -1,5 +1,8 @@
 window.TB_I18N = {
   "zh": {
+    "confirmRecordWin": "确认录入获胜",
+    "recordWinConfirmHint": "请核对双方选手及胜者，点击确认后录入本局结果。",
+    "resultChanged": "当前对局已变化，请核对后重新录入。",
     "archiveBasics": "基本资料",
     "archiveReview": "核对保存",
     "archiveIntro": "分轮录入每局胜者，自动计算比分与赛事结果。",
@@ -306,6 +309,9 @@ window.TB_I18N = {
     "categoryIconFormat": "分类图标只支持 JPG、PNG、GIF 或 WebP"
   },
   "en": {
+    "confirmRecordWin": "Confirm match winner",
+    "recordWinConfirmHint": "Check both players and the winner, then click Confirm to record this result.",
+    "resultChanged": "The current match has changed. Check it before recording a result.",
     "profileWeekly": "Changes to your own profile share a 7-day cooldown. Update all details together. Password changes are always allowed.",
     "profileCooldown": "Profile changes share a 7-day cooldown; passwords are exempt",
     "drawAce": "Draw ace players",
@@ -598,6 +604,9 @@ window.TB_I18N = {
     "categoryIconFormat": "Category icons must be JPG, PNG, GIF or WebP."
   },
   "ko": {
+    "confirmRecordWin": "승리 기록 확인",
+    "recordWinConfirmHint": "양쪽 선수와 승자를 확인한 뒤 확인 버튼을 눌러 결과를 기록하세요.",
+    "resultChanged": "현재 대진이 변경되었습니다. 확인 후 다시 기록하세요.",
     "profileWeekly": "본인 정보 변경은 7일 대기 시간을 공유합니다. 필요한 항목을 함께 변경하세요. 비밀번호는 언제든 변경할 수 있습니다.",
     "profileCooldown": "개인 정보 변경은 7일 대기 시간을 공유하며 비밀번호는 제외됩니다",
     "drawAce": "대장 추첨",
