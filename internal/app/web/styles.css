@@ -375,7 +375,7 @@ tr[hidden]{display:none}
   .broadcast-board .board-roster-name{font-size:19px}
 }
 /* 只调整面板底色，文字、比分和选手图标保持完全不透明。 */
-.broadcast-board .board-round,.broadcast-board .board-rules{background-color:rgba(23,35,56,var(--board-panel-opacity,.7))}
+.broadcast-board .board-round,.broadcast-board .board-rules,.broadcast-board .board-roster{background-color:rgba(23,35,56,var(--board-panel-opacity,.7))}
 .broadcast-board .board-match.is-pending{background-color:rgba(34,54,81,var(--board-panel-opacity,.7))}
 .board-contrast-setting{border:0;border-top:1px solid #dfe6ee;margin:4px 0;padding:12px 0 0;min-width:0}
 .board-contrast-setting legend{font-size:12px;font-weight:700;padding:0 6px 0 0;color:#53647a}
