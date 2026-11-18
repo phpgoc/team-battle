@@ -46,9 +46,9 @@ func TestDemoDataHasConsistentCompleteMatches(t *testing.T) {
 	if err := seedTestData(f.app.db); err != nil {
 		t.Fatal(err)
 	}
-	f.assertCount(t, 10, `SELECT COUNT(*) FROM users WHERE username IN ('admin','2','3','4','5','6','7','8','9','10')`)
+	f.assertCount(t, 10, `SELECT COUNT(*) FROM users WHERE username IN ('admin','Flash','Jaedong','Bisu','Stork','sAviOr','iloveoov','NaDa','Rain','soO')`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM users WHERE username='admin' AND role='superadmin' AND display_name='超级管理员'`)
-	f.assertCount(t, 9, `SELECT COUNT(*) FROM users WHERE username GLOB '[2-9]' OR username='10'`)
+	f.assertCount(t, 9, `SELECT COUNT(*) FROM users WHERE role='user' AND username=display_name`)
 	f.assertCount(t, 4, `SELECT COUNT(*) FROM categories`)
 	f.assertCount(t, 2, `SELECT COUNT(*) FROM backgrounds WHERE id IN (1,2) AND image_mime='image/png' AND length(image_data)=0 AND image_size>0`)
 	f.assertCount(t, 5, `SELECT COUNT(*) FROM events WHERE status='completed'`)
@@ -71,7 +71,7 @@ func TestDemoDataHasConsistentCompleteMatches(t *testing.T) {
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM matches m WHERE NOT EXISTS (SELECT 1 FROM event_players p WHERE p.event_id=m.event_id AND p.user_id=m.player_a_id AND p.team_id=m.team_a_id) OR NOT EXISTS (SELECT 1 FROM event_players p WHERE p.event_id=m.event_id AND p.user_id=m.player_b_id AND p.team_id=m.team_b_id)`)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM rounds r WHERE score_a<>(SELECT COUNT(*) FROM matches m WHERE m.round_id=r.id AND m.status='finished' AND m.winner_team_id=m.team_a_id) OR score_b<>(SELECT COUNT(*) FROM matches m WHERE m.round_id=r.id AND m.status='finished' AND m.winner_team_id=m.team_b_id)`)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM matches current JOIN matches previous ON previous.round_id=current.round_id AND previous.seq=current.seq-1 JOIN events e ON e.id=current.event_id WHERE e.name NOT LIKE '特殊对战%' AND current.round_no=2 AND ((previous.winner_team_id=previous.team_a_id AND previous.player_a_id<>current.player_a_id) OR (previous.winner_team_id=previous.team_b_id AND previous.player_b_id<>current.player_b_id))`)
-	rows, err := f.app.db.Query(`SELECT username,password_hash FROM users WHERE username IN ('admin','2','3','4','5','6','7','8','9','10')`)
+	rows, err := f.app.db.Query(`SELECT username,password_hash FROM users WHERE username IN ('admin','Flash','Jaedong','Bisu','Stork','sAviOr','iloveoov','NaDa','Rain','soO')`)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -93,7 +93,7 @@ location / {
 
 ### 试用数据
 
-仓库的 `test.sqlite` 包含各阶段赛事和演示图片；超级管理员为 `admin`，选手账号为 `2`–`10`，密码均为 `test1234`：
+仓库的 `test.sqlite` 包含各阶段赛事和演示图片。管理员登录名为 `admin`；选手登录名与显示名一致：`Flash`、`Jaedong`、`Bisu`、`Stork`、`sAviOr`、`iloveoov`、`NaDa`、`Rain`、`soO`。密码均为 `test1234`：
 
 ```sh
 go run . --db test.sqlite

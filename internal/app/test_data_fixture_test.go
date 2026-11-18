@@ -100,15 +100,20 @@ func seedTestData(db *sql.DB) error {
 	}
 	ids := map[string]int64{}
 	for _, account := range accounts {
+		// 选手使用显示名登录，原编号仅用于关联演示图片和赛程。
+		username := account.username
+		if account.role != roleSuperAdmin {
+			username = account.display
+		}
 		avatarData, err := demoAvatar(account.username)
 		if err != nil {
 			return err
 		}
-		if _, err := tx.Exec(`INSERT INTO users(username,display_name,password_hash,role,category_id,avatar_data,avatar_mime) VALUES(?,?,?,?,?,?,?)`, account.username, account.display, string(hash), account.role, categoryIDs[account.category], avatarData, "image/png"); err != nil {
+		if _, err := tx.Exec(`INSERT INTO users(username,display_name,password_hash,role,category_id,avatar_data,avatar_mime) VALUES(?,?,?,?,?,?,?)`, username, account.display, string(hash), account.role, categoryIDs[account.category], avatarData, "image/png"); err != nil {
 			return err
 		}
 		var userID int64
-		if err := tx.QueryRow(`SELECT id FROM users WHERE username=?`, account.username).Scan(&userID); err != nil {
+		if err := tx.QueryRow(`SELECT id FROM users WHERE username=?`, username).Scan(&userID); err != nil {
 			return err
 		}
 		ids[account.username] = userID
