@@ -116,6 +116,18 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
   for (const [index, user] of roster.entries()) {
     await page.locator('#player-search').fill(user.display_name);
     await page.locator(`[data-suggest-player="${user.id}"]`).click();
+    if (index === 1) {
+      await expect(page.locator('#add-player')).toBeEnabled();
+      await page.getByRole('button', { name: '取消当前选择' }).click();
+      await expect(page.locator('#player-search')).toHaveValue('');
+      await expect(page.locator('#player-search')).toBeFocused();
+      await expect(page.locator('#player-search')).toHaveAttribute('aria-expanded', 'false');
+      await expect(page.locator('#add-player')).toBeDisabled();
+      await expect(page.locator(`[data-roster-player="${roster[0].id}"]`)).toBeVisible();
+      await expect(page.locator('[data-roster-player]')).toHaveCount(1);
+      await page.locator('#player-search').fill(user.display_name);
+      await page.locator(`[data-suggest-player="${user.id}"]`).click();
+    }
     await page.locator('#add-player').click();
     await page.locator(`[name="pick_${user.id}"]`).selectOption(index < 3 ? 'A' : 'B');
   }

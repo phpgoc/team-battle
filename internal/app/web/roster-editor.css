@@ -4,6 +4,9 @@
 .roster-add{display:flex;align-items:flex-end;gap:12px;margin:20px 0 8px;max-width:680px}
 .roster-search{position:relative;flex:1;min-width:0;display:grid;gap:8px}
 .roster-search>input{width:100%;min-width:0}
+.roster-add>.roster-clear{display:grid;place-items:center;flex:none;width:40px;height:40px;padding:0;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--muted);font-size:24px;line-height:1}
+.roster-add>.roster-clear:enabled:hover{border-color:#c76b61;background:#fff4f2;color:#a43830}
+.roster-add>.roster-clear:disabled{cursor:default;opacity:.45}
 .roster-add>.primary{flex:none;min-width:88px;justify-content:center}
 .roster-suggestions{position:absolute;z-index:4;top:calc(100% + 6px);left:0;right:0;max-height:290px;overflow:auto;background:white;border:1px solid var(--line);border-radius:9px;box-shadow:0 12px 30px #14213d1a;padding:5px}
 .roster-suggestions[hidden],.roster-empty[hidden]{display:none}

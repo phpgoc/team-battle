@@ -14,7 +14,7 @@
     const { users, entries, editable, allowRandom, t, esc } = ctx;
     const directory = new Map(users.map(user => [Number(user.id), user]));
     const selected = entries.filter(([id]) => directory.has(Number(id)));
-    return `<section class="panel section-gap editor-section" id="event-roster" data-roster-editable="${editable}" data-roster-random="${allowRandom}"><div class="panel-head"><h2>${t('players')}</h2><span id="roster-count"></span></div><div class="panel-body"><p class="help">${t(allowRandom ? 'rosterEntryHint' : 'archiveRosterHint')}</p>${editable ? `<div class="roster-add"><div class="roster-search"><label class="field-label" for="player-search">${t('rosterChoosePlayer')}</label><input id="player-search" name="roster_search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="player-suggestions" autocomplete="off" placeholder="${esc(t('searchPlayers'))}"><div class="roster-suggestions" id="player-suggestions" role="listbox" aria-label="${t('rosterChoosePlayer')}" hidden></div></div><button type="button" class="primary" id="add-player" disabled>${t('addPlayer')}</button></div>` : ''}<p class="roster-feedback help" id="roster-feedback" role="status" aria-live="polite"></p><div class="roster-list-heading"><span>${t('rosterEntries')}</span><span>${t('rosterAssignment')}</span>${editable ? '<span></span>' : ''}</div><ol class="roster-entries" id="roster-entries">${selected.map(([id, side]) => playerRow(directory.get(Number(id)), side, ctx, editable, allowRandom)).join('')}</ol><p class="help roster-empty" id="roster-empty"${selected.length ? ' hidden' : ''}>${t('rosterEmpty')}</p></div></section>`;
+    return `<section class="panel section-gap editor-section" id="event-roster" data-roster-editable="${editable}" data-roster-random="${allowRandom}"><div class="panel-head"><h2>${t('players')}</h2><span id="roster-count"></span></div><div class="panel-body"><p class="help">${t(allowRandom ? 'rosterEntryHint' : 'archiveRosterHint')}</p>${editable ? `<div class="roster-add"><div class="roster-search"><label class="field-label" for="player-search">${t('rosterChoosePlayer')}</label><input id="player-search" name="roster_search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="player-suggestions" autocomplete="off" placeholder="${esc(t('searchPlayers'))}"><div class="roster-suggestions" id="player-suggestions" role="listbox" aria-label="${t('rosterChoosePlayer')}" hidden></div></div><button type="button" class="roster-clear" id="cancel-player-selection" aria-label="${esc(t('cancelPlayerSelection'))}" title="${esc(t('cancelPlayerSelection'))}" disabled>×</button><button type="button" class="primary" id="add-player" disabled>${t('addPlayer')}</button></div>` : ''}<p class="roster-feedback help" id="roster-feedback" role="status" aria-live="polite"></p><div class="roster-list-heading"><span>${t('rosterEntries')}</span><span>${t('rosterAssignment')}</span>${editable ? '<span></span>' : ''}</div><ol class="roster-entries" id="roster-entries">${selected.map(([id, side]) => playerRow(directory.get(Number(id)), side, ctx, editable, allowRandom)).join('')}</ol><p class="help roster-empty" id="roster-empty"${selected.length ? ' hidden' : ''}>${t('rosterEmpty')}</p></div></section>`;
   }
 
   // 按录入顺序读取；禁用控件仍可查看原始意向，不依赖会跳过禁用项的FormData。
@@ -33,16 +33,21 @@
     const editable = root.dataset.rosterEditable === 'true', allowRandom = root.dataset.rosterRandom === 'true';
     const list = root.querySelector('#roster-entries'), search = root.querySelector('#player-search');
     const menu = root.querySelector('#player-suggestions'), add = root.querySelector('#add-player');
+    const cancel = root.querySelector('#cancel-player-selection');
     const feedback = root.querySelector('#roster-feedback');
     let selectedID = 0, matches = [], active = -1, selection = null;
     const entered = () => new Set(rows(root).map(row => Number(row.dataset.rosterPlayer)));
     const available = () => { const ids = entered(); return users.filter(user => !ids.has(Number(user.id)) && (!user.status || user.status === 'active') && user.selectable !== false); };
     const exact = query => available().filter(user => [user.display_name, user.username].some(name => String(name || '').toLocaleLowerCase() === query));
+    const updatePicker = count => {
+      add.disabled = !selectedID || count >= 12;
+      cancel.disabled = !selectedID && !search.value;
+    };
     const update = () => {
       const count = rows(root).length;
       root.querySelector('#roster-count').textContent = `${t('selected')} ${count} / 12`;
       root.querySelector('#roster-empty').hidden = count > 0;
-      if (add) add.disabled = !selectedID || count >= 12;
+      if (editable) updatePicker(count);
       feedback.textContent = count >= 12 ? t('rosterLimit') : '';
       onChange();
     };
@@ -81,12 +86,21 @@
         const restored = available().find(user => Number(user.id) === Number(selection.value) && user.display_name === search.value);
         const found = exact(search.value.trim().toLocaleLowerCase());
         selectedID = restored ? Number(restored.id) : found.length === 1 ? Number(found[0].id) : 0;
-        add.disabled = !selectedID || rows(root).length >= 12;
+        updatePicker(rows(root).length);
       };
       search.addEventListener('input', () => {
         selection.value = '';
         syncSearch();
         suggest();
+      });
+      cancel.addEventListener('click', () => {
+        selectedID = 0;
+        selection.value = '';
+        search.value = '';
+        feedback.textContent = '';
+        search.focus();
+        close();
+        updatePicker(rows(root).length);
       });
       root.closest('form').addEventListener('formrestored', syncSearch);
       search.addEventListener('keydown', event => {
