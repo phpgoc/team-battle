@@ -22,16 +22,16 @@ func (a *App) listTournaments(c *gin.Context) {
 		fail(c, http.StatusUnauthorized, "未登录")
 		return
 	}
-	query := `SELECT e.id, e.name, e.description, e.start_time, e.status, e.round1_target, e.round2_target, e.manager_id, COALESCE(u.display_name,''), e.created_at,
+	query := `SELECT e.id, e.name, e.description, e.start_time, e.status, e.round1_target, e.round2_target, e.manager_id, COALESCE(u.display_name,''), e.created_at,e.is_deleted,
 		(SELECT COUNT(*) FROM tournament_players ep WHERE ep.tournament_id=e.id AND ep.active=1) AS player_count,
 		(SELECT COUNT(DISTINCT team_id) FROM tournament_players ep WHERE ep.tournament_id=e.id AND ep.active=1),
 		(SELECT COUNT(*) FROM tournament_setup_roster s WHERE s.tournament_id=e.id),
-		(SELECT COALESCE(SUM(r.score_a),0) FROM rounds r WHERE r.tournament_id=e.id) AS score_a,
-		(SELECT COALESCE(SUM(r.score_b),0) FROM rounds r WHERE r.tournament_id=e.id) AS score_b
+		(SELECT COUNT(*) FROM rounds r WHERE r.tournament_id=e.id AND r.winner_team_id=e.id*2-1),
+		(SELECT COUNT(*) FROM rounds r WHERE r.tournament_id=e.id AND r.winner_team_id=e.id*2)
 		FROM tournaments e LEFT JOIN users u ON u.id=e.manager_id`
 	args := []any{}
 	if user.Role != roleSuperAdmin {
-		query += ` WHERE e.manager_id = ? OR EXISTS (SELECT 1 FROM tournament_players ep2 WHERE ep2.tournament_id=e.id AND ep2.user_id=?)`
+		query += ` WHERE e.is_deleted=0 AND (e.manager_id = ? OR EXISTS (SELECT 1 FROM tournament_players ep2 WHERE ep2.tournament_id=e.id AND ep2.user_id=?))`
 		args = append(args, user.ID, user.ID)
 	}
 	query += ` ORDER BY CASE e.status WHEN 'round1' THEN 0 WHEN 'round2' THEN 0 WHEN 'ace' THEN 0 WHEN 'draft' THEN 1 ELSE 2 END, e.updated_at DESC`
@@ -46,7 +46,8 @@ func (a *App) listTournaments(c *gin.Context) {
 		var item = map[string]any{}
 		var id, managerID, playerCount, assignedTeams, setupCount, round1Target, round2Target, scoreA, scoreB int64
 		var name, description, startTime, status, managerName, createdAt string
-		if err := rows.Scan(&id, &name, &description, &startTime, &status, &round1Target, &round2Target, &managerID, &managerName, &createdAt, &playerCount, &assignedTeams, &setupCount, &scoreA, &scoreB); err != nil {
+		var deleted bool
+		if err := rows.Scan(&id, &name, &description, &startTime, &status, &round1Target, &round2Target, &managerID, &managerName, &createdAt, &deleted, &playerCount, &assignedTeams, &setupCount, &scoreA, &scoreB); err != nil {
 			fail(c, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -59,6 +60,7 @@ func (a *App) listTournaments(c *gin.Context) {
 		item["description"] = description
 		item["start_time"] = startTime
 		item["status"] = status
+		item["is_deleted"] = deleted
 		item["round1_target"] = round1Target
 		item["round2_target"] = round2Target
 		item["manager_id"] = managerID
@@ -66,9 +68,16 @@ func (a *App) listTournaments(c *gin.Context) {
 		item["player_count"] = ready.playerCount
 		item["score_a"] = scoreA
 		item["score_b"] = scoreB
+		item["round_wins_a"] = scoreA
+		item["round_wins_b"] = scoreB
 		item["created_at"] = createdAt
 		items = append(items, item)
 	}
+	if err := rows.Err(); err != nil {
+		fail(c, http.StatusInternalServerError, "读取赛事失败")
+		return
+	}
+	c.Header("Cache-Control", "no-store")
 	ok(c, gin.H{"tournaments": items})
 }
 
@@ -81,6 +90,9 @@ func (a *App) publicTournaments(c *gin.Context) {
 	user, loggedIn := a.currentUser(c)
 	visible := []map[string]any{}
 	for _, item := range items {
+		if item["is_deleted"] == true && c.Query("include_deleted") != "1" {
+			continue
+		}
 		if item["public_ready"] == true || (loggedIn == nil && (user.Role == roleSuperAdmin || item["manager_id"] == user.ID)) {
 			visible = append(visible, item)
 		}
@@ -118,6 +130,9 @@ func (a *App) publicHistory(c *gin.Context) {
 	filtered := make([]map[string]any, 0, len(items))
 	participants := map[int64]bool{}
 	for _, item := range items {
+		if item["is_deleted"] == true && c.Query("include_deleted") != "1" {
+			continue
+		}
 		for _, id := range item["player_ids"].([]int64) {
 			participants[id] = true
 		}
@@ -173,6 +188,7 @@ func (a *App) publicHistory(c *gin.Context) {
 			players = append(players, gin.H{"id": id, "display_name": user.DisplayName, "category_name": user.CategoryName})
 		}
 	}
+	c.Header("Cache-Control", "no-store")
 	ok(c, gin.H{"tournaments": filtered[start:end], "players": players, "page": page, "page_size": pageSize, "total": total})
 }
 

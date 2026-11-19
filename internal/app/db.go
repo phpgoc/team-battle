@@ -231,6 +231,7 @@ func migrate(db *sql.DB) error {
 		{"tournaments", "lineup_b_submitted", "INTEGER NOT NULL DEFAULT 0"},
 		{"tournaments", "background_id", "INTEGER"},
 		{"tournaments", "is_imported", "INTEGER NOT NULL DEFAULT 0"},
+		{"tournaments", "is_deleted", "INTEGER NOT NULL DEFAULT 0"},
 		{"backgrounds", "file_path", "TEXT NOT NULL DEFAULT ''"},
 		{"backgrounds", "image_size", "INTEGER NOT NULL DEFAULT 0"},
 		{"backgrounds", "thumbnail_data", "BLOB"},

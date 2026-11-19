@@ -16,6 +16,7 @@
 - 启动幂等初始化；旧表列在事务内原位迁移，保留数据、关联与自增上限，冲突回滚。1.0 前补版本迁移机制。WAL，每条连接通过 DSN 启用外键与5秒锁等待，写事务 immediate。
 - 不设 teams 表，固定 A/B 队 ID 为 tournamentID*2-1、tournamentID*2，通过统一函数计算；排阵提交状态存赛事表。rounds 是轮次，matches 是单局，历史与实时共用；round_no=1/2/3，a_id、b_id、who_win 与规范字段同步，胜负为0/a/b。
 - 状态修改原子提交，成功后写审计、失效缓存并广播；不得持锁等待动画。审计包含操作者、时间、动作和数据。
+- 赛事软删除存 tournaments.is_deleted，仅超管可删除/恢复已关闭（completed/cancelled）赛事，进行中禁止操作；原阶段及关联数据保留，不计战绩，恢复后重新纳入。首页默认隐藏，include_deleted=1后可查看，人数可见性仍适用；超管赛事管理列表包含已删除项。
 - 历史列表用 Go 内存缓存，按赛事名、开始日期和参赛者组合筛选后分页。账号 ID、姓名、头像与分类映射驻内存，变更整体替换，避免频繁 JOIN。
 - test.sqlite 是唯一入库的演示数据库，保留已有数据并补各功能示例；admin 与选手密码均 test1234，选手登录名等于显示名，会话清空。临时数据库、脚本和产物放 ignored runtime。
 - 正式产物不能内嵌测试数据、账号、图片或种子；种子放 *_test.go。头像及分类图标以二进制和 MIME 存 SQLite，不能用 emoji。背景原图存数据库同目录 uploads/backgrounds，库中存元数据、路径及最大480×270 JPEG缩略图；仅仓库两张演示背景入库。
@@ -61,4 +62,4 @@
 - 右上同排按权限显示排阵/赛事设置，最右三横线仅为通用观赛菜单：透明度、语言、首页、登录。透明度默认30%，本浏览器保存，只影响轮次/规则/名单底色。赞助背景仅管理员在设置修改并SSE同步。
 - 动画仅发起操作的管理员播放；服务端立即随机保存响应，SSE不带重播指令。原对战卡片每250ms换候选，短移动淡入淡出，最后250ms平滑停定；分组/排阵飞入对应位置，大将规则和人选连续分段，单候选侧不滚动，刷新/访客/重复响应不补播。
 - 公开战绩弹层统一显示总胜负、对手当前分类胜负、大将战和团战胜负。团战只计确认赛事，正式队员未出场也计，取消排除。
-- 页面独立路径：/account、/accounts[/new|/:id]、/tournaments/new、/tournaments/archive、/site-settings、/backgrounds；服务端校验入口权限，旧workspace只重定向，筛选分页可用查询参数。
+- 页面独立路径：/account、/accounts[/new|/:id]、/tournaments、/tournaments/new、/tournaments/archive、/site-settings、/backgrounds；服务端校验入口权限，旧workspace只重定向，筛选分页可用查询参数。

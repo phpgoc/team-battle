@@ -1,0 +1,10 @@
+/* 删除标记独立呈现，保留赛事名称与比分的可读性。 */
+.table-wrap:has(.event-table){position:relative}
+.tournament-deleted-badge{display:inline-block;margin-inline-start:10px;padding:2px 7px;border:1px solid #d8b6ad;border-radius:5px;background:#f9ece7;color:#9b4536;font-size:12px;font-weight:500;line-height:1.5;vertical-align:middle;white-space:nowrap}
+.event-table tr.is-deleted{background:#faf6f3}
+.event-table tr.is-deleted .event-emblem{background:#ece5e0;color:#8a766b}
+.tournament-row-action{text-align:right;white-space:nowrap}
+.tournament-row-action button{min-width:66px}
+.show-deleted-control{display:flex;align-items:center;gap:8px;margin:0 24px 12px;color:var(--muted);font-size:13px;cursor:pointer;width:fit-content}
+.show-deleted-control input{width:16px;height:16px;accent-color:var(--accent)}
+.broadcast-board .tournament-deleted-badge{border-color:#9e7561;background:#573c2f;color:#ffe1ce}

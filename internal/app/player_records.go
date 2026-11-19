@@ -37,16 +37,16 @@ func (a *App) publicPlayerRecords(c *gin.Context) {
 		return
 	}
 	// 按本人所在一侧判断胜负，先按对手聚合，再使用内存目录关联对手当前分类。
-	// 尚未录入结果及已取消赛事不计入；重新查询可直接反映比分修正。
+	// 尚未录入结果、已取消及软删除赛事不计入；恢复赛事后重新纳入统计。
 	rows, err := a.db.Query(`SELECT opponent_id,SUM(won),SUM(1-won),SUM(CASE WHEN round_no=3 THEN won ELSE 0 END),SUM(CASE WHEN round_no=3 THEN 1-won ELSE 0 END)
 		FROM (
 			SELECT m.player_b_id AS opponent_id,m.round_no,m.winner_team_id=m.team_a_id AS won
 			FROM matches m JOIN tournaments e ON e.id=m.tournament_id
-			WHERE m.player_a_id=? AND m.status='finished' AND m.winner_team_id IN (m.team_a_id,m.team_b_id) AND e.status<>'cancelled'
+			WHERE m.player_a_id=? AND m.status='finished' AND m.winner_team_id IN (m.team_a_id,m.team_b_id) AND e.status<>'cancelled' AND e.is_deleted=0
 			UNION ALL
 			SELECT m.player_a_id AS opponent_id,m.round_no,m.winner_team_id=m.team_b_id AS won
 			FROM matches m JOIN tournaments e ON e.id=m.tournament_id
-			WHERE m.player_b_id=? AND m.status='finished' AND m.winner_team_id IN (m.team_a_id,m.team_b_id) AND e.status<>'cancelled'
+			WHERE m.player_b_id=? AND m.status='finished' AND m.winner_team_id IN (m.team_a_id,m.team_b_id) AND e.status<>'cancelled' AND e.is_deleted=0
 		) GROUP BY opponent_id`, id, id)
 	if err != nil {
 		fail(c, http.StatusInternalServerError, "读取战绩失败")
@@ -96,7 +96,7 @@ func (a *App) publicPlayerRecords(c *gin.Context) {
 			SUM(CASE WHEN r.winner_team_id=p.team_id THEN 1 ELSE 0 END) AS won_rounds,
 			SUM(CASE WHEN r.winner_team_id<>p.team_id THEN 1 ELSE 0 END) AS lost_rounds
 		FROM tournament_players p JOIN tournaments e ON e.id=p.tournament_id JOIN rounds r ON r.tournament_id=e.id
-		WHERE p.user_id=? AND p.active=1 AND e.status='completed' AND r.status='finished' AND r.stage IN ('round1','round2','ace')
+		WHERE p.user_id=? AND p.active=1 AND e.status='completed' AND e.is_deleted=0 AND r.status='finished' AND r.stage IN ('round1','round2','ace')
 		GROUP BY p.tournament_id
 	)`, id).Scan(&teamBattle.Wins, &teamBattle.Losses)
 	if err != nil {

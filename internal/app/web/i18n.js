@@ -1,5 +1,13 @@
 window.TB_I18N = {
   "zh": {
+    "tournamentManagement": "赛事管理",
+    "tournamentManagementHint": "点击赛事查看详情；仅已关闭赛事可删除或恢复。",
+    "showDeletedTournaments": "显示已删除赛事",
+    "deletedTournament": "已删除",
+    "restore": "恢复",
+    "deleteTournamentConfirm": "确定删除“{name}”？数据将保留，可在赛事管理中恢复。",
+    "tournamentDeleted": "赛事已删除",
+    "tournamentRestored": "赛事已恢复",
     "importedTournament": "后期录入",
     "aceEditableUntilFirstResult": "录入第一场比赛之前都可以修改。",
     "today": "今天",
@@ -352,6 +360,14 @@ window.TB_I18N = {
     "categoryIconFormat": "分类图标只支持 JPG、PNG、GIF 或 WebP"
   },
   "en": {
+    "tournamentManagement": "Tournament management",
+    "tournamentManagementHint": "Open a tournament to view it. Only closed tournaments can be deleted or restored.",
+    "showDeletedTournaments": "Show deleted tournaments",
+    "deletedTournament": "Deleted",
+    "restore": "Restore",
+    "deleteTournamentConfirm": "Delete “{name}”? Its data will be kept and can be restored here.",
+    "tournamentDeleted": "Tournament deleted",
+    "tournamentRestored": "Tournament restored",
     "importedTournament": "Entered retrospectively",
     "aceEditableUntilFirstResult": "Editable until the first match result is recorded.",
     "today": "Today",
@@ -674,6 +690,14 @@ window.TB_I18N = {
     "categoryIconFormat": "Category icons must be JPG, PNG, GIF or WebP."
   },
   "ko": {
+    "tournamentManagement": "대회 관리",
+    "tournamentManagementHint": "대회를 클릭해 상세 내용을 확인하세요. 종료된 대회만 삭제하거나 복원할 수 있습니다.",
+    "showDeletedTournaments": "삭제된 대회 표시",
+    "deletedTournament": "삭제됨",
+    "restore": "복원",
+    "deleteTournamentConfirm": "“{name}” 대회를 삭제할까요? 데이터는 보존되며 대회 관리에서 복원할 수 있습니다.",
+    "tournamentDeleted": "대회가 삭제되었습니다",
+    "tournamentRestored": "대회가 복원되었습니다",
     "importedTournament": "사후 입력",
     "aceEditableUntilFirstResult": "첫 경기 결과를 입력하기 전까지 수정할 수 있습니다.",
     "today": "오늘",
