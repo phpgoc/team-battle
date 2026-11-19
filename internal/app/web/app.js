@@ -125,11 +125,24 @@
   function shell(content, page = 'home') {
     const admin = state.user?.role === 'superadmin';
     const nav = ['home', ...(admin ? ['createEvent', 'tournamentManagement', 'accounts', 'archive', 'siteSettings', 'backgrounds'] : []), ...(state.user ? ['settings'] : [])];
-    const navIcons = { home: '◫', createEvent: '+', accounts: '♙', tournamentManagement: '▦', archive: '▤', siteSettings: '⚙', backgrounds: '▧', settings: '◎' };
+    const navPaths = {
+      home: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/>',
+      createEvent: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/>',
+      tournamentManagement: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4m8-4v4M3 10h18m-13 4h3m3 0h3m-9 3h3"/>',
+      accounts: '<circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m2-16a3 3 0 0 1 0 6m2 10v-3a6 6 0 0 0-2-4"/>',
+      archive: '<path d="M15 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 3v6h6m-12 4h8m-8 4h5"/>',
+      siteSettings: '<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="#15263d"/><circle cx="15" cy="17" r="3" fill="#15263d"/>',
+      backgrounds: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="2"/><path d="m3 17 5-5 4 4 4-6 5 7"/>',
+      settings: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>'
+    };
+    const navIcons = Object.fromEntries(Object.entries(navPaths).map(([key, path]) => [key, `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`]));
     const brand = `<a class="brand" href="/" data-go="/"><span class="brand-mark">TB<span></span></span><span><strong>TEAM BATTLE</strong><small>${t('brandCaption')}</small></span></a>`;
     const sidebar = state.user ? `<aside class="sidebar">${brand}<span class="nav-caption">${t('workspace')}</span><nav class="nav" aria-label="${t('workspace')}">${nav.map(key => `<a href="${pageURL(key)}" class="${page === key ? 'active' : ''}" ${page === key ? 'aria-current="page"' : ''} data-go="${pageURL(key)}"><span class="nav-icon" aria-hidden="true">${navIcons[key]}</span><span>${t(key)}</span></a>`).join('')}</nav><div class="side-footer">${person(state.user)}<span class="account-role">${t(state.user.role)}</span></div></aside>` : '';
     app.innerHTML = `<div class="shell${state.user ? '' : ' public-shell'}">${sidebar}<main class="main"><header class="topbar">${state.user ? `<span class="breadcrumb">TEAM BATTLE <span>/</span> <b>${t(page)}</b></span>` : brand}<div class="top-actions">${picker()}${state.user ? `<button class="ghost" id="logout">${t('logout')}</button>` : `<a class="primary" href="/login" data-go="/login">${t('login')} <span aria-hidden="true">↗</span></a>`}</div></header><div class="page">${content}</div><footer class="site-footer">TEAM BATTLE <span>·</span> ${t('brandCaption')}</footer></main></div>`;
     bindCommon();
+    // 手机导航保持横向滚动，新页面自动露出当前标签，不滚动正文。
+    const navigation = $('.sidebar .nav'), activeTab = $('.sidebar .nav [aria-current="page"]');
+    if (navigation && activeTab && navigation.scrollWidth > navigation.clientWidth) navigation.scrollLeft = activeTab.offsetLeft - navigation.offsetLeft - 12;
   }
   const deletedBadge = e => e.is_deleted ? `<span class="tournament-deleted-badge">${t('deletedTournament')}</span>` : '';
   function eventTable(events, management = false) {
@@ -211,7 +224,7 @@
     const [catalog, current] = await Promise.all([api('/api/settings/catalog'), api('/api/auth/me')]);
     state.user = current.user;
     state.profileEditBlocked = current.profile_edit_blocked;
-    shell(`<div class="page-head"><h1>${t('settings')}</h1><button type="button" class="outline" data-player-record="${state.user.id}">${t('myRecords')}</button></div><section class="panel"><form id="account-form" class="panel-body form-grid">${profileFields(state.user, catalog.categories)}<button type="submit" class="primary accent">${t('save')}</button></form></section>`, 'settings');
+    shell(`<div class="page-head"><h1>${t('settings')}</h1><button type="button" class="outline" data-player-record="${state.user.id}">${t('myRecords')}</button></div><section class="panel profile-panel"><form id="account-form" class="panel-body form-grid profile-form">${profileFields(state.user, catalog.categories)}<button type="submit" class="primary accent">${t('save')}</button></form></section>`, 'settings');
     bindProfileForm($('#account-form'), '/api/auth/profile', 'PATCH', async result => { state.user = result.user; await accountPage(); toast(t('saved')); });
   }
   async function usersPage(edit = '') {
@@ -220,7 +233,7 @@
     const creating = edit === 'new', user = creating ? {} : users.find(u => String(u.id) === edit);
     if (edit && !creating && !user) return go(pageURL('accounts'));
     if (creating || user) {
-      shell(`<div class="page-head"><div><h1>${t('accounts')}</h1><p class="subtitle">${t(creating ? 'createUser' : 'editAccount')}</p></div><button class="outline" data-go="${pageURL('accounts')}">${t('backAccounts')}</button></div><section class="panel"><form id="user-form" class="form-grid panel-body">${profileFields(user, catalog.categories, true, creating)}<button type="submit" class="primary accent">${t(creating ? 'createUser' : 'save')}</button></form></section>`, 'accounts');
+      shell(`<div class="page-head"><div><h1>${t(creating ? 'createUser' : 'editAccount')}</h1>${creating ? '' : `<p class="subtitle">${esc(user.display_name)} · ${esc(user.username)}</p>`}</div><button class="outline" data-go="${pageURL('accounts')}">${t('backAccounts')}</button></div><section class="panel profile-panel"><form id="user-form" class="form-grid panel-body profile-form">${profileFields(user, catalog.categories, true, creating)}<button type="submit" class="primary accent">${t(creating ? 'createUser' : 'save')}</button></form></section>`, 'accounts');
       bindProfileForm($('#user-form'), '/api/users' + (creating ? '' : '/' + user.id), creating ? 'POST' : 'PATCH', async result => {
         if (result.user?.id === state.user.id) state.user = result.user;
         toast(t(creating ? 'accountCreated' : 'saved'));
@@ -287,7 +300,7 @@
 
   async function backgroundsPage() {
     const data = await api('/api/backgrounds');
-    shell(`<div class="page-head"><h1>${t('backgrounds')}</h1></div><section class="panel"><div class="panel-head"><h2>${t('backgrounds')}</h2></div><div class="panel-body"><form id="background-form" class="field">${field('backgroundName', input('name', '', 'text', 'required'))}${field('backgroundImage', '<div class="background-file-actions"><input type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp" required><button class="primary">' + t('add') + '</button></div>')}<p class="help">${t('backgroundHint')}</p></form>${data.backgrounds.map(b => `<form class="background-edit item-form" data-background="${b.id}"><img class="background-preview" src="${esc(b.thumbnail_url)}" loading="lazy" decoding="async" alt="">${input('name', b.name, 'text', 'required')}<div class="background-file-actions"><input type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp"><button class="outline">${t('save')}</button><button type="button" class="link danger" data-delete-background="${b.id}"${b.in_use ? ' disabled title="' + t('backgroundInUse') + '"' : ''}>${t('delete')}</button></div></form>`).join('')}</div></section>`, 'backgrounds');
+    shell(`<div class="page-head"><h1>${t('backgrounds')}</h1></div><section class="panel backgrounds-panel"><div class="panel-head"><h2>${t('backgroundImage')}</h2><span class="count-badge">${data.backgrounds.length}</span></div><div class="panel-body"><form id="background-form" class="field">${field('backgroundName', input('name', '', 'text', 'required'))}${field('backgroundImage', '<div class="background-file-actions"><input type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp" required><button class="primary">' + t('add') + '</button></div>')}<p class="help">${t('backgroundHint')}</p></form>${data.backgrounds.map(b => `<form class="background-edit item-form" data-background="${b.id}"><img class="background-preview" src="${esc(b.thumbnail_url)}" loading="lazy" decoding="async" alt="${esc(b.name)}">${input('name', b.name, 'text', `required aria-label="${t('backgroundName')}"`)}<div class="background-file-actions"><input type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp" aria-label="${t('backgroundImage')}"><button class="outline">${t('save')}</button><button type="button" class="outline danger" data-delete-background="${b.id}"${b.in_use ? ' disabled title="' + t('backgroundInUse') + '"' : ''}>${t('delete')}</button></div></form>`).join('')}</div></section>`, 'backgrounds');
     $('#background-form').onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/backgrounds', { method: 'POST', body: new FormData(event.target) }); await backgroundsPage(); toast(t('saved')); });
     $$('[data-background]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/backgrounds/' + form.dataset.background, { method: 'PATCH', body: new FormData(form) }); await backgroundsPage(); toast(t('saved')); }));
     $$('[data-delete-background]').forEach(button => button.onclick = action(async () => { if (!(await confirmAction(t('deleteConfirm')))) return; await api('/api/site-settings/backgrounds/' + button.dataset.deleteBackground, { method: 'DELETE' }); await backgroundsPage(); toast(t('saved')); }));

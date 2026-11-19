@@ -1,4 +1,153 @@
 /* 管理页面使用独立作用域，避免改变全屏直播的排版和尺寸。 */
+:is(.shell, .event-editor-page) {
+  --muted: #65758a;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.shell .page { max-width: 1496px; padding: 36px 40px 48px; }
+:is(.shell, .event-editor-page) .page-head { margin-bottom: 28px; }
+:is(.shell, .event-editor-page) .page-head h1, .shell .home-heading h1 { font-size: 34px; line-height: 1.3; letter-spacing: -.035em; }
+:is(.shell, .event-editor-page) .subtitle { font-size: 15px; margin-top: 10px; }
+:is(.shell, .event-editor-page) .panel { border-radius: 14px; }
+:is(.shell, .event-editor-page) .panel-head { padding: 22px 28px; }
+:is(.shell, .event-editor-page) .panel-head h2, .shell .section-title h2 { font-size: 18px; }
+:is(.shell, .event-editor-page) .panel-head > span { font-size: 13px; }
+:is(.shell, .event-editor-page) .panel-body { padding: 28px; }
+:is(.shell, .event-editor-page) .field-label, :is(.shell, .event-editor-page) .field > label { font-size: 14px; color: #4e627a; }
+:is(.shell, .event-editor-page) .help { font-size: 14px; line-height: 1.7; }
+:is(.shell, .event-editor-page) :is(.notice, .form-error) { font-size: 14px; }
+:is(.shell, .event-editor-page) .eyebrow { font-size: 11px; }
+:is(.shell, .event-editor-page) .count-badge { font-size: 13px; padding: 5px 10px; }
+:is(.shell, .event-editor-page) input:not([type=checkbox]):not([type=radio]):not([type=file]),
+:is(.shell, .event-editor-page) select:not([multiple]), :is(.shell, .event-editor-page) textarea {
+  min-height: 46px;
+  font-size: 15px;
+  padding: 11px 13px;
+}
+:is(.shell, .event-editor-page) :is(.primary, .outline, .ghost) { min-height: 44px; font-size: 14px; padding: 10px 18px; }
+:is(.shell, .event-editor-page) .password-toggle { min-height: 34px; font-size: 12px; padding: 7px 10px; }
+:is(.shell, .event-editor-page) input[type=file] { min-height: 44px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; background: #f8fafc !important; color: #52657b; }
+:is(.shell, .event-editor-page) input[type=file]::file-selector-button { padding: 7px 10px; font-size: 13px; background: #fff; margin-right: 8px; }
+:is(.shell, .event-editor-page) .mode-choices span { min-height: 46px; font-size: 14px; padding: 11px 15px; }
+:is(.shell, .event-editor-page) .check { font-size: 14px; }
+:is(.shell, .event-editor-page) .search-select > input { padding-right: 70px; }
+:is(.shell, .event-editor-page) .search-select-menu > button { font-size: 15px; min-height: 44px; }
+:is(.shell, .event-editor-page) .roster-search > input { font-size: 15px; }
+:is(.shell, .event-editor-page) .person strong { font-size: 15px; }
+:is(.shell, .event-editor-page) .person small { font-size: 12px; }
+:is(.shell, .event-editor-page) .roster-list-heading { font-size: 13px; }
+:is(.shell, .event-editor-page) .roster-entry > [data-remove-player] { font-size: 14px; min-height: 44px; }
+:is(.shell, .event-editor-page) .special-rule-head h3 { font-size: 16px; }
+:is(.shell, .event-editor-page) .special-rule-head [data-special-count] { font-size: 13px; }
+:is(.shell, .event-editor-page) .special-rule-head button { font-size: 14px; min-height: 40px; }
+:is(.shell, .event-editor-page) .special-team-candidates .help,
+:is(.shell, .event-editor-page) .ace-editor-heading > .ace-edit-hint { font-size: 14px; }
+:is(.shell, .event-editor-page) .editor-jumps a { font-size: 14px; padding: 10px 14px; }
+:is(.shell, .event-editor-page) .editor-jumps a span { width: 24px; height: 24px; font-size: 12px; }
+:is(.shell, .event-editor-page) #event-form { padding-bottom: 100px; }
+:is(.shell, .event-editor-page) .event-editor-actions { border-color: #d8e2ec; background: #fffffff5; box-shadow: 0 8px 32px #17283d1f; }
+
+/* 侧栏图标使用同一组线条，当前标签在手机横向导航中也始终可达。 */
+.shell .brand strong { display: block; font-size: 14px; }
+.shell .sidebar .brand small { display: block; font-size: 11px; }
+.shell .nav-caption { font-size: 12px; margin-top: 36px; }
+.shell .nav a { font-size: 14px; min-height: 48px; gap: 12px; }
+.shell .nav-icon { display: grid; place-items: center; width: 20px; height: 20px; flex: 0 0 20px; }
+.shell .nav-icon svg { width: 20px; height: 20px; }
+.shell .topbar { min-height: 74px; height: 74px; padding: 0 40px; }
+.shell .breadcrumb { font-size: 11px; gap: 12px; }
+.shell .breadcrumb b { font-size: 14px; }
+.shell .topbar .language-picker { min-height: 40px; font-size: 14px; padding: 7px 10px; }
+.shell .side-footer .person strong { font-size: 14px; }
+.shell .side-footer .account-role { font-size: 11px; }
+.shell .site-footer { max-width: 1496px; font-size: 11px; padding: 18px 40px 26px; }
+.shell.public-shell .topbar { padding-inline: max(40px, calc((100vw - 1416px) / 2)); }
+
+/* 列表和首页使用同一字号，行内操作保持明确的点击范围。 */
+.shell .table th, .shell .table td { font-size: 15px; padding: 18px 24px; }
+.shell .table th { font-size: 13px; letter-spacing: 0; background: #f8fafc; }
+.shell .event-name { font-size: 16px; }
+.shell .event-name small, .shell .event-date { font-size: 13px !important; }
+.shell .event-mini-score b { font-size: 19px; }
+.shell .event-mini-score small { font-size: 12px; }
+.shell .row-view { width: 40px; height: 40px; }
+.shell .event-table { min-width: 620px; }
+.shell .filter-bar { padding: 22px 28px; }
+.shell .pagination { font-size: 14px; padding: 20px 28px; }
+.shell .pagination button { min-height: 40px; font-size: 14px; }
+.shell .live-card h3 { font-size: 24px; }
+.shell .live-card p, .shell .live-card-footer > span { font-size: 13px; }
+.shell .live-card-footer > strong, .shell .section-title > span { font-size: 14px; }
+.shell .home-summary > span { font-size: 13px; }
+.shell .home-summary b { font-size: 32px; }
+.shell .show-deleted-control { font-size: 14px; }
+
+/* 账号资料保留分区，避免在宽屏上出现过长的输入行。 */
+.shell .profile-panel { max-width: 1120px; }
+.shell .profile-section legend { font-size: 18px; padding-bottom: 20px; }
+.shell .profile-section + .profile-section { padding-top: 28px; }
+.shell .profile-section .help { font-size: 14px; }
+.shell .profile-section .category-choices label { font-size: 14px; min-height: 50px; padding: 12px 16px; }
+.shell .avatar-upload > div:last-child { min-width: 0; }
+.shell .account-avatar-preview, .shell .account-avatar-empty { width: 96px; height: 96px; font-size: 13px; }
+
+/* 网站设置的保存、删除保持同一行，上传控件与其余表单等高。 */
+.shell .site-settings-page .settings-panel .panel-body { padding: 24px; }
+.shell .settings-row-actions { min-width: 134px; gap: 8px; }
+.shell .settings-row-actions > button { font-size: 14px; min-width: 62px; min-height: 44px; padding: 9px 13px; }
+.shell .settings-category-preview { width: 44px; height: 44px; }
+.shell .settings-category-fields > input[type=file] { font-size: 13px; }
+.shell .settings-list-row { padding: 18px 0; }
+.shell .settings-list-row:last-child { padding-bottom: 0; }
+.shell .background-edit { grid-template-columns: 160px minmax(0, 1fr); gap: 12px 20px; padding-top: 24px; margin-top: 24px; }
+.shell .background-preview { grid-column: 1; grid-row: 1 / 3; width: 160px; height: 100px; border-radius: 9px; }
+.shell .background-edit > input { grid-column: 2; }
+.shell .background-file-actions > button { padding: 9px 14px; }
+.shell .background-edit .background-file-actions { grid-column: 2; }
+
+@media (max-width: 1100px) {
+  .shell .page { padding: 30px 24px 40px; }
+  .shell .topbar { padding: 0 24px; }
+  .shell.public-shell .topbar { padding-inline: 24px; }
+  .shell .site-footer { padding-left: 24px; padding-right: 24px; }
+  .shell .filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shell .filter-bar .field:first-child { grid-column: 1 / -1; }
+  .shell .filter-bar > button { min-width: 0; }
+}
+@media (max-width: 760px) {
+  .shell .sidebar { padding: 16px; }
+  .shell .sidebar .brand small { display: none; }
+  .shell .nav { padding: 4px 2px 8px; }
+  .shell .nav a { min-height: 44px; padding: 10px 12px; }
+  .shell .page { padding: 26px 16px 36px; }
+  .shell .home-heading { flex-direction: column; align-items: stretch; }
+  .shell .home-summary { flex-wrap: wrap; flex-shrink: 1; gap: 18px 24px; text-align: left; }
+  .shell .topbar { height: auto; min-height: 68px; padding: 12px 16px; flex-wrap: wrap; gap: 8px 12px; }
+  .shell.public-shell .topbar { padding-inline: 16px; }
+  .shell .breadcrumb { font-size: 10px; gap: 8px; }
+  .shell .breadcrumb b { font-size: 13px; }
+  .shell .top-actions { gap: 6px; margin-left: auto; }
+  .shell .top-actions .ghost { padding: 9px; }
+  .shell .topbar .language-picker { max-width: 114px; }
+  :is(.shell, .event-editor-page) .page-head { flex-wrap: wrap; gap: 16px; margin-bottom: 22px; }
+  :is(.shell, .event-editor-page) .page-head h1, .shell .home-heading h1 { font-size: 28px; }
+  :is(.shell, .event-editor-page) .panel-head, :is(.shell, .event-editor-page) .panel-body { padding: 20px; }
+  :is(.shell, .event-editor-page) .editor-jumps a { padding: 9px 10px; }
+  .shell .site-footer { padding: 18px 16px 24px; }
+  .shell .site-settings-page .settings-panel .panel-body { padding: 18px; }
+  .shell .settings-row-actions { min-width: 126px; }
+  .shell .settings-row-actions > button { min-width: 58px; padding: 9px 11px; }
+  .shell .settings-name-row { grid-template-columns: minmax(0, 1fr); }
+  .shell .settings-name-row > .settings-row-actions { justify-self: end; }
+  .shell .settings-category-row { grid-template-columns: 44px minmax(0, 1fr); }
+  .shell .settings-category-row > .settings-row-actions { grid-column: 2; justify-self: end; }
+  .shell .background-edit { grid-template-columns: 96px minmax(0, 1fr); gap: 12px; }
+  .shell .background-preview { grid-row: 1; width: 96px; height: 62px; }
+  .shell .background-edit .background-file-actions { grid-column: 1 / -1; }
+  .shell .background-file-actions { gap: 8px; }
+  .shell .background-file-actions > button { padding: 9px 10px; }
+}
+
 .accounts-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 480px) auto;
@@ -10,39 +159,39 @@
 .accounts-toolbar #account-search { width: 100%; }
 .accounts-toolbar .help { grid-column: 1 / -1; margin: 0; }
 .accounts-toolbar .count-badge { align-self: center; white-space: nowrap; }
-.accounts-table th, .accounts-table td { padding: 18px 24px; font-size: 15px; }
-.accounts-table th { font-size: 13px; background: #f8fafc; letter-spacing: 0; }
-.accounts-table th:first-child { width: 38%; }
-.accounts-table .person { gap: 12px; }
-.accounts-table .person > span:not(.board-avatar) { min-width: 90px; }
-.accounts-table .person strong { font-size: 16px; }
-.accounts-table .person small { font-size: 13px; }
-.accounts-table .person .board-avatar { width: 44px; height: 44px; flex-basis: 44px; }
-.accounts-table .person .board-category-icon { margin-left: 2px; width: 24px; height: 24px; flex-basis: 24px; }
-.accounts-table .account-actions { gap: 10px; }
-.accounts-table .account-actions button { min-height: 42px; font-size: 14px; padding: 9px 14px; }
-.accounts-table .account-actions .danger { border-color: #efdedb; background: #fffafa; }
-.accounts-table .account-actions .danger:enabled:hover { background: #fff0ed; border-color: #e5b0a8; }
+.shell .accounts-table th, .shell .accounts-table td { padding: 18px 24px; font-size: 15px; }
+.shell .accounts-table th { font-size: 13px; background: #f8fafc; letter-spacing: 0; }
+.shell .accounts-table th:first-child { width: 38%; }
+.shell .accounts-table .person { gap: 12px; }
+.shell .accounts-table .person > span:not(.board-avatar) { min-width: 90px; }
+.shell .accounts-table .person strong { font-size: 16px; }
+.shell .accounts-table .person small { font-size: 13px; }
+.shell .accounts-table .person .board-avatar { width: 44px; height: 44px; flex-basis: 44px; }
+.shell .accounts-table .person .board-category-icon { margin-left: 2px; width: 24px; height: 24px; flex-basis: 24px; }
+.shell .accounts-table .account-actions { gap: 10px; }
+.shell .accounts-table .account-actions button { min-height: 42px; font-size: 14px; padding: 9px 14px; }
+.shell .accounts-table .account-actions .danger { border-color: #efdedb; background: #fffafa; }
+.shell .accounts-table .account-actions .danger:enabled:hover { background: #fff0ed; border-color: #e5b0a8; }
 
 /* 窄屏将每个账号排成一张信息行，姓名和登录名始终保留可用宽度。 */
 @media (max-width: 680px) {
   .accounts-toolbar { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .accounts-toolbar .count-badge { justify-self: start; }
   .accounts-panel .table-wrap { overflow: visible; }
-  .accounts-table, .accounts-table tbody { display: block; }
-  .accounts-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .accounts-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 12px; padding: 20px; border-bottom: 1px solid var(--line); }
-  .accounts-table tr:last-child { border-bottom: 0; }
-  .accounts-table td { display: block; padding: 0; border: 0; white-space: normal; }
-  .accounts-table .account-identity { grid-column: 1; min-width: 0; }
-  .accounts-table .person { flex-wrap: wrap; gap: 6px 10px; }
-  .accounts-table .person > span:not(.board-avatar) { flex: 1; min-width: 70px; }
-  .accounts-table .person strong, .accounts-table .person small { white-space: normal; overflow-wrap: anywhere; }
-  .accounts-table .person .board-category-icon { margin-left: 0; }
-  .accounts-table .account-role-cell, .accounts-table .account-category-cell { grid-column: 1; font-size: 13px; color: #52657b; }
-  .accounts-table td[data-label]::before { content: attr(data-label); margin-right: 10px; color: #718197; }
-  .accounts-table .account-action-cell { grid-column: 2; grid-row: 1 / 4; }
-  .accounts-table .account-actions { flex-direction: column; gap: 8px; }
-  .accounts-table .account-actions button { width: 100%; padding: 9px 11px; }
-  .accounts-table #account-empty { display: block; }
+  .shell .accounts-table, .shell .accounts-table tbody { display: block; }
+  .shell .accounts-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .shell .accounts-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 12px; padding: 20px; border-bottom: 1px solid var(--line); }
+  .shell .accounts-table tr:last-child { border-bottom: 0; }
+  .shell .accounts-table td { display: block; padding: 0; border: 0; white-space: normal; }
+  .shell .accounts-table .account-identity { grid-column: 1; min-width: 0; }
+  .shell .accounts-table .person { flex-wrap: wrap; gap: 6px 10px; }
+  .shell .accounts-table .person > span:not(.board-avatar) { flex: 1; min-width: 70px; }
+  .shell .accounts-table .person strong, .shell .accounts-table .person small { white-space: normal; overflow-wrap: anywhere; }
+  .shell .accounts-table .person .board-category-icon { margin-left: 0; }
+  .shell .accounts-table .account-role-cell, .shell .accounts-table .account-category-cell { grid-column: 1; font-size: 13px; color: #52657b; }
+  .shell .accounts-table td[data-label]::before { content: attr(data-label); margin-right: 10px; color: #718197; }
+  .shell .accounts-table .account-action-cell { grid-column: 2; grid-row: 1 / 4; }
+  .shell .accounts-table .account-actions { flex-direction: column; gap: 8px; }
+  .shell .accounts-table .account-actions button { width: 100%; padding: 9px 11px; }
+  .shell .accounts-table #account-empty { display: block; }
 }
