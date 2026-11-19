@@ -163,14 +163,11 @@ func (a *App) publicHistory(c *gin.Context) {
 		filtered = append(filtered, item)
 	}
 	total := len(filtered)
-	start := (page - 1) * pageSize
-	if start > total {
-		start = total
+	start := total
+	if page-1 <= total/pageSize {
+		start = (page - 1) * pageSize
 	}
-	end := start + pageSize
-	if end > total {
-		end = total
-	}
+	end := start + min(pageSize, total-start)
 	directory, err := a.userDirectory()
 	if err != nil {
 		fail(c, http.StatusInternalServerError, "读取选手失败")

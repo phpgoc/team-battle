@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/url"
 	"testing"
 )
@@ -60,6 +61,10 @@ func TestHistoryPlayerFilterUsesCachedParticipants(t *testing.T) {
 	result := read("player_id=3&page=2&page_size=1")
 	if result.Total != 2 || len(result.Tournaments) != 1 || result.Tournaments[0].ID != first {
 		t.Fatalf("选手筛选后分页错误: %+v", result)
+	}
+	result = read(fmt.Sprintf("player_id=3&page=%d&page_size=20", math.MaxInt))
+	if result.Total != 2 || len(result.Tournaments) != 0 {
+		t.Fatalf("超出末页时应返回空列表并保留总数: %+v", result)
 	}
 	query := url.Values{"player_id": {"3"}, "name": {"选手筛选"}, "from": {"2026-11-18"}, "to": {"2026-11-18"}}
 	result = read(query.Encode())
