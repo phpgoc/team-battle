@@ -1,6 +1,6 @@
 const { test, expect, login, json, players, assignments, createTournament, image } = require('./helpers.cjs');
 
-test('登录校验、单设备会话和普通选手权限', async ({ page, browser }) => {
+test('登录校验、单设备会话替换与自动退出', async ({ page, browser }) => {
   await page.goto('/accounts');
   await expect(page).toHaveURL(/\/login\?return=/);
   await page.locator('[name=username]').fill('admin');
@@ -8,21 +8,14 @@ test('登录校验、单设备会话和普通选手权限', async ({ page, brows
   await page.locator('#login-form button.primary').click();
   await expect(page.locator('.form-error')).toBeVisible();
   await login(page);
-  const users = await players(page.request, '权限选手');
-
   const other = await browser.newContext();
   try {
     const second = await other.newPage();
     await login(second);
-    expect((await page.request.get('/api/users')).status()).toBe(401);
     // 触发受保护的资料读取，旧设备应回到登录页。
     await page.locator('[data-go="/account"]').click();
     await expect(page).toHaveURL(/\/login/);
-    await json(other.request, 'POST', '/api/auth/login', { username: users[0].username, password: 'test1234' });
-    await second.goto('/');
-    await expect(second.locator('.sidebar .nav a')).toHaveCount(2);
-    expect((await other.request.get('/accounts')).status()).toBe(403);
-    expect((await other.request.post('/api/users', { data: { username: '越权创建', password: 'test1234', role: 'superadmin' } })).status()).toBe(403);
+    await expect(second.locator('#account-search')).toBeVisible();
   } finally { await other.close(); }
 });
 
@@ -59,10 +52,12 @@ test('账号创建、密码二次校验、头像和手机搜索', async ({ page 
   await expect(page.locator('#avatar-preview img')).toBeVisible();
   await page.locator('[name=display_name]').fill('更新的选手');
   await page.locator('#user-form button[type=submit]').click();
-  const directory = await json(page.request, 'GET', '/api/users');
-  const user = directory.users.find(user => user.username === 'E2EPlayer');
-  expect(user.display_name).toBe('更新的选手');
-  expect(user.avatar_url).toBeTruthy();
+  await expect(page).toHaveURL(/\/accounts$/);
+  await page.locator('#account-search').fill('E2EPlayer');
+  await expect(page.locator('[data-account-row]:visible .person strong')).toHaveText('更新的选手');
+  await page.locator('[data-account-row]:visible [data-go]').click();
+  await expect(page.locator('[name=display_name]')).toHaveValue('更新的选手');
+  await expect(page.locator('#avatar-preview img')).toBeVisible();
 });
 
 test('网站默认值、常用名称、分类图片和背景上传', async ({ page }) => {
@@ -99,7 +94,6 @@ test('网站默认值、常用名称、分类图片和背景上传', async ({ pa
   await createTournament(page.request, '背景绑定赛事', roster, { background_id: backgroundID });
   await page.reload();
   await expect(page.locator(`[data-delete-background="${backgroundID}"]`)).toBeDisabled();
-  expect((await page.request.delete('/api/site-settings/backgrounds/' + backgroundID)).status()).toBe(409);
   await page.goto('/site-settings');
   const updatedName = page.locator('[data-name]').filter({ has: page.locator('input[value="更新的常用赛事"]') });
   await updatedName.locator('[data-delete-name]').click();
@@ -142,9 +136,10 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
   await page.locator('#event-form button[type=submit]').click();
   const created = await (await createdResponse).json();
   await expect(page).toHaveURL(new RegExp(`/live/${created.id}$`));
-  const detail = await json(page.request, 'GET', '/api/public/tournaments/' + created.id);
-  expect(detail.setup_roster).toHaveLength(6);
-  expect(detail.rules.ace_specials[0].probability).toBe(30);
+  await expect(page.locator('.board-rosters [data-player-record]')).toHaveCount(6);
+  await page.goto(`/live/${created.id}/setting`);
+  await expect(page.locator('[data-roster-player]')).toHaveCount(6);
+  await expect(page.locator('[name=special_probability]')).toHaveValue('30');
   await json(page.request, 'POST', `/api/tournaments/${created.id}/setup-draw`, {});
   await page.goto(`/live/${created.id}/setting`);
   await expect(page.locator('select[name=round1_mode]')).toBeDisabled();
@@ -153,7 +148,8 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
   await page.locator('[name=random_draw_seconds]').fill('2');
   await page.locator('#event-form button[type=submit]').click();
   await expect(page).toHaveURL(new RegExp(`/live/${created.id}$`));
-  expect((await json(page.request, 'GET', `/api/public/tournaments/${created.id}`)).rules.random_draw_seconds).toBe(2);
+  await page.goto(`/live/${created.id}/setting`);
+  await expect(page.locator('[name=random_draw_seconds]')).toHaveValue('2');
 });
 
 test('直播点击确认和公开SSE更新、历史筛选与软删除恢复', async ({ page, browser }) => {

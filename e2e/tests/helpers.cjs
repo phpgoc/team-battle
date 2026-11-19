@@ -10,10 +10,10 @@ const test = base.extend({
   }, { auto: true }]
 });
 
-async function login(page, target = '/accounts') {
+async function login(page, target = '/accounts', username = 'admin', password = 'test1234') {
   await page.goto('/login?return=' + encodeURIComponent(target));
-  await page.locator('[name=username]').fill('admin');
-  await page.locator('[name=password]').fill('test1234');
+  await page.locator('[name=username]').fill(username);
+  await page.locator('[name=password]').fill(password);
   await page.locator('#login-form button.primary').click();
   await expect(page).toHaveURL(new RegExp(target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'));
   await expect(page.locator('h1').first()).toBeVisible();
