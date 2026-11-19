@@ -7,6 +7,7 @@
 - 业务与测试在 internal/app，正式入口在 cmd/team-battle，前端在 internal/app/web。根目录保留启动器、文档、模块文件和 test.sqlite；按职责拆文件。
 - 赛事使用 Tournament/tournament，单局使用 Match/match，event 仅表示事件。events.go 专用于 SSE，stream_broadcast.go 管理内存订阅。旧数据库名仅保留在迁移及其测试中。
 - README 面向用户，先操作再编译部署；技术约定写这里，仅记当前约束，不写修改流水。中文先稳定，中英韩使用统一翻译结构，切换语言保留路由、草稿及上传文件。
+- 日期控件使用本地内嵌的 Flatpickr 4.6.13，保留上游MIT许可及中韩语言包；赛事时间精确到小时，筛选只用日期，不依赖运行时CDN。手输日期严格校验，切换语言保留选择并清理旧日历实例。
 - 中文代码注释；独立任务分别自动中文提交。修改后执行 gofmt、go test ./...、go build ./...；前端做浏览器验证，状态机覆盖正常推进、重复提交、非法阶段和越权。
 
 ## 数据与缓存

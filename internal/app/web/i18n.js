@@ -1,5 +1,9 @@
 window.TB_I18N = {
   "zh": {
+    "today": "今天",
+    "done": "完成",
+    "invalidDate": "请输入有效日期，格式为 YYYY-MM-DD",
+    "invalidStartHour": "请输入有效日期和整点小时，格式为 YYYY-MM-DD HH:00",
     "showChoices": "展开候选",
     "chooseExistingAccount": "请从候选列表中选择一个账号",
     "noAccountMatches": "没有匹配的账号",
@@ -346,6 +350,10 @@ window.TB_I18N = {
     "categoryIconFormat": "分类图标只支持 JPG、PNG、GIF 或 WebP"
   },
   "en": {
+    "today": "Today",
+    "done": "Done",
+    "invalidDate": "Enter a valid date as YYYY-MM-DD",
+    "invalidStartHour": "Enter a valid date and hour as YYYY-MM-DD HH:00",
     "showChoices": "Show choices",
     "chooseExistingAccount": "Choose an account from the suggestions",
     "noAccountMatches": "No matching accounts",
@@ -662,6 +670,10 @@ window.TB_I18N = {
     "categoryIconFormat": "Category icons must be JPG, PNG, GIF or WebP."
   },
   "ko": {
+    "today": "오늘",
+    "done": "완료",
+    "invalidDate": "유효한 날짜를 YYYY-MM-DD 형식으로 입력하세요",
+    "invalidStartHour": "유효한 날짜와 정시를 YYYY-MM-DD HH:00 형식으로 입력하세요",
     "showChoices": "후보 보기",
     "chooseExistingAccount": "후보 목록에서 계정을 선택하세요",
     "noAccountMatches": "일치하는 계정이 없습니다",
