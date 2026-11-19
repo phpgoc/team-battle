@@ -3,7 +3,7 @@
 ## 工程与交付
 
 - Go 1.22+、Gin、纯 Go SQLite，支持 CGO_ENABLED=0。前端 HTML/CSS/JS 通过 go:embed 打包，不依赖 Redis、外部 CDN 或 Node 服务。
-- 单可执行文件部署，只提供 HTTP，TLS 由 Nginx 处理。参数 --db（./runtime/team-battle.sqlite）、--host（localhost）、--port（9527）。启动自动创建目录、表结构及默认管理员 admin/test1234，无 init/test 子命令。
+- 单可执行文件部署，只提供 HTTP，TLS 由 Nginx 处理。参数 --db（./runtime/team-battle.sqlite）、--host（localhost）、--port（9527）、--sse-max-connections（500，正整数）。启动自动创建目录、表结构及默认管理员 admin/test1234，无 init/test 子命令。
 - 业务与测试在 internal/app，版本迁移在 internal/migrations，正式入口在 cmd/team-battle，前端在 internal/app/web。根目录保留启动器、文档、模块文件和 test.sqlite；按职责拆文件。
 - 赛事使用 Tournament/tournament，单局使用 Match/match，event 仅表示事件。events.go 专用于 SSE，stream_broadcast.go 管理内存订阅。旧数据库名仅保留在迁移及其测试中。
 - README 面向用户，先操作再编译部署；技术约定写这里，仅记当前约束，不写修改流水。中文先稳定，中英韩使用统一翻译结构，切换语言保留路由、草稿及上传文件。
@@ -60,6 +60,7 @@
 ## 推送与页面
 
 - 公共SSE /api/public/tournaments/:id/stream 对登录与访客相同；订阅和最新快照只在内存，每赛事构建一份，慢连接保留最新，末连接退出释放，心跳不查库。历史不连接SSE。
+- SSE 配额在单进程的全部赛事间共享，满额响应 SSE 重连间隔并关闭，断开释放额度。每帧写入最多 5 秒，HTTP 服务不设全局写超时。
 - 未分队但录入满6人即公开 /live/:id，显示不分队名单并接收统一SSE；分队后自动转双方名单。人数不足的赛事仅超管与该赛事管理员可在首页看到，入口跳设置，其余身份在列表、页面及详情接口均不可查看。公开范围缩小时SSE发送不可用通知并关闭。首页为分页历史及进行中赛事，未确认均属进行中，不重复状态标签，不设实时赛事tab；登录后才有左导航。
 - 直播/历史共用无头无侧栏全屏页：第一轮与KOF并排，右侧大将及双方名单；三轮标题、比分、对局字号一致。名称、总比分、轮次比分居中，说明为副标题；规则三列对齐，始终有大将规则，特殊组列全人名并可内部滚动。单局不放头像，win/lose仅表示A队胜负。
 - 当前对战区按视口保持高度，未排阵/未抽大将不塌缩。长战绩、规则、名单内部滚动；验证1920×1080、1536×864、1366×768、1280×720，常见5v5不要求缩放或整页滚动。

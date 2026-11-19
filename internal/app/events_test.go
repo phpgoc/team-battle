@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -108,4 +109,72 @@ func TestPublicSSEMatchesAcrossIdentitiesAndPushesResults(t *testing.T) {
 	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[0]}, 200)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/confirm", id), nil, 200)
 	f.request(t, 0, "GET", path, nil, http.StatusNoContent)
+}
+
+func TestSSEConnectionLimitIsSharedAndReleased(t *testing.T) {
+	f := newWorkflowFixture(t)
+	first := createSetupTournament(t, f, 6, "random", "random", nil)
+	second := createSetupTournament(t, f, 6, "random", "random", nil)
+	f.app.sseMaxConnections = 1
+	handler := f.app.router()
+	finished := make(chan struct{}, 3)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() { finished <- struct{}{} }()
+		handler.ServeHTTP(w, r)
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	connect := func(id int64) *http.Response {
+		t.Helper()
+		req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/api/public/tournaments/%d/stream", server.URL, id), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response, err := server.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { response.Body.Close() })
+		if response.StatusCode != http.StatusOK || !strings.HasPrefix(response.Header.Get("Content-Type"), "text/event-stream") {
+			t.Fatalf("SSE 响应无效: %d %v", response.StatusCode, response.Header)
+		}
+		return response
+	}
+	waitForClose := func() {
+		t.Helper()
+		select {
+		case <-finished:
+		case <-ctx.Done():
+			t.Fatal("SSE 连接未关闭")
+		}
+	}
+	assertSubscribed := func(response *http.Response) {
+		t.Helper()
+		reader := bufio.NewReader(response.Body)
+		firstLine, err := reader.ReadString('\n')
+		if err != nil || firstLine != "retry: 2000\n" {
+			t.Fatalf("SSE 订阅未建立: %q %v", firstLine, err)
+		}
+		line, err := reader.ReadString('\n')
+		if err != nil || !strings.HasPrefix(line, "data: ") {
+			t.Fatalf("SSE 未返回初始快照: %q %v", line, err)
+		}
+	}
+	active := connect(first)
+	assertSubscribed(active)
+	retry := connect(second)
+	body, err := io.ReadAll(retry.Body)
+	retry.Body.Close()
+	if err != nil || string(body) != "retry: 10000\n\n" {
+		t.Fatalf("满额时应告知客户端重试: %q %v", body, err)
+	}
+	waitForClose()
+	active.Body.Close()
+	waitForClose()
+
+	next := connect(second)
+	assertSubscribed(next)
+	next.Body.Close()
+	waitForClose()
 }

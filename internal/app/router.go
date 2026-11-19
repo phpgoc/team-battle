@@ -106,7 +106,7 @@ func (a *App) router() *gin.Engine {
 	api.GET("/public/history", a.publicHistory)
 	api.GET("/public/users/:id/records", a.publicPlayerRecords)
 	api.GET("/public/tournaments/:id", a.publicTournament)
-	api.GET("/public/tournaments/:id/stream", a.publicStream)
+	api.GET("/public/tournaments/:id/stream", limitSSEConnections(a.sseMaxConnections), a.publicStream)
 
 	api.GET("/users", a.listUsers)
 	api.POST("/users", a.createUser)

@@ -81,6 +81,7 @@ chmod +x team-battle-linux-amd64
 | `--db` | `./runtime/team-battle.sqlite` | 数据库路径 |
 | `--host` | `localhost` | 监听地址 |
 | `--port` | `9527` | 监听端口 |
+| `--sse-max-connections` | `500` | 所有实时赛事共享的推送连接上限，满额时观众浏览器会自动重试 |
 
 ### Nginx 反向代理
 

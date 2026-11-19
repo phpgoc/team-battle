@@ -8,6 +8,7 @@ import (
 	"log"
 	mathrand "math/rand"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -49,15 +50,16 @@ func isNonSuperAdmin(role string) bool {
 }
 
 type App struct {
-	db          *sql.DB
-	writeMu     sync.Mutex
-	thumbnailMu sync.Mutex
-	rng         *mathrand.Rand
-	storageDir  string
-	history     historyCache
-	directory   categoryDirectoryCache
-	broadcast   streamHub
-	logins      loginLimiter
+	db                *sql.DB
+	writeMu           sync.Mutex
+	thumbnailMu       sync.Mutex
+	rng               *mathrand.Rand
+	storageDir        string
+	history           historyCache
+	directory         categoryDirectoryCache
+	broadcast         streamHub
+	logins            loginLimiter
+	sseMaxConnections int
 }
 
 type historyCache struct {
@@ -220,7 +222,11 @@ func Main() {
 	port := flag.Int("port", 9527, "HTTP listen port")
 	dbPath := flag.String("db", "", "SQLite database path")
 	sqlPath := flag.String("sql", "", "SQLite database path alias")
+	sseMaxConnections := flag.Int("sse-max-connections", defaultSSEMaxConnections, "Maximum simultaneous SSE subscriptions")
 	flag.Parse()
+	if *sseMaxConnections < 1 {
+		log.Fatal("--sse-max-connections 必须大于 0")
+	}
 
 	if *dbPath == "" {
 		*dbPath = *sqlPath
@@ -248,14 +254,21 @@ func Main() {
 	}
 
 	app := &App{
-		db:         db,
-		rng:        mathrand.New(mathrand.NewSource(time.Now().UnixNano())),
-		storageDir: filepath.Dir(*dbPath),
+		db:                db,
+		rng:               mathrand.New(mathrand.NewSource(time.Now().UnixNano())),
+		storageDir:        filepath.Dir(*dbPath),
+		sseMaxConnections: *sseMaxConnections,
 	}
-	r := app.router()
 	addr := net.JoinHostPort(*host, strconv.Itoa(*port))
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           app.router(),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       5 * time.Minute,
+		IdleTimeout:       60 * time.Second,
+	}
 	log.Printf("team-battle listening on http://%s, db=%s", addr, *dbPath)
-	if err := r.Run(addr); err != nil {
+	if err := server.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }
