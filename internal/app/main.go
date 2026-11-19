@@ -1,18 +1,22 @@
 package app
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"encoding/json"
+	"errors"
 	"flag"
 	"log"
 	mathrand "math/rand"
 	"net"
-	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -60,6 +64,8 @@ type App struct {
 	broadcast         streamHub
 	logins            loginLimiter
 	sseMaxConnections int
+	shutdownStarted   atomic.Bool
+	streamsDone       <-chan struct{}
 }
 
 type historyCache struct {
@@ -247,41 +253,50 @@ func Main() {
 	if *dbPath == "" {
 		*dbPath = defaultDatabasePath()
 	}
-	if err := os.MkdirAll(filepath.Dir(*dbPath), 0755); err != nil {
-		log.Fatal(err)
-	}
-
-	db, err := openDatabase(*dbPath)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT)
+	addr := net.JoinHostPort(*host, strconv.Itoa(*port))
+	err := run(ctx, addr, *dbPath, *sseMaxConnections)
+	stop()
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
+	if ctx.Err() != nil {
+		log.Print("服务已停止，数据库已关闭")
+	}
+}
+
+func run(ctx context.Context, addr, dbPath string, sseMaxConnections int) (err error) {
+	storageDir := filepath.Dir(dbPath)
+	if err := os.MkdirAll(storageDir, 0755); err != nil {
+		return err
+	}
+	db, err := openDatabase(dbPath)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, db.Close()) }()
 	if err := migrate(db); err != nil {
-		log.Fatal(err)
+		return err
 	}
 	if err := ensureDefaultAdmin(db); err != nil {
-		log.Fatal(err)
+		return err
 	}
-	if err := migrateBackgroundFiles(db, filepath.Dir(*dbPath)); err != nil {
-		log.Fatal(err)
+	if err := migrateBackgroundFiles(db, storageDir); err != nil {
+		return err
 	}
-
+	if ctx.Err() != nil {
+		return nil
+	}
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
 	app := &App{
 		db:                db,
 		rng:               mathrand.New(mathrand.NewSource(time.Now().UnixNano())),
-		storageDir:        filepath.Dir(*dbPath),
-		sseMaxConnections: *sseMaxConnections,
+		storageDir:        storageDir,
+		sseMaxConnections: sseMaxConnections,
 	}
-	addr := net.JoinHostPort(*host, strconv.Itoa(*port))
-	server := &http.Server{
-		Addr:              addr,
-		Handler:           app.router(),
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       5 * time.Minute,
-		IdleTimeout:       60 * time.Second,
-	}
-	log.Printf("team-battle listening on http://%s, db=%s", addr, *dbPath)
-	if err := server.ListenAndServe(); err != nil {
-		log.Fatal(err)
-	}
+	log.Printf("team-battle listening on http://%s, db=%s", listener.Addr(), dbPath)
+	return app.serveHTTP(ctx, listener)
 }

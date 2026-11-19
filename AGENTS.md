@@ -4,6 +4,7 @@
 
 - Go 1.22+、Gin、纯 Go SQLite，支持 CGO_ENABLED=0。前端 HTML/CSS/JS 通过 go:embed 打包，不依赖 Redis、外部 CDN 或 Node 服务。
 - 单可执行文件部署，只提供 HTTP，TLS 由 Nginx 处理。参数 --db（./runtime/team-battle.sqlite）、--host（localhost）、--port（9527）、--sse-max-connections（500，正整数）。启动自动创建目录、表结构及默认管理员 admin/test1234，无 init/test 子命令。
+- 收到 Ctrl+C、SIGTERM、SIGHUP 或 SIGQUIT 后先关闭监听并拒绝新请求，再关闭 SSE，等待全部 HTTP 请求结束后关闭数据库；不强制超时截断请求。
 - 业务与测试在 internal/app，版本迁移在 internal/migrations，正式入口在 cmd/team-battle，前端在 internal/app/web。根目录保留启动器、文档、模块文件和 test.sqlite；按职责拆文件。
 - 赛事使用 Tournament/tournament，单局使用 Match/match，event 仅表示事件。events.go 专用于 SSE，stream_broadcast.go 管理内存订阅。旧数据库名仅保留在迁移及其测试中。
 - README 面向用户，先操作再编译部署；技术约定写这里，仅记当前约束，不写修改流水。中文先稳定，中英韩使用统一翻译结构，切换语言保留路由、草稿及上传文件。

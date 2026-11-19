@@ -69,6 +69,10 @@ func (a *App) publicStream(c *gin.Context) {
 	}
 	initial, updates, unsubscribe, err := a.subscribeTournament(tournamentID)
 	if err != nil {
+		if errors.Is(err, errServerStopping) {
+			fail(c, http.StatusServiceUnavailable, "服务正在停止")
+			return
+		}
 		fail(c, http.StatusNotFound, "赛事不存在")
 		return
 	}
@@ -81,6 +85,12 @@ func (a *App) publicStream(c *gin.Context) {
 		c.Status(http.StatusNoContent)
 		return
 	}
+	select {
+	case <-a.streamsDone:
+		fail(c, http.StatusServiceUnavailable, errServerStopping.Error())
+		return
+	default:
+	}
 	setStreamHeaders(c)
 	if !writeStreamFrame(c.Writer, "retry: 2000\ndata: %s\n\n", initial.payload) {
 		return
@@ -90,6 +100,8 @@ func (a *App) publicStream(c *gin.Context) {
 	defer heartbeats.Stop()
 	for {
 		select {
+		case <-a.streamsDone:
+			return
 		case <-c.Request.Context().Done():
 			return
 		case <-heartbeats.C:

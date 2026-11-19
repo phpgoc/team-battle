@@ -76,6 +76,8 @@ chmod +x team-battle-linux-amd64
 
 The default address is `http://localhost:9527`. On first launch, the app creates its data directory and a super administrator account named `admin` with password `test1234`. Sign in and change the password. Deployment requires one executable. Keep the data files after launch. Avatars and category icons are stored in the database. Backgrounds are stored in `uploads/backgrounds/` alongside it.
 
+Press Ctrl+C to stop the service, or configure Supervisor to send SIGTERM. The server stops accepting new requests, closes live update streams, and waits for active requests before closing the database.
+
 To upgrade, stop the app and back up the database and the adjacent `uploads/` directory. Replace the executable and start it. The app upgrades the database automatically and preserves existing data. It stops if the upgrade fails. To return to an earlier version, also restore the pre-upgrade backup.
 
 | Option | Default | Purpose |
