@@ -82,6 +82,8 @@ func (a *App) router() *gin.Engine {
 		})
 	}
 
+	// 登录读取请求和校验密码时无需占用赛事写锁。
+	r.POST("/api/auth/login", a.login)
 	api := r.Group("/api")
 	api.Use(func(c *gin.Context) {
 		if c.Request.Method != http.MethodGet {
@@ -90,7 +92,6 @@ func (a *App) router() *gin.Engine {
 		}
 		c.Next()
 	})
-	api.POST("/auth/login", a.login)
 	api.POST("/auth/logout", a.logout)
 	api.GET("/auth/me", a.me)
 	api.PATCH("/auth/profile", a.updateProfile)

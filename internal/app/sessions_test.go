@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
+	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -215,5 +218,101 @@ func TestSessionTokenNeverAppearsInJSON(t *testing.T) {
 		if bytes.Contains(raw, []byte("session_token")) || bytes.Contains(raw, []byte("password_hash")) || bytes.Contains(raw, []byte(cookie.Value)) {
 			t.Fatalf("接口泄露私有认证字段: %s", raw)
 		}
+	}
+}
+
+func TestCookieSecurityFollowsTrustedHTTPS(t *testing.T) {
+	f := newWorkflowFixture(t)
+	credentials, err := json.Marshal(prepareSessionLogin(t, f))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, target, peer, forwarded string
+		secure                        bool
+	}{
+		{"本机 HTTP", "http://localhost", "127.0.0.1:1234", "", false},
+		{"本机 Nginx HTTPS", "http://localhost", "[::1]:1234", "https", true},
+		{"直接 HTTPS", "https://localhost", "192.0.2.1:1234", "", true},
+		{"直接 HTTP 的转发头", "http://localhost", "192.0.2.1:1234", "https", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var cookie *http.Cookie
+			for _, step := range []struct{ method, path string }{
+				{"POST", "/api/auth/login"}, {"GET", "/api/auth/me"}, {"POST", "/api/auth/logout"},
+			} {
+				req := httptest.NewRequest(step.method, tc.target+step.path, bytes.NewReader(credentials))
+				req.RemoteAddr = tc.peer
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("X-Forwarded-Proto", tc.forwarded)
+				req.Header.Set("X-Real-IP", "198.51.100.1")
+				if cookie != nil {
+					req.AddCookie(cookie)
+				}
+				res := httptest.NewRecorder()
+				f.handler.ServeHTTP(res, req)
+				cookie = sessionCookie(t, res)
+				if cookie.Secure != tc.secure || !cookie.HttpOnly || cookie.SameSite != http.SameSiteLaxMode {
+					t.Fatalf("%s Cookie 属性不正确: %+v", step.path, cookie)
+				}
+			}
+		})
+	}
+}
+
+func TestLoginRunsWithoutTournamentWriteLock(t *testing.T) {
+	f := newWorkflowFixture(t)
+	credentials := prepareSessionLogin(t, f)
+	f.app.writeMu.Lock()
+	defer f.app.writeMu.Unlock()
+	result := make(chan *httptest.ResponseRecorder, 1)
+	go func() { result <- sessionRequest(f.handler, "POST", "/api/auth/login", credentials, nil) }()
+	select {
+	case response := <-result:
+		sessionCookie(t, response)
+	case <-time.After(3 * time.Second):
+		t.Fatal("登录等待了赛事写锁")
+	}
+}
+
+func TestLoginBodyLimitWithUnknownLength(t *testing.T) {
+	f := newWorkflowFixture(t)
+	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(strings.Repeat(" ", 8193)))
+	req.ContentLength = -1
+	res := httptest.NewRecorder()
+	f.handler.ServeHTTP(res, req)
+	if res.Code != http.StatusRequestEntityTooLarge || len(res.Result().Cookies()) != 0 {
+		t.Fatalf("超出请求体上限应返回413: %d", res.Code)
+	}
+}
+
+func TestLoginLimiterResetsAndSeparatesClientIPs(t *testing.T) {
+	var limiter loginLimiter
+	now := time.Unix(120, 0)
+	localhost := "127.0.0.1:1234"
+	direct := "192.0.2.1:1234"
+	for _, peer := range []string{localhost, direct} {
+		req := httptest.NewRequest("POST", "/api/auth/login", nil)
+		req.RemoteAddr = peer
+		req.Header.Set("X-Real-IP", "198.51.100.1")
+		ip := loginClientIP(req)
+		want := netip.MustParseAddr("192.0.2.1")
+		if peer == localhost {
+			want = netip.MustParseAddr("198.51.100.1")
+		}
+		if ip != want {
+			t.Fatalf("来源IP不正确: %s", ip)
+		}
+		for i := 0; i < loginAttemptsPerMinute; i++ {
+			if !limiter.allowAttempt(ip, now) {
+				t.Fatalf("达到限制前应允许登录请求: %s", ip)
+			}
+		}
+		if limiter.allowAttempt(ip, now) {
+			t.Fatalf("达到限制后应暂时拒绝登录请求: %s", ip)
+		}
+	}
+	if !limiter.allowAttempt(netip.MustParseAddr("198.51.100.1"), now.Add(time.Minute)) {
+		t.Fatal("下一分钟应允许之前受限的来源再次登录")
 	}
 }

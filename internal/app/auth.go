@@ -4,11 +4,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -17,30 +18,56 @@ import (
 // 服务端会话不设到期时间；持久Cookie在使用时续期，浏览器清理Cookie后需重新登录。
 const sessionCookieMaxAge = 10 * 365 * 24 * 60 * 60
 
-func setSessionCookie(c *gin.Context, token string) {
+func setSessionCookie(c *gin.Context, token string, maxAge int) {
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("tb_session", token, sessionCookieMaxAge, "/", "", false, true)
+	c.SetCookie("tb_session", token, maxAge, "/", "", secureSessionRequest(c.Request), true)
 }
 
 func (a *App) login(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	if !a.logins.allowAttempt(loginClientIP(c.Request), time.Now()) {
+		c.Header("Retry-After", "60")
+		fail(c, http.StatusTooManyRequests, "登录请求过于频繁")
+		return
+	}
+	const maxLoginBody = 8 * 1024
+	if c.Request.ContentLength > maxLoginBody {
+		fail(c, http.StatusRequestEntityTooLarge, "登录请求过大")
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxLoginBody)
+	raw, err := io.ReadAll(c.Request.Body)
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		fail(c, http.StatusRequestEntityTooLarge, "登录请求过大")
+		return
+	}
 	var req loginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err != nil || json.Unmarshal(raw, &req) != nil {
 		fail(c, http.StatusBadRequest, "请求格式不正确")
 		return
 	}
-	var user User
-	var hash string
-	var categoryID sql.NullInt64
-	err := a.db.QueryRow(`SELECT id, username, display_name, role, status, created_at, password_hash, category_id FROM users WHERE username = ? AND is_deleted=0`, strings.TrimSpace(req.Username)).Scan(&user.ID, &user.Username, &user.DisplayName, &user.Role, &user.Status, &user.CreatedAt, &hash, &categoryID)
-	if categoryID.Valid {
-		user.CategoryID = categoryID.Int64
+	if !a.logins.start() {
+		c.Header("Retry-After", "1")
+		fail(c, http.StatusTooManyRequests, "同时登录的请求过多")
+		return
 	}
-	if err != nil || user.Status != "active" || bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)) != nil {
+	defer a.logins.finish()
+	ctx := c.Request.Context()
+	username := strings.TrimSpace(req.Username)
+	var userID int64
+	var hash string
+	err = a.db.QueryRowContext(ctx, `SELECT id,password_hash FROM users WHERE username=? AND status='active' AND is_deleted=0`, username).Scan(&userID, &hash)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		fail(c, http.StatusInternalServerError, "读取账号失败")
+		return
+	}
+	if errors.Is(err, sql.ErrNoRows) || bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)) != nil {
 		fail(c, http.StatusUnauthorized, "账号或密码错误")
 		return
 	}
 	// 登录返回和账号设置相同的缓存资料，包含本人的修改时间。
-	user, err = a.userByID(user.ID)
+	user, err := a.userByID(userID)
 	if err != nil {
 		fail(c, 500, "读取账号失败")
 		return
@@ -50,13 +77,22 @@ func (a *App) login(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "创建会话失败")
 		return
 	}
-	// 账号仅保存一个有效会话，一次原子更新即可顶掉旧设备，失败时不签发Cookie。
-	if _, err := a.db.Exec(`UPDATE users SET session_token=? WHERE id=?`, token, user.ID); err != nil {
+	// 校验期间账号可能变更，仅凭原始凭据仍有效时才替换会话。
+	result, err := a.db.ExecContext(ctx, `UPDATE users SET session_token=? WHERE id=? AND username=? AND password_hash=? AND status='active' AND is_deleted=0`, token, userID, username, hash)
+	if err != nil {
 		fail(c, http.StatusInternalServerError, "保存登录会话失败")
 		return
 	}
-	setSessionCookie(c, token)
-	a.populateAvatarURL(&user)
+	changed, err := result.RowsAffected()
+	if err != nil {
+		fail(c, http.StatusInternalServerError, "保存登录会话失败")
+		return
+	}
+	if changed != 1 {
+		fail(c, http.StatusUnauthorized, "账号或密码错误")
+		return
+	}
+	setSessionCookie(c, token, sessionCookieMaxAge)
 	ok(c, gin.H{"user": user})
 }
 
@@ -68,7 +104,7 @@ func (a *App) logout(c *gin.Context) {
 			return
 		}
 	}
-	c.SetCookie("tb_session", "", -1, "/", "", false, true)
+	setSessionCookie(c, "", -1)
 	ok(c, gin.H{"ok": true})
 }
 
@@ -211,16 +247,11 @@ func (a *App) currentUser(c *gin.Context) (User, error) {
 		c.Set("session_invalid", true)
 		return User{}, errors.New("unauthorized")
 	}
-	setSessionCookie(c, token)
+	setSessionCookie(c, token, sessionCookieMaxAge)
 	return user, nil
 }
 
 func (a *App) userByID(id int64) (User, error) { return a.cachedUser(id) }
-func (a *App) populateAvatarURL(u *User) {
-	if cached, err := a.cachedUser(u.ID); err == nil {
-		u.AvatarURL = cached.AvatarURL
-	}
-}
 
 func (a *App) managerTournament(c *gin.Context) (User, int64, bool) {
 	actor, err := a.currentUser(c)

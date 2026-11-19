@@ -57,6 +57,7 @@ type App struct {
 	history     historyCache
 	directory   categoryDirectoryCache
 	broadcast   streamHub
+	logins      loginLimiter
 }
 
 type historyCache struct {
