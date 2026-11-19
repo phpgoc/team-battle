@@ -114,8 +114,7 @@
         if (!['a', 'b'].includes(side)) return;
         const picks = d.picks[round];
         if (!picks.a || !picks.b) { toast(t('archiveNoEligible')); return; }
-        if (!(await window.TBConfirm.result({ stage: roundName(round), seq: d.matches[round].length + 1, a: name(picks.a), b: name(picks.b), winner: side }))) return;
-        if (!form.isConnected) return;
+        // 历史逐局直接记入草稿，核对后统一确认保存。
         d.matches[round].push({ round, a_id: picks.a, b_id: picks.b, who_win: side });
         delete d.picks[round]; redraw();
       }
