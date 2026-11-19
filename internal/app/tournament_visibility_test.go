@@ -83,8 +83,10 @@ func TestUngroupedSSEPublishesGroupingAndHidesShrunkRoster(t *testing.T) {
 				t.Fatal(err)
 			}
 			if strings.HasPrefix(line, "data: ") {
+				data := []byte(strings.TrimSpace(strings.TrimPrefix(line, "data: ")))
+				assertNoLoginNames(t, data)
 				var v map[string]any
-				if err := json.Unmarshal([]byte(strings.TrimSpace(strings.TrimPrefix(line, "data: "))), &v); err != nil {
+				if err := json.Unmarshal(data, &v); err != nil {
 					t.Fatal(err)
 				}
 				return v
@@ -111,6 +113,7 @@ func TestUngroupedSSEPublishesGroupingAndHidesShrunkRoster(t *testing.T) {
 	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/setup-draw", id), nil, 200)
 	select {
 	case update := <-updates:
+		assertNoLoginNames(t, update.payload)
 		var view struct{ Teams []struct{ Players []any } }
 		if err := json.Unmarshal(update.payload, &view); err != nil {
 			t.Fatal(err)

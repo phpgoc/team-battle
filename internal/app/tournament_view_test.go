@@ -41,3 +41,35 @@ func TestPublicTournamentIncludesManagerDisplayName(t *testing.T) {
 		t.Fatalf("超级管理员姓名未显示: %s", raw)
 	}
 }
+
+func TestTournamentViewOmitsLoginNames(t *testing.T) {
+	f := newWorkflowFixture(t)
+	id := createSetupTournament(t, f, 6, "random", "random", nil)
+	path := fmt.Sprintf("/api/tournaments/%d", id)
+	assertView := func(isGrouped bool) {
+		t.Helper()
+		for _, actor := range []int{0, 1, 2, 3} {
+			raw := f.request(t, actor, "GET", fmt.Sprintf("/api/public/tournaments/%d", id), nil, 200)
+			assertNoLoginNames(t, raw)
+			if !bytes.Contains(raw, []byte(`"display_name":"选手3"`)) {
+				t.Fatalf("身份%d的公开名单缺少选手显示名，已分队=%t", actor, isGrouped)
+			}
+		}
+		assertNoLoginNames(t, f.request(t, 2, "GET", path, nil, 200))
+	}
+	assertView(false)
+	f.request(t, 2, "POST", path+"/setup-draw", nil, 200)
+	assertView(true)
+	for actor, path := range map[int]string{1: "/api/users", 3: "/api/auth/me"} {
+		if raw := f.request(t, actor, "GET", path, nil, 200); !bytes.Contains(raw, []byte(`"username":"user3"`)) {
+			t.Fatalf("%s 缺少授权可见的登录名", path)
+		}
+	}
+}
+
+func assertNoLoginNames(t *testing.T, raw []byte) {
+	t.Helper()
+	if bytes.Contains(raw, []byte(`"username":`)) || bytes.Contains(raw, []byte(`"user3"`)) {
+		t.Fatalf("观赛数据包含登录名: %s", raw)
+	}
+}

@@ -55,7 +55,9 @@ func TestPublicSSEMatchesAcrossIdentitiesAndPushesResults(t *testing.T) {
 				t.Fatalf("未收到推送数据: %v", err)
 			}
 			if strings.HasPrefix(line, "data: ") {
-				return strings.TrimSpace(strings.TrimPrefix(line, "data: "))
+				data := strings.TrimSpace(strings.TrimPrefix(line, "data: "))
+				assertNoLoginNames(t, []byte(data))
+				return data
 			}
 		}
 	}

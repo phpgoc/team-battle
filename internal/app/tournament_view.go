@@ -109,7 +109,7 @@ func (a *App) buildTournament(tournamentID int64, includePrivate bool) (map[stri
 			return nil, err
 		}
 		player := directory[id]
-		setup = append(setup, map[string]any{"id": id, "fixed_team": side, "username": player.Username, "display_name": player.DisplayName, "avatar_url": player.AvatarURL, "category_name": player.CategoryName, "category_icon": player.CategoryIcon, "selectable": player.Status == "active" && !player.IsDeleted && isNonSuperAdmin(player.Role)})
+		setup = append(setup, map[string]any{"id": id, "fixed_team": side, "display_name": player.DisplayName, "avatar_url": player.AvatarURL, "category_name": player.CategoryName, "category_icon": player.CategoryIcon, "selectable": player.Status == "active" && !player.IsDeleted && isNonSuperAdmin(player.Role)})
 	}
 	if err := setupRows.Err(); err != nil {
 		setupRows.Close()
@@ -284,7 +284,7 @@ func (a *App) loadPlayers(tournamentID, teamID int64) ([]map[string]any, error) 
 		if !exists {
 			return nil, errors.New("参赛账号不存在")
 		}
-		items = append(items, map[string]any{"id": u.ID, "username": u.Username, "display_name": u.DisplayName, "avatar_url": u.AvatarURL, "category_id": u.CategoryID, "category_name": u.CategoryName, "category_icon": u.CategoryIcon, "is_captain": r.captain == 1, "active": r.active == 1})
+		items = append(items, map[string]any{"id": u.ID, "display_name": u.DisplayName, "avatar_url": u.AvatarURL, "category_id": u.CategoryID, "category_name": u.CategoryName, "category_icon": u.CategoryIcon, "is_captain": r.captain == 1, "active": r.active == 1})
 	}
 	return items, nil
 }
