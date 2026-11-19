@@ -267,3 +267,38 @@ test('纠错确认清除范围、验证批量合法性并允许修正最后一�
   expect(detail.matches.find(match => match.id === kofID).winner_team_id).toBe(teamA);
   expect(teamB).not.toBe(teamA);
 });
+
+test('观众实时接收大将抽签结果但不播放悬念动画', async ({ page, browser }) => {
+  await login(page);
+  const roster = await players(page.request, '抽签观众');
+  const created = await createTournament(page.request, '观众抽签动画', roster, {
+    round1_target: 1,
+    round2_target: 1,
+    rules: { round1_mode: 'random', kof_starter: 'random', no_repeat: true, kof_revival_no_repeat: false, random_draw_seconds: 0, ace_draw_seconds: 3, ace_most_wins: 20, ace_most_losses: 20, ace_specials: [] }
+  });
+  await json(page.request, 'POST', `/api/tournaments/${created.id}/setup-draw`, {});
+  await json(page.request, 'POST', `/api/tournaments/${created.id}/start`, {});
+  let detail = await json(page.request, 'GET', `/api/public/tournaments/${created.id}`);
+  const [teamA, teamB] = detail.teams.map(team => team.id);
+  let match = detail.matches.find(item => item.stage === 'round1');
+  await json(page.request, 'POST', `/api/tournaments/${created.id}/matches/${match.id}/result`, { winner_team_id: teamA });
+  detail = await json(page.request, 'GET', `/api/public/tournaments/${created.id}`);
+  match = detail.matches.find(item => item.stage === 'round2');
+  await json(page.request, 'POST', `/api/tournaments/${created.id}/matches/${match.id}/result`, { winner_team_id: teamB });
+
+  const visitor = await browser.newContext();
+  try {
+    const publicPage = await visitor.newPage();
+    await publicPage.goto(`/live/${created.id}`);
+    await expect(publicPage.locator('#draw-ace')).toHaveCount(0);
+    await page.goto(`/live/${created.id}`);
+    await expect(page.locator('#draw-ace')).toBeVisible();
+    await page.locator('#draw-ace').click();
+    await expect(page.locator('#draw-roll')).toBeVisible();
+    await expect(publicPage.locator('[data-stage="ace"] .board-matches .board-match')).toHaveCount(1);
+    await expect(publicPage.locator('#draw-roll:visible')).toHaveCount(0);
+    await expect(publicPage.locator('#draw-ace')).toHaveCount(0);
+  } finally {
+    await visitor.close();
+  }
+});
