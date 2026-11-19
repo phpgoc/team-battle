@@ -70,6 +70,18 @@ func (a *App) router() *gin.Engine {
 		c.Data(200, "application/javascript; charset=utf-8", data)
 	})
 
+	for _, asset := range []struct{ path, contentType string }{{"search-select.js", "application/javascript"}, {"search-select.css", "text/css"}} {
+		path, contentType := asset.path, asset.contentType
+		r.GET("/assets/"+path, func(c *gin.Context) {
+			data, err := webFS.ReadFile("web/" + path)
+			if err != nil {
+				c.Status(http.StatusInternalServerError)
+				return
+			}
+			c.Data(http.StatusOK, contentType+"; charset=utf-8", data)
+		})
+	}
+
 	api := r.Group("/api")
 	api.Use(func(c *gin.Context) {
 		if c.Request.Method != http.MethodGet {

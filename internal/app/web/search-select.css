@@ -1,0 +1,16 @@
+/* 联想框共用账号ID选择逻辑，首页和赛事设置保持一致。 */
+.search-select{position:relative;min-width:0;width:100%}
+.search-select>select[hidden]{display:none}
+.search-select>input{width:100%;min-width:0;padding-right:66px;background:#fff}
+.search-select>input::-webkit-search-cancel-button{display:none}
+.search-select-toggle{position:absolute;right:4px;top:4px;bottom:4px;min-height:0!important;padding:0 7px!important;display:grid;place-items:center;border:0;background:transparent;color:#8191a5}
+.search-select-clear{position:absolute;right:34px;top:4px;bottom:4px;min-height:0!important;padding:0 5px!important;border:0;background:transparent;color:#8191a5;font-size:17px!important}
+.search-select-clear[hidden]{display:none}
+.search-select:focus-within>input{border-color:#80acd3}
+.search-select-menu{position:absolute;z-index:6;top:calc(100% + 6px);left:0;right:0;min-width:100%;max-height:280px;overflow:auto;overscroll-behavior:contain;background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:0 12px 30px #14213d1a;padding:5px}
+.search-select-menu[hidden]{display:none}
+.search-select-menu>button{display:block;width:100%;text-align:left;background:transparent;border:0;border-radius:6px;color:var(--ink);padding:10px 11px;min-height:38px;font-size:13px;overflow-wrap:anywhere}
+.search-select-menu>button:hover,.search-select-menu>button.is-active{background:#edf4fb}
+.search-select-menu>button[aria-selected=true]{color:#357bb6;font-weight:650}
+.search-select-menu>.help{padding:8px 10px;margin:0}
+.search-select:has(input:disabled) .search-select-toggle{display:none}

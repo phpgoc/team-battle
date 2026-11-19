@@ -89,7 +89,7 @@
   function captureForms() {
     return $$('form').map((form, index) => ({
       key: formKey(form, index),
-      fields: $$('input,select,textarea', form).map(el => ({ name: el.name, type: fieldType(el), value: el.value, checked: el.checked, selected: el.multiple ? [...el.selectedOptions].map(o => o.value) : null, files: el.type === 'file' ? el.files : null }))
+      fields: $$('input,select,textarea', form).map(el => ({ name: el.name || el.dataset.formKey || '', type: fieldType(el), value: el.value, checked: el.checked, selected: el.multiple ? [...el.selectedOptions].map(o => o.value) : null, files: el.type === 'file' ? el.files : null }))
     }));
   }
   function restoreForms(forms) {
@@ -98,7 +98,7 @@
       if (!form) continue;
       const used = new Set();
       for (const item of data.fields) {
-        const el = $$('input,select,textarea', form).find(el => !used.has(el) && el.name === item.name && fieldType(el) === item.type);
+        const el = $$('input,select,textarea', form).find(el => !used.has(el) && (el.name || el.dataset.formKey || '') === item.name && fieldType(el) === item.type);
         if (!el) continue;
         used.add(el);
         if (item.type === 'file') { try { el.files = item.files; if (el.files?.length) el.dispatchEvent(new Event('change')); } catch (_) {} }
@@ -109,6 +109,7 @@
     }
   }
   function bindCommon() {
+    window.TBSearchSelect.bindAll(app, t);
     $$('[data-go]').forEach(el => el.addEventListener('click', event => { if (event.ctrlKey || event.metaKey || event.shiftKey) return; event.preventDefault(); go(el.dataset.go); }));
     $$('input[type="password"]').forEach(input => {
       input.dataset.passwordField = 'true';
@@ -146,7 +147,7 @@
     const search = new URLSearchParams({ ...state.filters, page: state.page, page_size: 10 });
     const [past, live] = await Promise.all([api('/api/public/history?' + search), api('/api/public/tournaments')]);
     const playerOptions = '<option value="">' + t('allPlayers') + '</option>' + (past.players || []).map(player => '<option value="' + player.id + '"' + (String(player.id) === String(state.filters.player_id || '') ? ' selected' : '') + '>' + esc(player.display_name) + (player.category_name ? ' · ' + esc(player.category_name) : '') + '</option>').join('');
-    shell('<div class="home-heading"><div><span class="eyebrow">TEAM BATTLE / ' + t('eventCenter') + '</span><h1>' + t('home') + '</h1><p class="subtitle">' + t('homeIntro') + '</p></div><div class="home-summary"><span><b>' + live.tournaments.length + '</b>' + t('ongoing') + '</span><span><b>' + past.total + '</b>' + t('history') + '</span></div></div>' + (live.tournaments.length ? '<section class="home-live section-gap"><div class="section-title"><h2><span class="status-dot"></span>' + t('ongoing') + '</h2><span>' + t('watchPublic') + '</span></div>' + liveCards(live.tournaments) + '</section>' : '') + '<section class="panel history-panel"><div class="panel-head"><div><span class="eyebrow">ARCHIVE</span><h2>' + t('history') + '</h2></div><span class="count-badge">' + t('total') + ' ' + past.total + '</span></div><form id="history-filter" class="filter-bar">' + field('name', input('name', state.filters.name, 'search', 'placeholder="' + t('searchEventHint') + '"')) + field('player', '<select name="player_id">' + playerOptions + '</select>') + field('from', input('from', state.filters.from, 'date')) + field('to', input('to', state.filters.to, 'date')) + '<button class="primary">' + t('search') + '</button><button type="button" class="ghost" data-go="/">' + t('clear') + '</button></form>' + eventTable(past.tournaments) + '<div class="pagination"><span>' + t('total') + ' ' + past.total + '</span><div><button class="outline" id="previous" ' + (state.page <= 1 ? 'disabled' : '') + '>' + t('previous') + '</button><span>' + state.page + ' <small>/ ' + Math.max(1, Math.ceil(past.total / 10)) + '</small></span><button class="outline" id="next" ' + (state.page * 10 >= past.total ? 'disabled' : '') + '>' + t('next') + '</button></div></div></section>');
+    shell('<div class="home-heading"><div><span class="eyebrow">TEAM BATTLE / ' + t('eventCenter') + '</span><h1>' + t('home') + '</h1><p class="subtitle">' + t('homeIntro') + '</p></div><div class="home-summary"><span><b>' + live.tournaments.length + '</b>' + t('ongoing') + '</span><span><b>' + past.total + '</b>' + t('history') + '</span></div></div>' + (live.tournaments.length ? '<section class="home-live section-gap"><div class="section-title"><h2><span class="status-dot"></span>' + t('ongoing') + '</h2><span>' + t('watchPublic') + '</span></div>' + liveCards(live.tournaments) + '</section>' : '') + '<section class="panel history-panel"><div class="panel-head"><div><span class="eyebrow">ARCHIVE</span><h2>' + t('history') + '</h2></div><span class="count-badge">' + t('total') + ' ' + past.total + '</span></div><form id="history-filter" class="filter-bar">' + field('name', input('name', state.filters.name, 'search', 'placeholder="' + t('searchEventHint') + '"')) + field('player', '<select name="player_id" data-searchable>' + playerOptions + '</select>') + field('from', input('from', state.filters.from, 'date')) + field('to', input('to', state.filters.to, 'date')) + '<button class="primary">' + t('search') + '</button><button type="button" class="ghost" data-go="/">' + t('clear') + '</button></form>' + eventTable(past.tournaments) + '<div class="pagination"><span>' + t('total') + ' ' + past.total + '</span><div><button class="outline" id="previous" ' + (state.page <= 1 ? 'disabled' : '') + '>' + t('previous') + '</button><span>' + state.page + ' <small>/ ' + Math.max(1, Math.ceil(past.total / 10)) + '</small></span><button class="outline" id="next" ' + (state.page * 10 >= past.total ? 'disabled' : '') + '>' + t('next') + '</button></div></div></section>');
     const filterURL = (page = 1, values = state.filters) => '/?' + new URLSearchParams({ ...values, p: page });
     $('#history-filter').addEventListener('submit', action(async event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.target)); if (values.from && values.to && values.from > values.to) throw Error(t('dateRangeError')); go(filterURL(1, values)); }));
     $('#previous').onclick = () => go(filterURL(state.page - 1)); $('#next').onclick = () => go(filterURL(state.page + 1));
@@ -439,7 +440,7 @@
       state.rosterOrder = entries.map(([id]) => id);
     }
     const managers = users.users.filter(user => user.status === 'active' && !user.is_deleted);
-    const managerField = state.user.role === 'superadmin' ? field('manager', '<select name="manager_id" required><option value="">' + t('selectManager') + '</option>' + options(managers, e.manager_id) + '</select>') : '';
+    const managerField = state.user.role === 'superadmin' ? field('manager', '<select name="manager_id" data-searchable required><option value="">' + t('selectManager') + '</option>' + managers.map(user => '<option value="' + user.id + '"' + (Number(e.manager_id) === user.id ? ' selected' : '') + '>' + esc(user.display_name) + ' (' + esc(user.username) + ')</option>').join('') + '</select>') : '';
     const createBackground = mode === 'create' ? field('background', `<select name="background_id">${backgroundOptions(backgrounds, e.background_id)}</select>`) : '';
     const basic = mode !== 'roster' ? '<section class="panel editor-section" id="event-basics"><div class="panel-head"><h2>' + t('basicInfo') + '</h2><span>' + t('requiredBasics') + '</span></div><div class="panel-body form-grid">' + field('name', '<input name="name" list="tournament-names" value="' + esc(e.name || '') + '" required><datalist id="tournament-names">' + (catalog.tournament_names || []).map(n => '<option value="' + esc(n.name) + '">').join('') + '</datalist>', true) + field('time', startTimeInput(e.start_time || localTime())) + managerField + createBackground + field('description', '<textarea name="description" rows="2">' + esc(e.description || '') + '</textarea>', true) + '</div></section>' : '';
     const backgroundPanel = mode === 'create' || mode === 'roster' ? '' : eventBackgroundMarkup(e, backgrounds, manages(e) && !terminal(e));

@@ -1,5 +1,8 @@
 window.TB_I18N = {
   "zh": {
+    "showChoices": "展开候选",
+    "chooseExistingAccount": "请从候选列表中选择一个账号",
+    "noAccountMatches": "没有匹配的账号",
     "tournamentDefaults": "新赛事默认设置",
     "tournamentDefaultsHint": "仅作为之后创建赛事的默认值，已有赛事不变。",
     "unassignedPlayers": "参赛选手 · 待分队",
@@ -343,6 +346,9 @@ window.TB_I18N = {
     "categoryIconFormat": "分类图标只支持 JPG、PNG、GIF 或 WebP"
   },
   "en": {
+    "showChoices": "Show choices",
+    "chooseExistingAccount": "Choose an account from the suggestions",
+    "noAccountMatches": "No matching accounts",
     "tournamentDefaults": "New tournament defaults",
     "tournamentDefaultsHint": "Only applies to new tournaments. Existing tournaments stay unchanged.",
     "specialSideFallback": "Leave this side empty to draw from its entire team.",
@@ -656,6 +662,9 @@ window.TB_I18N = {
     "categoryIconFormat": "Category icons must be JPG, PNG, GIF or WebP."
   },
   "ko": {
+    "showChoices": "후보 보기",
+    "chooseExistingAccount": "후보 목록에서 계정을 선택하세요",
+    "noAccountMatches": "일치하는 계정이 없습니다",
     "tournamentDefaults": "새 대회 기본 설정",
     "tournamentDefaultsHint": "이후 생성하는 대회의 기본값에만 적용되며, 기존 대회는 변경되지 않습니다.",
     "specialSideFallback": "후보를 선택하지 않으면 해당 팀 전체에서 추첨합니다.",
