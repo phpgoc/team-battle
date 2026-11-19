@@ -1,4 +1,6 @@
 /* 设置页只展示录入顺序和原始选择，不按实际队伍分栏。 */
+.ace-editor-heading{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 16px}
+.ace-editor-heading>.ace-edit-hint{font-size:12px;line-height:1.5;color:var(--muted)}
 .roster-add{display:flex;align-items:flex-end;gap:12px;margin:20px 0 8px;max-width:680px}
 .roster-search{position:relative;flex:1;min-width:0;display:grid;gap:8px}
 .roster-search>input{width:100%;min-width:0}

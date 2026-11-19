@@ -38,22 +38,15 @@
   .broadcast-board .current-player{gap:6px}
   .broadcast-board .board-current-fighters .board-avatar,.broadcast-board .board-current-match:has(.board-current-win) .board-avatar{width:var(--current-avatar-size);height:var(--current-avatar-size);flex-basis:var(--current-avatar-size)}
   .broadcast-board .board-records{gap:10px}
-  .broadcast-board .board-round-head{padding:9px 12px}
-  .broadcast-board .board-right>.board-round .board-round-head{padding:4px 10px;gap:3px}
-  .broadcast-board .board-right>.board-round{min-height:96px}
-  .broadcast-board .board-right>.board-round .board-round-head>div{flex-direction:column;gap:0}
-  .broadcast-board .board-right>.board-round .board-round-no{font-size:16px;line-height:1.2}
-  .broadcast-board .board-right>.board-round h2{font-size:32px;line-height:1.05}
-  .broadcast-board .board-right>.board-round .board-matches:has(.is-pending){display:none}
-  .broadcast-board .board-right>.board-round .board-match{min-height:44px;padding:7px 2px;grid-template-columns:22px minmax(0,1fr) 52px minmax(0,1fr)}
-  .broadcast-board .board-right>.board-round .board-player{font-size:19px}
-  .broadcast-board .board-right>.board-round .board-match-result b{font-size:18px}
-  .broadcast-board .board-right>.board-round .board-player .board-category-icon{width:18px;height:18px;flex-basis:18px}
-  .broadcast-board .board-right>.board-round .board-empty{display:none}
-  .broadcast-board .board-roster-head{font-size:19px;padding:6px 10px}
-  .broadcast-board .board-roster-list{flex:1;grid-template-rows:repeat(var(--roster-count),minmax(calc(var(--roster-avatar-size) + 6px),1fr));align-content:stretch;padding:2px 8px}
-  .broadcast-board .board-roster-player{min-height:calc(var(--roster-avatar-size) + 6px);padding:3px 0;gap:6px}
-  .broadcast-board .board-roster-player .board-avatar{width:var(--roster-avatar-size);height:var(--roster-avatar-size);flex-basis:var(--roster-avatar-size)}
+  .broadcast-board .board-round-head{padding:5px 12px}
+  .broadcast-board .board-round-head>div{gap:2px}
+  .broadcast-board .board-round-no{line-height:1.15}
+  /* 大将战沿用左右两轮的标题、比分及对局字号，不再单独缩小。 */
+  .broadcast-board .board-right>.board-round{min-height:144px}
+  .broadcast-board .board-roster-head{font-size:19px;line-height:1.2;padding:6px 10px}
+  .broadcast-board .board-roster-list{container-type:size;flex:1;grid-template-rows:repeat(var(--roster-count),minmax(32px,1fr));align-content:stretch;padding:2px 8px}
+  .broadcast-board .board-roster-player{min-height:32px;padding:3px 0;gap:6px}
+  .broadcast-board .board-roster-player .board-avatar{--fitted-avatar-size:max(24px,min(var(--roster-avatar-size),calc(100cqh / var(--roster-count) - 6px)));width:var(--fitted-avatar-size);height:var(--fitted-avatar-size);flex-basis:var(--fitted-avatar-size)}
   .broadcast-board .board-roster-name{font-size:clamp(20px,1.35vw,26px);gap:1px}
   .broadcast-board .board-roster-player .board-category-icon{width:21px;height:21px;flex-basis:21px}
   .broadcast-board .board-rules{height:var(--rules-height);max-height:var(--rules-height);grid-template-rows:24px minmax(0,1fr);overflow:hidden}
@@ -70,17 +63,27 @@
   .broadcast-board .ace-rule-odds dl{gap:4px}
   .broadcast-board .ace-special-list{min-height:0;gap:2px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#536985 #152237}
   .broadcast-board .ace-special-list>.ace-special-rule{line-height:1.5}
+  /* 抽签来源利用比分两侧的空间，保留完整对阵和下方名单高度。 */
+  .broadcast-board .board-right>.board-round>.ace-draw-record{position:absolute;top:8px;right:10px;max-width:calc(50% - 76px);padding:0;gap:2px;flex-direction:column;align-items:center}
+  .broadcast-board .ace-draw-record .board-ace-source{font-size:14px}
+  .broadcast-board .ace-draw-details{font-size:12px}
+  .broadcast-board .ace-draw-popover{left:auto;right:0;width:min(420px,calc(100vw - 40px));max-width:calc(100vw - 40px)}
 }
 @media(min-width:1180px) and (min-height:620px) and (max-height:850px){
   .broadcast-board{--roster-avatar-size:40px;--current-avatar-size:96px;--rules-height:96px}
   .broadcast-board .current-player strong{font-size:32px}
   .broadcast-board .board-roster-name{font-size:19px}
   .broadcast-board .board-captain{font-size:11px}
+  .broadcast-board .board-roster-profile{position:relative}
+  .broadcast-board .board-roster-name{display:block}
+  .broadcast-board .board-roster-profile .board-captain{position:absolute;left:0;bottom:-1px;font-size:9px;line-height:1.1;padding:1px 3px;background:#152237ed;border-radius:3px}
+  .broadcast-board .ace-draw-record .board-ace-source{font-size:13px}
+  .broadcast-board .ace-draw-record strong{white-space:nowrap}
   .broadcast-board .board-top:not(.has-current) h1{font-size:28px;line-height:1.2;margin:0}
   .broadcast-board .board-top:not(.has-current) .board-score strong{font-size:44px}
 }
 @media(min-width:1180px) and (min-height:620px) and (max-height:740px){
-  .broadcast-board{--roster-avatar-size:34px;--current-avatar-size:92px;--rules-height:90px}
+  .broadcast-board{--roster-avatar-size:34px;--current-avatar-size:92px;--current-match-height:170px;--rules-height:80px}
   .broadcast-board .board-roster-list{padding-top:0;padding-bottom:0}
   .broadcast-board .board-roster-head{font-size:17px;padding:5px 8px}
   .broadcast-board .board-roster-name{font-size:18px}

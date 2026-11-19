@@ -1,5 +1,6 @@
 window.TB_I18N = {
   "zh": {
+    "aceEditableUntilFirstResult": "录入第一场比赛之前都可以修改。",
     "today": "今天",
     "done": "完成",
     "invalidDate": "请输入有效日期，格式为 YYYY-MM-DD",
@@ -350,6 +351,7 @@ window.TB_I18N = {
     "categoryIconFormat": "分类图标只支持 JPG、PNG、GIF 或 WebP"
   },
   "en": {
+    "aceEditableUntilFirstResult": "Editable until the first match result is recorded.",
     "today": "Today",
     "done": "Done",
     "invalidDate": "Enter a valid date as YYYY-MM-DD",
@@ -670,6 +672,7 @@ window.TB_I18N = {
     "categoryIconFormat": "Category icons must be JPG, PNG, GIF or WebP."
   },
   "ko": {
+    "aceEditableUntilFirstResult": "첫 경기 결과를 입력하기 전까지 수정할 수 있습니다.",
     "today": "오늘",
     "done": "완료",
     "invalidDate": "유효한 날짜를 YYYY-MM-DD 형식으로 입력하세요",

@@ -9,9 +9,7 @@
 .kof-reserved-label{position:absolute;top:3px;right:6px;font-size:11px;color:#f9cb72;white-space:nowrap;pointer-events:none}
 .board-roster-player[data-kof-selected=true]{position:relative;background:#e6ae3612}
 @media(max-width:1100px){.kof-reserved-label{font-size:10px}}
-/* 较矮桌面压缩空大将战，为名单保留完整选手行和操作空间。 */
+/* 较矮桌面的空场提示保留适当留白。 */
 @media(min-width:1180px) and (max-height:800px){
-  .broadcast-board .board-right>.board-round:has(.board-empty) .board-round-head>div{display:flex;align-items:center;gap:14px}
-  .broadcast-board .board-right>.board-round:has(.board-empty) .board-round-head h2{margin:0}
   .broadcast-board .board-right>.board-round .board-empty{padding:8px}
 }
