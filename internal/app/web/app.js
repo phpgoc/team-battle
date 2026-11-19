@@ -228,8 +228,19 @@
       });
       return;
     }
-    shell(`<div class="page-head"><h1>${t('accounts')}</h1><button class="primary accent" data-go="${pageURL('accounts')}/new">${t('createUser')}</button></div><section class="panel"><div class="panel-body"><input id="account-search" aria-label="${t('searchPlayers')}" placeholder="${t('searchPlayers')}"><p class="help">${t('accountDeleteHint')}</p></div><div class="table-wrap"><table class="table"><thead><tr><th>${t('account')}</th><th>${t('role')}</th><th>${t('category')}</th><th>${t('actions')}</th></tr></thead><tbody>${users.map(u => `<tr data-account-row="${esc((u.username + ' ' + u.display_name).toLowerCase())}"><td>${person(u)}</td><td>${t(u.role)}</td><td>${esc(u.category_name || '—')}</td><td><div class="account-actions"><button class="link" data-go="${pageURL('accounts')}/${u.id}">${t('editAccount')}</button><button class="link danger" data-delete-user="${u.id}"${u.can_delete ? '' : ' disabled'} title="${u.can_delete ? '' : t(u.id === state.user.id ? 'cannotDeleteSelf' : 'cannotDeletePlayed')}">${t('delete')}</button></div></td></tr>`).join('')}</tbody></table></div></section>`, 'accounts');
-    $('#account-search').oninput = event => { const text = event.target.value.trim().toLowerCase(); $$('[data-account-row]').forEach(row => { row.hidden = !row.dataset.accountRow.includes(text); }); };
+    shell(`<div class="page-head"><h1>${t('accounts')}</h1><button class="primary accent" data-go="${pageURL('accounts')}/new">${t('createUser')}</button></div><section class="panel accounts-panel"><form id="account-filter" class="panel-body accounts-toolbar" role="search"><div class="field"><label for="account-search">${t('searchPlayers')}</label><input type="search" id="account-search" name="search" placeholder="${t('searchPlayers')}"></div><span id="account-count" class="count-badge" role="status" aria-live="polite"></span><p class="help">${t('accountDeleteHint')}</p></form><div class="table-wrap"><table class="table accounts-table"><thead><tr><th scope="col">${t('account')}</th><th scope="col">${t('role')}</th><th scope="col">${t('category')}</th><th scope="col">${t('actions')}</th></tr></thead><tbody>${users.map(u => `<tr data-account-row="${esc((u.username + ' ' + u.display_name).toLowerCase())}"><td class="account-identity">${person(u)}</td><td class="account-role-cell" data-label="${t('role')}">${t(u.role)}</td><td class="account-category-cell" data-label="${t('category')}">${esc(u.category_name || '—')}</td><td class="account-action-cell"><div class="account-actions"><button class="outline" data-go="${pageURL('accounts')}/${u.id}">${t('editAccount')}</button><button class="outline danger" data-delete-user="${u.id}"${u.can_delete ? '' : ' disabled'} title="${u.can_delete ? '' : t(u.id === state.user.id ? 'cannotDeleteSelf' : 'cannotDeletePlayed')}">${t('delete')}</button></div></td></tr>`).join('')}<tr id="account-empty" hidden><td colspan="4"><div class="empty">${t('noAccountMatches')}</div></td></tr></tbody></table></div></section>`, 'accounts');
+    const filterAccounts = () => {
+      const text = $('#account-search').value.trim().toLowerCase();
+      const rows = $$('[data-account-row]');
+      rows.forEach(row => { row.hidden = !row.dataset.accountRow.includes(text); });
+      const count = rows.filter(row => !row.hidden).length;
+      $('#account-count').textContent = `${t('total')} ${count} / ${users.length}`;
+      $('#account-empty').hidden = count !== 0;
+    };
+    $('#account-filter').onsubmit = event => event.preventDefault();
+    $('#account-filter').addEventListener('formrestored', filterAccounts);
+    $('#account-search').oninput = filterAccounts;
+    filterAccounts();
     $$('[data-delete-user]').forEach(button => button.onclick = action(async () => { if (!(await confirmAction(t('deleteAccountConfirm')))) return; await api('/api/users/' + button.dataset.deleteUser, { method: 'DELETE' }); await usersPage(); toast(t('saved')); }));
   }
 

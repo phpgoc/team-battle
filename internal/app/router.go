@@ -70,7 +70,7 @@ func (a *App) router() *gin.Engine {
 		c.Data(200, "application/javascript; charset=utf-8", data)
 	})
 
-	for _, asset := range []struct{ path, contentType string }{{"tournament-management.js", "application/javascript"}, {"tournament-management.css", "text/css"}, {"search-select.js", "application/javascript"}, {"search-select.css", "text/css"}, {"date-picker.js", "application/javascript"}, {"date-picker.css", "text/css"}, {"site-settings.css", "text/css"}, {"vendor/flatpickr/flatpickr.min.js", "application/javascript"}, {"vendor/flatpickr/flatpickr.min.css", "text/css"}, {"vendor/flatpickr/zh.js", "application/javascript"}, {"vendor/flatpickr/ko.js", "application/javascript"}} {
+	for _, asset := range []struct{ path, contentType string }{{"tournament-management.js", "application/javascript"}, {"tournament-management.css", "text/css"}, {"search-select.js", "application/javascript"}, {"search-select.css", "text/css"}, {"date-picker.js", "application/javascript"}, {"date-picker.css", "text/css"}, {"site-settings.css", "text/css"}, {"management.css", "text/css"}, {"vendor/flatpickr/flatpickr.min.js", "application/javascript"}, {"vendor/flatpickr/flatpickr.min.css", "text/css"}, {"vendor/flatpickr/zh.js", "application/javascript"}, {"vendor/flatpickr/ko.js", "application/javascript"}} {
 		path, contentType := asset.path, asset.contentType
 		r.GET("/assets/"+path, func(c *gin.Context) {
 			data, err := webFS.ReadFile("web/" + path)
