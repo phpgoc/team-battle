@@ -230,6 +230,7 @@ func migrate(db *sql.DB) error {
 		{"tournaments", "lineup_a_submitted", "INTEGER NOT NULL DEFAULT 0"},
 		{"tournaments", "lineup_b_submitted", "INTEGER NOT NULL DEFAULT 0"},
 		{"tournaments", "background_id", "INTEGER"},
+		{"tournaments", "is_imported", "INTEGER NOT NULL DEFAULT 0"},
 		{"backgrounds", "file_path", "TEXT NOT NULL DEFAULT ''"},
 		{"backgrounds", "image_size", "INTEGER NOT NULL DEFAULT 0"},
 		{"backgrounds", "thumbnail_data", "BLOB"},
@@ -243,6 +244,10 @@ func migrate(db *sql.DB) error {
 		}
 	}
 	if err := initializeUserSessions(db); err != nil {
+		return err
+	}
+	// 通过录入审计识别旧的补录赛事，正常完赛记录不套用补录标记。
+	if _, err := db.Exec(`UPDATE tournaments SET is_imported=1 WHERE is_imported=0 AND id IN (SELECT tournament_id FROM tournament_actions WHERE action='historical_tournament_created')`); err != nil {
 		return err
 	}
 	// 旧版本的头像、显示名次数合并到最近一次本人资料修改，不重置已有冷却。

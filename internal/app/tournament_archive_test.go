@@ -129,3 +129,36 @@ func TestArchiveTiedRoundsRequireAce(t *testing.T) {
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM rounds WHERE stage='ace' AND score_a=1 AND score_b=0 AND status='finished'`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournament_actions WHERE action='ace_drawn' AND payload LIKE '%most_losses%'`)
 }
+
+func TestImportedTournamentMarkerSurvivesUpgrade(t *testing.T) {
+	f := newWorkflowFixture(t)
+	normalID := f.create(t, "random")
+	raw := f.request(t, 1, "POST", "/api/tournaments/archive", map[string]any{
+		"manager_id": 1, "name": "补录标记", "start_time": "2026-11-17T19", "round1_target": 1, "round2_target": 1,
+		"player_ids":        []int64{3, 4, 5, 6, 7, 8},
+		"fixed_assignments": map[string]string{"3": "A", "4": "A", "5": "A", "6": "B", "7": "B", "8": "B"},
+		"matches":           []archivedMatch{{1, 3, 6, "a"}, {2, 3, 6, "a"}},
+	}, 200)
+	var result struct{ ID int64 }
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatal(err)
+	}
+	f.assertCount(t, 1, `SELECT is_imported FROM tournaments WHERE id=?`, result.ID)
+	// 模拟旧版没有标记的补录数据，重复初始化必须保留对局并准确回填。
+	if _, err := f.app.db.Exec(`UPDATE tournaments SET is_imported=0`); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := migrate(f.app.db); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f.assertCount(t, 0, `SELECT is_imported FROM tournaments WHERE id=?`, normalID)
+	f.assertCount(t, 2, `SELECT COUNT(*) FROM matches WHERE tournament_id=?`, result.ID)
+	var view struct {
+		Imported bool `json:"is_imported"`
+	}
+	if err := json.Unmarshal(f.request(t, 0, "GET", fmt.Sprintf("/api/public/tournaments/%d", result.ID), nil, 200), &view); err != nil || !view.Imported {
+		t.Fatalf("补录来源未公开: %v", err)
+	}
+}

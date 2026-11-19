@@ -1,5 +1,6 @@
 window.TB_I18N = {
   "zh": {
+    "importedTournament": "后期录入",
     "aceEditableUntilFirstResult": "录入第一场比赛之前都可以修改。",
     "today": "今天",
     "done": "完成",
@@ -351,6 +352,7 @@ window.TB_I18N = {
     "categoryIconFormat": "分类图标只支持 JPG、PNG、GIF 或 WebP"
   },
   "en": {
+    "importedTournament": "Entered retrospectively",
     "aceEditableUntilFirstResult": "Editable until the first match result is recorded.",
     "today": "Today",
     "done": "Done",
@@ -672,6 +674,7 @@ window.TB_I18N = {
     "categoryIconFormat": "Category icons must be JPG, PNG, GIF or WebP."
   },
   "ko": {
+    "importedTournament": "사후 입력",
     "aceEditableUntilFirstResult": "첫 경기 결과를 입력하기 전까지 수정할 수 있습니다.",
     "today": "오늘",
     "done": "완료",

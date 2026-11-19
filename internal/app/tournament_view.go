@@ -59,7 +59,8 @@ func (a *App) buildTournament(tournamentID int64, includePrivate bool) (map[stri
 	var name, description, startTime, status, createdAt string
 	var round1Target, round2Target, managerID int64
 	var backgroundID sql.NullInt64
-	if err := a.db.QueryRow(`SELECT e.name,e.description,e.start_time,e.status,e.round1_target,e.round2_target,e.manager_id,e.created_at,e.background_id FROM tournaments e WHERE e.id=?`, tournamentID).Scan(&name, &description, &startTime, &status, &round1Target, &round2Target, &managerID, &createdAt, &backgroundID); err != nil {
+	var imported bool
+	if err := a.db.QueryRow(`SELECT e.name,e.description,e.start_time,e.status,e.round1_target,e.round2_target,e.manager_id,e.created_at,e.background_id,e.is_imported FROM tournaments e WHERE e.id=?`, tournamentID).Scan(&name, &description, &startTime, &status, &round1Target, &round2Target, &managerID, &createdAt, &backgroundID, &imported); err != nil {
 		return nil, err
 	}
 	tournament["id"] = tournamentID
@@ -67,6 +68,7 @@ func (a *App) buildTournament(tournamentID int64, includePrivate bool) (map[stri
 	tournament["description"] = description
 	tournament["start_time"] = startTime
 	tournament["status"] = status
+	tournament["is_imported"] = imported
 	tournament["round1_target"] = round1Target
 	tournament["round2_target"] = round2Target
 	tournament["manager_id"] = managerID
