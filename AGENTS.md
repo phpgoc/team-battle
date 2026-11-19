@@ -9,6 +9,7 @@
 - README 面向用户，先操作再编译部署；技术约定写这里，仅记当前约束，不写修改流水。中文先稳定，中英韩使用统一翻译结构，切换语言保留路由、草稿及上传文件。
 - 日期控件使用本地内嵌的 Flatpickr 4.6.13，保留上游MIT许可及中韩语言包；赛事时间精确到小时，筛选只用日期，不依赖运行时CDN。手输日期严格校验，切换语言保留选择并清理旧日历实例。
 - 中文代码注释；独立任务分别自动中文提交。修改后执行 gofmt、go test ./...、go build ./...；前端做浏览器验证，状态机覆盖正常推进、重复提交、非法阶段和越权。
+- 管理页视觉规则集中在 web/management.css，限定 shell 和 event-editor-page，不能影响全屏直播。窄屏账号列表必须保留姓名、登录名及可点击的操作按钮。
 
 ## 数据与缓存
 
@@ -63,3 +64,20 @@
 - 动画仅发起操作的管理员播放；服务端立即随机保存响应，SSE不带重播指令。原对战卡片每250ms换候选，短移动淡入淡出，最后250ms平滑停定；分组/排阵飞入对应位置，大将规则和人选连续分段，单候选侧不滚动，刷新/访客/重复响应不补播。
 - 公开战绩弹层统一显示总胜负、对手当前分类胜负、大将战和团战胜负。团战只计确认赛事，正式队员未出场也计，取消排除。
 - 页面独立路径：/account、/accounts[/new|/:id]、/tournaments、/tournaments/new、/tournaments/archive、/site-settings、/backgrounds；服务端校验入口权限，旧workspace只重定向，筛选分页可用查询参数。
+
+## 端到端测试
+
+- e2e/ 是独立 Playwright 子项目，不使用 Vite，不参与 Go 编译。开发测试需 Go、Node.js 20+ 和 npm。
+- 5个用例覆盖登录及会话替换、账号资料和头像、网站设置与背景、赛事创建和规则锁定、实时SSE及历史筛选与删除恢复。
+- 测试自动以 CGO_ENABLED=0 编译并启动真实服务，每次新建 runtime/e2e/run-* 数据库；不读取或重置 test.sqlite，不复用已运行服务。默认端口19577，可用 E2E_PORT 修改，GO_BINARY 可指定 Go 路径。
+- 用一个工作进程执行，避免管理员单设备登录互相顶号；通过HTTP准备前置数据，主要流程使用真实浏览器操作。禁止固定延时等待及绕过点击确认；失败保留截图和 trace，产物均在 ignored runtime/e2e。
+
+```sh
+cd e2e
+npm ci
+npx playwright install chromium
+npm test
+npm run report
+```
+
+Linux CI 首次安装浏览器可用 `npx playwright install --with-deps chromium`。端到端用例和 Go 测试分别执行；修改相关交互后运行 `npm test`。

@@ -6,6 +6,7 @@ team-battle-*.exe
 
 # 本地运行数据库和会话文件
 runtime/
+e2e/node_modules/
 *.sqlite
 !test.sqlite
 *.db
