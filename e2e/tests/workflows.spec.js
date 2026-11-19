@@ -302,3 +302,43 @@ test('观众实时接收大将抽签结果但不播放悬念动画', async ({ pa
     await visitor.close();
   }
 });
+
+test('首轮排阵公开后队长和管理员均无法重排', async ({ page }) => {
+  await login(page);
+  const roster = await players(page.request, '队长排阵锁定');
+  const created = await createTournament(page.request, '队长排阵锁定', roster, {
+    rules: { round1_mode: 'manual', kof_starter: 'random', no_repeat: true, kof_revival_no_repeat: false, random_draw_seconds: 0, ace_draw_seconds: 0, ace_most_wins: 20, ace_most_losses: 20, ace_specials: [] }
+  });
+  await json(page.request, 'POST', `/api/tournaments/${created.id}/setup-draw`, {});
+  let detail = await json(page.request, 'GET', `/api/public/tournaments/${created.id}`);
+  const teamA = detail.teams[0], teamB = detail.teams[1];
+  await json(page.request, 'POST', `/api/tournaments/${created.id}/captains/confirm`, {
+    team_a_player_id: teamA.players[0].id,
+    team_b_player_id: teamB.players[0].id
+  });
+  await page.goto(`/live/${created.id}`);
+  await expect(page.locator('#board-lineup')).toBeVisible();
+  await page.goto(`/live/${created.id}/lineup`);
+  await expect(page.locator('#round1-lineup-form')).toBeVisible();
+
+  const lineupURL = `/api/tournaments/${created.id}/lineup/submit`;
+  const firstA = teamA.players.slice(0, 2).map(player => player.id);
+  const reorderedA = [firstA[1], firstA[0]];
+  await json(page.request, 'POST', lineupURL, { team_id: teamA.id, player_ids: firstA });
+  await page.goto(`/live/${created.id}/lineup`);
+  await expect(page.locator('#round1-lineup-form')).toBeVisible();
+  await json(page.request, 'POST', lineupURL, { team_id: teamA.id, player_ids: reorderedA });
+  await json(page.request, 'POST', lineupURL, { team_id: teamB.id, player_ids: teamB.players.slice(0, 2).map(player => player.id) });
+
+  await page.goto(`/live/${created.id}`);
+  await expect(page.locator('#board-lineup')).toHaveCount(0);
+  await page.goto(`/live/${created.id}/lineup`);
+  await expect(page).toHaveURL(new RegExp(`/live/${created.id}$`));
+  for (const [team, playerIDs] of [[teamA, firstA], [teamB, teamB.players.slice(0, 2).map(player => player.id)]]) {
+    const response = await page.request.post(lineupURL, { data: { team_id: team.id, player_ids: playerIDs } });
+    expect(response.status()).toBe(400);
+  }
+  const detailAfter = await json(page.request, 'GET', `/api/public/tournaments/${created.id}`);
+  const savedA = detailAfter.lineups.filter(lineup => lineup.team_id === teamA.id).map(lineup => lineup.player_id);
+  expect(savedA.slice(0, 2)).toEqual(reorderedA);
+});

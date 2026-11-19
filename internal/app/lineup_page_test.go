@@ -23,6 +23,9 @@ func TestLineupPagePermissionsAndMode(t *testing.T) {
 	f.request(t, 3, "POST", fmt.Sprintf("/api/tournaments/%d/lineup/submit", id), map[string]any{"team_id": teams[1], "player_ids": []int{6, 7}}, 400)
 	f.request(t, 3, "POST", fmt.Sprintf("/api/tournaments/%d/lineup/submit", id), map[string]any{"team_id": teams[0], "player_ids": []int{5, 3}}, 200)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/lineup/submit", id), map[string]any{"team_id": teams[1], "player_ids": []int{8, 6}}, 200)
+	for _, user := range []int{2, 3, 6} {
+		f.request(t, user, "GET", path, nil, 302)
+	}
 	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/start", id), nil, 200)
 	f.request(t, 3, "GET", path, nil, 302)
 	f.request(t, 2, "GET", path, nil, 302)

@@ -193,6 +193,13 @@ func (a *App) generateLineup(c *gin.Context) {
 		return
 	}
 	err := a.runMatchMutation(id, actor.ID, func(e *matchEngine) error {
+		ready, err := lineupReadiness(e.db, id)
+		if err != nil {
+			return err
+		}
+		if ready[0] && ready[1] {
+			return errors.New("双方排阵已公开，不能再重新抽签")
+		}
 		var drawn int
 		if err := e.db.QueryRow(`SELECT COUNT(*) FROM lineup_entries WHERE tournament_id=? AND source='setup_draw'`, id).Scan(&drawn); err != nil {
 			return err
@@ -245,6 +252,13 @@ func (a *App) submitLineup(c *gin.Context) {
 		if err != nil {
 			return err
 		}
+		ready, err := lineupReadiness(e.db, id)
+		if err != nil {
+			return err
+		}
+		if ready[0] && ready[1] {
+			return errors.New("双方排阵已公开，不能再修改")
+		}
 		if rules.Round1Mode == "random" && len(req.PlayerIDs) > 0 {
 			return errors.New("该赛事首轮为全随机")
 		}
@@ -290,7 +304,7 @@ func (a *App) submitLineup(c *gin.Context) {
 			return err
 		}
 		// 双方提交后补齐随机空位并公开，首局可直接录分，无需额外的开赛按钮。
-		ready, err := lineupReadiness(e.db, id)
+		ready, err = lineupReadiness(e.db, id)
 		if err != nil {
 			return err
 		}

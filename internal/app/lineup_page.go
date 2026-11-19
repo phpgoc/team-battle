@@ -81,6 +81,15 @@ func (a *App) serveLineupEntry(c *gin.Context) {
 		c.Status(http.StatusInternalServerError)
 		return
 	}
+	ready, err := lineupReadiness(a.db, id)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	if ready[0] && ready[1] {
+		c.Redirect(http.StatusFound, "/live/"+strconv.FormatInt(id, 10))
+		return
+	}
 	rules, err := decodeRules(raw)
 	if err != nil {
 		c.Status(http.StatusInternalServerError)

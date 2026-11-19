@@ -19,7 +19,7 @@
   const noScore = e => !(e.matches || []).some(m => m.status === 'finished');
   const canEditSettings = e => editable(e) && preMatch(e) && noScore(e);
   const lineupTeams = e => e.teams.filter(team => manages(e) || team.players.some(player => player.id === state.user?.id && player.active !== false && player.is_captain));
-  const canArrangeLineup = e => hasRoster(e) && preMatch(e) && e.rules.round1_mode === 'manual' && lineupTeams(e).length > 0;
+  const canArrangeLineup = e => hasRoster(e) && preMatch(e) && e.rules.round1_mode === 'manual' && !e.teams.every(team => team.lineup_submitted) && lineupTeams(e).length > 0;
   const teamName = (event, team) => t(event.teams[0].id === team.id ? 'teamA' : 'teamB');
   const person = u => `<span class="person">${avatar(u)}<span><strong>${esc(u.display_name)}</strong><small>${esc(u.username || '')}</small></span>${categoryIcon(u)}</span>`;
   const avatar = u => u.avatar_url ? `<img class="board-avatar" src="${esc(u.avatar_url)}" alt="">` : `<span class="board-avatar board-avatar-fallback">${esc((u.display_name || '?').slice(0, 1))}</span>`;
