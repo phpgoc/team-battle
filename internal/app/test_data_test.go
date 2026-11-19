@@ -13,15 +13,19 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func TestDemoImagesAreDetailedLocalAssets(t *testing.T) {
-	// 防止演示数据退回单色占位或简易像素图片。
+func TestDemoImagesAreValidLocalAssets(t *testing.T) {
+	// 三族采用原版32像素指令图标，校验素材时不要求人为放大。
 	for _, category := range testCategories {
 		data, err := demoFS.ReadFile("testdata/demo/" + category.asset + ".png")
 		if err != nil {
 			t.Fatal(err)
 		}
 		config, _, err := image.DecodeConfig(bytes.NewReader(data))
-		if err != nil || config.Width < 64 || config.Height < 64 || len(data) < 4096 {
+		minSize, minBytes := 32, 512
+		if category.asset == "random" {
+			minSize, minBytes = 64, 4096
+		}
+		if err != nil || config.Width < minSize || config.Height < minSize || len(data) < minBytes {
 			t.Fatalf("分类 %s 的演示图标不完整: %dx%d, %d 字节, %v", category.name, config.Width, config.Height, len(data), err)
 		}
 	}
