@@ -4,7 +4,7 @@
 
 - Go 1.22+、Gin、纯 Go SQLite，支持 CGO_ENABLED=0。前端 HTML/CSS/JS 通过 go:embed 打包，不依赖 Redis、外部 CDN 或 Node 服务。
 - 单可执行文件部署，只提供 HTTP，TLS 由 Nginx 处理。参数 --db（./runtime/team-battle.sqlite）、--host（localhost）、--port（9527）。启动自动创建目录、表结构及默认管理员 admin/test1234，无 init/test 子命令。
-- 业务与测试在 internal/app，正式入口在 cmd/team-battle，前端在 internal/app/web。根目录保留启动器、文档、模块文件和 test.sqlite；按职责拆文件。
+- 业务与测试在 internal/app，版本迁移在 internal/migrations，正式入口在 cmd/team-battle，前端在 internal/app/web。根目录保留启动器、文档、模块文件和 test.sqlite；按职责拆文件。
 - 赛事使用 Tournament/tournament，单局使用 Match/match，event 仅表示事件。events.go 专用于 SSE，stream_broadcast.go 管理内存订阅。旧数据库名仅保留在迁移及其测试中。
 - README 面向用户，先操作再编译部署；技术约定写这里，仅记当前约束，不写修改流水。中文先稳定，中英韩使用统一翻译结构，切换语言保留路由、草稿及上传文件。
 - 日期控件使用本地内嵌的 Flatpickr 4.6.13，保留上游MIT许可及中韩语言包；赛事时间精确到小时，筛选只用日期，不依赖运行时CDN。手输日期严格校验，切换语言保留选择并清理旧日历实例。
@@ -14,7 +14,10 @@
 ## 数据与缓存
 
 - 核心表为 users、tournaments、tournament_players、tournament_setup_roster、captain_votes、lineup_entries、rounds、matches、tournament_actions、categories、site_tournament_names、config。赛事外键 tournament_id，开始时间 start_time。config 为 key/value 网站设置，创建赛事时取默认值快照，不回写已有赛事。
-- 启动幂等初始化；旧表列在事务内原位迁移，保留数据、关联与自增上限，冲突回滚。1.0 前补版本迁移机制。WAL，每条连接通过 DSN 启用外键与5秒锁等待，写事务 immediate。
+- 数据库版本由 github.com/pressly/goose/v3 管理，使用兼容 Go 1.22 的 v3.23.1；复用 modernc SQLite，不使用 CGO 驱动或独立迁移命令。HTTP 启动前自动执行 internal/migrations.Up，版本存 goose_db_version；仅向上升级，失败停止启动，拒绝未知、异常及高于程序支持的版本。
+- 00001_baseline.go 接收空库和未版本化旧库，兼容表列改名、会话与固定队伍转换、资料冷却和历史标记回填；全部结构、数据及版本记录在同一事务提交，保留关联、图片和自增上限，末尾校验外键。仅旧 teams 重建期间临时单连接并关闭外键，成功和失败均恢复；迁移必须在提供 HTTP 服务前执行。
+- 发布后的迁移及 legacy_* 辅助函数不可修改或依赖可变业务逻辑。后续升级新增递增编号的 Go 迁移文件，在 Up 中通过 goose.NewGoMigration/WithGoMigrations 注册 RunTx；函数只使用传入事务，不嵌套事务、不直接访问连接池。迁移随程序编译，无需随部署复制源文件；不允许只标记版本而跳过旧库校验。
+- 背景文件外移涉及文件系统，继续在版本升级后幂等执行；写文件成功后才清空库内原图，失败可在下次启动重试。WAL，每条连接通过 DSN 启用外键与5秒锁等待，写事务 immediate。
 - 不设 teams 表，固定 A/B 队 ID 为 tournamentID*2-1、tournamentID*2，通过统一函数计算；排阵提交状态存赛事表。rounds 是轮次，matches 是单局，历史与实时共用；round_no=1/2/3，a_id、b_id、who_win 与规范字段同步，胜负为0/a/b。
 - 状态修改原子提交，成功后写审计、失效缓存并广播；不得持锁等待动画。审计包含操作者、时间、动作和数据。
 - 赛事软删除存 tournaments.is_deleted，仅超管可删除/恢复已关闭（completed/cancelled）赛事，进行中禁止操作；原阶段及关联数据保留，不计战绩，恢复后重新纳入。首页默认隐藏，include_deleted=1后可查看，人数可见性仍适用；超管赛事管理列表包含已删除项。
@@ -72,6 +75,7 @@
 - 测试自动以 CGO_ENABLED=0 编译并启动真实服务，每次新建 runtime/e2e/run-* 数据库；不读取或重置 test.sqlite，不复用已运行服务。默认端口19577，可用 E2E_PORT 修改，GO_BINARY 可指定 Go 路径。
 - 用一个工作进程执行，避免管理员单设备登录互相顶号；HTTP仅用于准备前置数据，行为及权限通过浏览器验证，API状态和数据契约使用Go集成测试。禁止固定延时等待及绕过点击确认；失败保留截图和 trace，产物均在 ignored runtime/e2e。
 - api_permissions_test.go 按真实路由维护受保护API矩阵与公开白名单，新增接口必须明确分类；检查访客、伪造/被替换会话、角色越权、跨赛事越权及拒绝后数据库未变化。
+- 数据库迁移测试覆盖新库、旧结构、增量升级、事务失败和重试、重启幂等、版本异常及连接配置恢复。演示库使用只读连接在线备份后升级副本，比对全部业务数据和自增上限；旧库测试仅在副本删除迁移元数据，禁止重置仓库 test.sqlite。
 
 ```sh
 cd e2e

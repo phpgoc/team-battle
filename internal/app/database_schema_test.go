@@ -1,6 +1,8 @@
 package app
 
 import (
+	"database/sql"
+	"strings"
 	"testing"
 )
 
@@ -12,7 +14,8 @@ func TestTournamentTableNamePreservesExistingTournaments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 模拟旧数据库名称，启动初始化应保留ID、参赛者、对局和所有外键。
+	// 模拟尚未采用版本管理的旧库，升级应保留ID、参赛者、对局和所有外键。
+	simulateUnversionedDatabase(t, f.app.db)
 	if _, err := f.app.db.Exec(`ALTER TABLE tournaments RENAME TO events`); err != nil {
 		t.Fatal(err)
 	}
@@ -53,6 +56,7 @@ func TestTournamentRelatedNamesPreserveDataAndReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 	// 模拟完整旧库，不只改主表：关联表、外键、索引和字段都使用旧名称。
+	simulateUnversionedDatabase(t, f.app.db)
 	for _, table := range []string{"tournament_players", "tournament_actions", "tournament_setup_roster", "captain_votes", "lineup_entries", "rounds", "matches", "player_selections", "kof_reservations"} {
 		if _, err := f.app.db.Exec(`ALTER TABLE ` + quoteSQLName(table) + ` RENAME COLUMN tournament_id TO event_id`); err != nil {
 			t.Fatal(err)
@@ -100,6 +104,7 @@ func TestTournamentNameCollisionRollsBackInitialization(t *testing.T) {
 		t.Run(conflict, func(t *testing.T) {
 			f := newWorkflowFixture(t)
 			id := f.create(t, "random")
+			simulateUnversionedDatabase(t, f.app.db)
 			if _, err := f.app.db.Exec(`ALTER TABLE tournaments RENAME TO events`); err != nil {
 				t.Fatal(err)
 			}
@@ -112,7 +117,7 @@ func TestTournamentNameCollisionRollsBackInitialization(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err := initializeTournamentNames(f.app.db); err == nil {
+			if err := migrate(f.app.db); err == nil {
 				t.Fatal("名称冲突时应保留原数据并拒绝继续")
 			}
 			f.assertCount(t, 1, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='events'`)
@@ -122,3 +127,13 @@ func TestTournamentNameCollisionRollsBackInitialization(t *testing.T) {
 		})
 	}
 }
+
+// 仅测试用：把合成数据还原为1.0之前没有迁移元数据的数据库。
+func simulateUnversionedDatabase(t *testing.T, db *sql.DB) {
+	t.Helper()
+	if _, err := db.Exec(`DROP TABLE goose_db_version`); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func quoteSQLName(name string) string { return `"` + strings.ReplaceAll(name, `"`, `""`) + `"` }

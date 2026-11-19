@@ -217,6 +217,7 @@ func TestTournamentHourAndFixedNames(t *testing.T) {
 	if err != nil || len(view) != 2 || view[0]["name"] != "A 队" || view[1]["name"] != "B 队" {
 		t.Fatalf("队名必须固定: %+v %v", view, err)
 	}
+	simulateUnversionedDatabase(t, f.app.db)
 	if _, err := f.app.db.Exec(`UPDATE tournaments SET start_time='2026-11-17T08:35:59' WHERE id=?`, id); err != nil {
 		t.Fatal(err)
 	}

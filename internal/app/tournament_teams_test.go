@@ -13,6 +13,7 @@ func TestFixedTeamInitializationPreservesResultsAndSequences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	simulateUnversionedDatabase(t, f.app.db)
 	// 模拟旧队伍编号与赛事ID没有算术关系，确保转换实际关联而非猜测编号。
 	if _, err := f.app.db.Exec(`CREATE TABLE teams(id INTEGER PRIMARY KEY,tournament_id INTEGER,name TEXT,color TEXT,lineup_submitted INTEGER DEFAULT 0)`); err != nil {
 		t.Fatal(err)

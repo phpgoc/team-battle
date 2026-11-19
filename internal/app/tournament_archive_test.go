@@ -144,6 +144,7 @@ func TestImportedTournamentMarkerSurvivesUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.assertCount(t, 1, `SELECT is_imported FROM tournaments WHERE id=?`, result.ID)
+	simulateUnversionedDatabase(t, f.app.db)
 	// 模拟旧版没有标记的补录数据，重复初始化必须保留对局并准确回填。
 	if _, err := f.app.db.Exec(`UPDATE tournaments SET is_imported=0`); err != nil {
 		t.Fatal(err)

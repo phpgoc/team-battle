@@ -1,14 +1,9 @@
-package app
+package migrations
 
 import "database/sql"
 
 // 启动时接收旧会话表的数据；后续只用users的一列，不建立会话消息表。
-func initializeUserSessions(db *sql.DB) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
+func initializeUserSessions(tx *sql.Tx) error {
 	var legacy int
 	if err := tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='sessions'`).Scan(&legacy); err != nil {
 		return err
@@ -24,5 +19,5 @@ func initializeUserSessions(db *sql.DB) error {
 	if _, err := tx.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS users_session_token ON users(session_token) WHERE session_token IS NOT NULL`); err != nil {
 		return err
 	}
-	return tx.Commit()
+	return nil
 }

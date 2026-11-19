@@ -68,6 +68,7 @@ func TestAdminEditsOtherProfilesWithoutConsumingCooldown(t *testing.T) {
 
 func TestProfileCooldownMigrationKeepsLatestChange(t *testing.T) {
 	f := newWorkflowFixture(t)
+	simulateUnversionedDatabase(t, f.app.db)
 	older := time.Now().UTC().Add(-4 * 24 * time.Hour).Format(time.RFC3339Nano)
 	newer := time.Now().UTC().Add(-2 * 24 * time.Hour).Format(time.RFC3339Nano)
 	if _, err := f.app.db.Exec(`UPDATE users SET display_name_changed_at=?,avatar_changed_at=?,profile_changed_at=NULL WHERE id=2`, older, newer); err != nil {

@@ -1,4 +1,4 @@
-package app
+package migrations
 
 import (
 	"database/sql"
@@ -6,12 +6,7 @@ import (
 )
 
 // 开发期名称调整在建表前原位完成；保留ID、数据、自增上限和外键关联。
-func initializeTournamentNames(db *sql.DB) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
+func initializeTournamentNames(tx *sql.Tx) error {
 	for _, names := range [][2]string{
 		{"events", "tournaments"},
 		{"event_players", "tournament_players"},
@@ -71,7 +66,7 @@ func initializeTournamentNames(db *sql.DB) error {
 			}
 		}
 	}
-	return tx.Commit()
+	return nil
 }
 
 func tableColumnNames(db sqlRunner, table string) (map[string]bool, error) {

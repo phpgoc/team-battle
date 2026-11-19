@@ -1,7 +1,6 @@
-package app
+package migrations
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"regexp"
@@ -9,34 +8,18 @@ import (
 )
 
 // 开发期旧结构转换：保留原始数据和自增上限，移除固定A/B队的独立表。
-func initializeFixedTeams(db *sql.DB) error {
+func initializeFixedTeams(tx *sql.Tx) error {
 	var legacy int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='teams'`).Scan(&legacy); err != nil {
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='teams'`).Scan(&legacy); err != nil {
 		return err
 	}
 	if legacy == 0 {
 		return nil
 	}
-	ctx := context.Background()
-	conn, err := db.Conn(ctx)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys=OFF`); err != nil {
-		return err
-	}
-	defer conn.ExecContext(ctx, `PRAGMA foreign_keys=ON`)
-	tx, err := conn.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
 	// 队名固定，只有双方提交状态需要保留；旧队伍ID只用于本次关联转换。
 	if _, err := tx.Exec(`CREATE TEMP TABLE fixed_team_map AS SELECT t.id AS old_id,t.tournament_id*2-CASE WHEN t.id=(SELECT MIN(id) FROM teams WHERE tournament_id=t.tournament_id) THEN 1 ELSE 0 END AS new_id FROM teams t`); err != nil {
 		return err
 	}
-	defer conn.ExecContext(ctx, `DROP TABLE IF EXISTS temp.fixed_team_map`)
 	if _, err := tx.Exec(`UPDATE tournaments SET lineup_a_submitted=COALESCE((SELECT lineup_submitted FROM teams WHERE id=(SELECT MIN(id) FROM teams WHERE tournament_id=tournaments.id)),0),lineup_b_submitted=COALESCE((SELECT lineup_submitted FROM teams WHERE id=(SELECT MAX(id) FROM teams WHERE tournament_id=tournaments.id)),0)`); err != nil {
 		return err
 	}
@@ -78,16 +61,8 @@ func initializeFixedTeams(db *sql.DB) error {
 			return err
 		}
 	}
-	rows, err := tx.Query(`PRAGMA foreign_key_check`)
-	if err != nil {
-		return err
-	}
-	invalid := rows.Next()
-	rows.Close()
-	if invalid {
-		return fmt.Errorf("固定队伍转换后关联校验失败")
-	}
-	return tx.Commit()
+	_, err = tx.Exec(`DROP TABLE temp.fixed_team_map`)
+	return err
 }
 
 func rebuildWithoutTeamTable(tx *sql.Tx, table string) error {

@@ -175,6 +175,7 @@ func TestConcurrentLoginsLeaveOneValidSession(t *testing.T) {
 
 func TestSessionInitializationMovesLegacyTokensToUsers(t *testing.T) {
 	f := newWorkflowFixture(t)
+	simulateUnversionedDatabase(t, f.app.db)
 	if _, err := f.app.db.Exec(`UPDATE users SET session_token=NULL WHERE id=3`); err != nil {
 		t.Fatal(err)
 	}
