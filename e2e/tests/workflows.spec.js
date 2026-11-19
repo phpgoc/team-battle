@@ -106,6 +106,16 @@ test('网站默认值、常用名称、分类图片和背景上传', async ({ pa
 
 test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ page }) => {
   await login(page, '/tournaments/new');
+  await expect(page.locator('#event-basics .required-mark')).toHaveCount(3);
+  await expect(page.locator('#event-basics [name=name]')).toHaveAttribute('required', '');
+  await expect(page.locator('#event-basics [name=start_time]')).toHaveAttribute('required', '');
+  await expect(page.locator('#event-basics [name=manager_id]')).toBeHidden();
+  await expect(page.locator('#event-basics .search-select input')).toHaveAttribute('required', '');
+  await expect(page.locator('#event-basics .panel-head')).not.toContainText('名称、开始时间和赛事管理员必填');
+  for (const selector of ['#event-round1 [name=round1_target]', '#event-round2 [name=round2_target]', '#event-ace [name=ace_most_wins]']) {
+    await expect(page.locator(selector)).toHaveClass(/compact-number-input/);
+    expect((await page.locator(selector).boundingBox()).width).toBeLessThan(90);
+  }
   const roster = await players(page.request, '建赛选手');
   // 创建页重新读取目录后，用联想选择和逐人添加完成整份名单。
   await page.reload();
@@ -162,6 +172,47 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
   await expect(page).toHaveURL(new RegExp(`/live/${created.id}$`));
   await page.goto(`/live/${created.id}/setting`);
   await expect(page.locator('[name=random_draw_seconds]')).toHaveValue('2');
+});
+
+test('历史补录紧凑设置并按场录入结果', async ({ page }) => {
+  await login(page, '/tournaments/archive');
+  const roster = await players(page.request, '历史录入');
+  await page.goto('/tournaments/archive');
+  await page.locator('[name=name]').fill('历史补录交互验证');
+  const managerSearch = page.locator('.search-select').filter({ has: page.locator('[name=manager_id]') });
+  await expect(page.locator('#archive-form .required-mark')).toHaveCount(3);
+  await expect(page.locator('#archive-form .field [name=manager_id]')).toBeHidden();
+  await expect(managerSearch.locator('input[required]')).toBeVisible();
+  await managerSearch.locator('input').fill('admin');
+  await managerSearch.getByRole('option').first().click();
+  await expect(page.locator('.archive-steps li[aria-current]')).toContainText('1');
+  await page.locator('[name=round1_target]').fill('1');
+  await page.locator('[name=round2_target]').fill('1');
+  await expect(page.locator('[name=round1_target]')).toHaveClass(/compact-number-input/);
+  await expect(page.locator('[name=round2_target]')).toHaveClass(/compact-number-input/);
+  for (const [index, user] of roster.entries()) {
+    await page.locator('#player-search').fill(user.display_name);
+    await page.locator(`[data-suggest-player="${user.id}"]`).click();
+    await page.locator('#add-player').click();
+    await page.locator(`[name="pick_${user.id}"]`).selectOption(index < 3 ? 'A' : 'B');
+  }
+  await page.locator('#archive-form button[type=submit]').click();
+  await expect(page.locator('.archive-steps li[aria-current]')).toContainText('2');
+  await expect(page.locator('.archive-current-head')).toBeVisible();
+  await expect(page.locator('.archive-current')).toBeVisible();
+  await expect(page.locator('.archive-contender')).toHaveCount(2);
+  await expect(page.locator('#archive-next')).toBeDisabled();
+  await page.locator('.archive-contender button[value=a]').click();
+  await expect(page.locator('#archive-next')).toBeEnabled();
+  await page.locator('#archive-next').click();
+  await expect(page.locator('.archive-steps li[aria-current]')).toContainText('3');
+  await page.locator('.archive-contender button[value=a]').click();
+  await page.locator('#archive-next').click();
+  await expect(page.locator('.archive-review-stage')).toHaveCount(2);
+  await page.locator('#archive-form button[type=submit]').click();
+  await expect(page.locator('#confirm-dialog')).toBeVisible();
+  await page.locator('[data-confirm-accept]').click();
+  await expect(page).toHaveURL(/\/live\/[1-9]\d*$/);
 });
 
 test('直播点击确认和公开SSE更新、历史筛选与软删除恢复', async ({ page, browser }) => {
@@ -267,13 +318,21 @@ test('纠错确认清除范围、验证批量合法性并允许修正最后一�
   await expect.poll(async () => (await json(page.request, 'GET', detailPath)).matches.filter(match => match.status === 'finished').length).toBe(4);
   await page.locator(`[data-correct-match="${firstRoundID}"]`).click();
 
+  detail = await json(page.request, 'GET', detailPath);
   const last = detail.matches.find(match => match.id === kofID);
   const replacement = detail.teams[1].players.find(player => player.id !== last.player_b_id);
   await page.locator('[name="correction_player_b_id"]').selectOption(String(replacement.id));
+  await expect(page.locator('[name="correction_player_b_id"]')).toHaveValue(String(replacement.id));
   await page.locator('#event-form button[type="submit"]').click();
   await expect(page.locator('#confirm-dialog')).toBeVisible();
   await expect(page.locator('#confirm-dialog')).toContainText(replacement.display_name);
+  const correctionRequest = page.waitForRequest(request => request.method() === 'PATCH' && request.url().endsWith(`/api/tournaments/${created.id}/settings`));
+  const correctionResponse = page.waitForResponse(response => response.request().method() === 'PATCH' && response.url().endsWith(`/api/tournaments/${created.id}/settings`));
   await page.locator('[data-confirm-accept]').click();
+  const correctionPayload = await (await correctionRequest).postDataJSON();
+  expect(correctionPayload.corrections[0].player_b_id).toBe(replacement.id);
+  const savedCorrection = await correctionResponse;
+  expect(savedCorrection.status(), await savedCorrection.text()).toBe(200);
   detail = await json(page.request, 'GET', detailPath);
   expect(detail.matches.find(match => match.id === kofID).player_b_id).toBe(replacement.id);
   expect(detail.matches.find(match => match.id === kofID).winner_team_id).toBe(teamA);
