@@ -190,6 +190,24 @@
 
 /* 窄屏将每个账号排成一张信息行，姓名和登录名始终保留可用宽度。 */
 @media (max-width: 680px) {
+  :is(.shell, .public-shell) .event-table { display: block; min-width: 0; }
+  :is(.shell, .public-shell) .event-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  :is(.shell, .public-shell) .event-table tbody { display: block; }
+  :is(.shell, .public-shell) .event-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  :is(.shell, .public-shell) .event-table tr:last-child { border-bottom: 0; }
+  :is(.shell, .public-shell) .event-table td { display: block; min-width: 0; padding: 0; border: 0; white-space: normal; }
+  :is(.shell, .public-shell) .event-name-cell { grid-column: 1; grid-row: 1; }
+  :is(.shell, .public-shell) .event-name { min-width: 0; align-items: flex-start; gap: 10px; overflow-wrap: anywhere; }
+  :is(.shell, .public-shell) .event-name > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+  :is(.shell, .public-shell) .event-date { grid-column: 1; grid-row: 2; white-space: normal; }
+  :is(.shell, .public-shell) .event-result { grid-column: 2; grid-row: 2; justify-self: end; }
+  :is(.shell, .public-shell) .event-open-cell { grid-column: 2; grid-row: 1; justify-self: end; }
+  :is(.shell, .public-shell) .management-table .event-name-cell { grid-column: 1 / -1; }
+  :is(.shell, .public-shell) .management-table .event-status { grid-column: 1; grid-row: 3; color: var(--muted); font-size: 13px; }
+  :is(.shell, .public-shell) .management-table .event-status::before { content: attr(data-label); margin-right: 10px; color: #718197; }
+  :is(.shell, .public-shell) .management-table .tournament-row-action { grid-column: 2; grid-row: 3; justify-self: end; }
+  :is(.shell, .public-shell) .event-date { font-size: 12px !important; }
+  :is(.shell, .public-shell) .row-view { width: 34px; height: 34px; }
   .accounts-toolbar { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .accounts-toolbar .count-badge { justify-self: start; }
   .accounts-panel .table-wrap { overflow: visible; }

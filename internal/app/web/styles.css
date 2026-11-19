@@ -113,7 +113,8 @@ tr[hidden]{display:none}
   .sidebar{position:static;width:100%;padding:16px;gap:12px}
   .sidebar .brand{padding:0}
   .sidebar .brand small,.side-footer,.nav-caption{display:none}
-  .nav{display:flex;overflow:auto;gap:6px;padding:4px 0}
+  .nav{display:flex;overflow:auto;gap:6px;padding:4px 0;scrollbar-color:#65758a #14213d;scrollbar-width:thin}
+  .nav::-webkit-scrollbar{height:4px}.nav::-webkit-scrollbar-track{background:#14213d}.nav::-webkit-scrollbar-thumb{background:#65758a;border-radius:4px}
   .nav a{flex:0 0 auto;white-space:nowrap;padding:10px}
   .main{margin:0;width:100%}
   .topbar,.public-shell .topbar{position:static;min-height:64px;height:auto;padding:12px 18px}
@@ -364,8 +365,8 @@ tr[hidden]{display:none}
   .broadcast-board .board-left,.broadcast-board .board-rules{grid-template-columns:1fr}
   .broadcast-board .board-matches{max-height:380px}
   .broadcast-board .board-match{grid-template-columns:22px minmax(0,1fr) 60px minmax(0,1fr);gap:5px}
-  .broadcast-board .board-player{font-size:22px}
-  .broadcast-board .board-player .board-category-icon{width:22px;height:22px;flex-basis:22px}
+  .broadcast-board .board-player{font-size:18px}
+  .broadcast-board .board-player .board-category-icon{width:20px;height:20px;flex-basis:20px}
   .broadcast-board .board-top p{font-size:13px}
   .broadcast-board .board-current-fighters .board-avatar{width:100px;height:100px;flex-basis:100px}
   .broadcast-board .current-player strong{font-size:22px}
