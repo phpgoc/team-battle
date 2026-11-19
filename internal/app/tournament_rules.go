@@ -76,10 +76,23 @@ func decodeRules(raw string) (TournamentRules, error) {
 	if err := json.Unmarshal([]byte(raw), &rules); err != nil {
 		return rules, err
 	}
-	return rules, rules.validate()
+	return rules, rules.validateStored()
 }
 
 func (r TournamentRules) validate() error {
+	if err := r.validateStored(); err != nil {
+		return err
+	}
+	for _, special := range r.AceSpecials {
+		if special.Probability == 0 {
+			return errors.New("特殊对战概率必须大于0%")
+		}
+	}
+	return nil
+}
+
+// 旧赛事允许保留零概率特殊组，读取时不能改变组号或历史抽签来源。
+func (r TournamentRules) validateStored() error {
 	if r.Round1Mode != "manual" && r.Round1Mode != "random" {
 		return errors.New("第一轮模式只能为手动或随机")
 	}

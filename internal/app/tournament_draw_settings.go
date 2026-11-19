@@ -34,7 +34,7 @@ func (a *App) updateDrawSettings(c *gin.Context) {
 		if req.AceDrawSeconds != nil {
 			rules.AceDrawSeconds = *req.AceDrawSeconds
 		}
-		if err := rules.validate(); err != nil {
+		if err := rules.validateStored(); err != nil {
 			return err
 		}
 		tx, ok := e.db.(*sql.Tx)

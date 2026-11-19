@@ -308,20 +308,20 @@
   function specialCandidatesMarkup(group = {}) {
     const available = state.rosterOrder.map(id => state.users.find(user => user.id === id)).filter(Boolean);
     const split = Array.isArray(group.team_a_ids) || Array.isArray(group.team_b_ids);
-    // 分组后按正式队伍列候选；分组前待随机选手可分别加入两侧，保留各自的选择。
+    // 抽签前只列固定到本侧的选手，抽签后按正式分队列候选。
     const sideOf = id => state.specialTeams?.[id] || state.roster[id];
     const column = side => {
       const team = side.toUpperCase(), label = t(side === 'a' ? 'teamA' : 'teamB');
-      const selected = split ? group[`team_${side}_ids`] || [] : (group.player_ids || []).filter(id => !['A', 'B'].includes(sideOf(id)) || sideOf(id) === team);
-      const players = available.filter(user => !['A', 'B'].includes(sideOf(user.id)) || sideOf(user.id) === team);
-      const opposite = available.filter(user => selected.includes(user.id) && !players.includes(user));
-      const option = user => `<option value="${user.id}"${selected.includes(user.id) ? ' selected' : ''}>${esc(user.display_name)}${user.username && user.username !== user.display_name ? ` (${esc(user.username)})` : ''}${user.category_name ? ` · ${esc(user.category_name)}` : ''}${!['A', 'B'].includes(sideOf(user.id)) ? ` · ${t('randomTeam')}` : ''}</option>`;
-      return `<label class="special-team-candidates"><span class="field-label">${label} · ${t('specialCandidates')}</span><select class="special-player-select" name="special_${side}_ids" data-special-side="${side}" multiple size="6" aria-label="${label} · ${t('specialCandidates')}">${players.map(option).join('')}${opposite.length ? `<optgroup label="${t('specialOtherTeam')}">${opposite.map(option).join('')}</optgroup>` : ''}</select><small class="help">${t('specialSideFallback')}</small></label>`;
+      const selected = split ? group[`team_${side}_ids`] || [] : group.player_ids || [];
+      const players = available.filter(user => sideOf(user.id) === team);
+      const option = user => `<option value="${user.id}"${selected.includes(user.id) ? ' selected' : ''}>${esc(user.display_name)}${user.username && user.username !== user.display_name ? ` (${esc(user.username)})` : ''}${user.category_name ? ` · ${esc(user.category_name)}` : ''}</option>`;
+      return `<label class="special-team-candidates"><span class="field-label">${label} · ${t('specialCandidates')}</span><select class="special-player-select" name="special_${side}_ids" data-special-side="${side}" multiple size="6" aria-label="${label} · ${t('specialCandidates')}">${players.map(option).join('')}</select><small class="help">${t('specialSideFallback')}</small></label>`;
     };
-    return `<div class="special-teams">${column('a')}<span class="special-teams-vs" aria-hidden="true">VS</span>${column('b')}</div>${available.length ? '' : `<p class="help">${t('selectPlayersFirst')}</p>`}`;
+    const hasCandidates = available.some(user => ['A', 'B'].includes(sideOf(user.id)));
+    return `<div class="special-teams">${column('a')}<span class="special-teams-vs" aria-hidden="true">VS</span>${column('b')}</div>${hasCandidates ? '' : `<p class="help">${t('selectPlayersFirst')}</p>`}`;
   }
-  function specialMarkup(group = { player_ids: [], probability: 0 }) {
-    return `<section class="special-rule"><div class="special-rule-head"><h3 data-special-title></h3><span data-special-count></span><button type="button" class="link danger" data-remove-special>${t('delete')}</button></div><div class="special-probability">${field('probability', input('special_probability', group.probability, 'number', 'min="0" max="100" required'))}<p class="help">${t('candidateHint')}</p></div><div class="special-candidates" data-special-candidates>${specialCandidatesMarkup(group)}</div></section>`;
+  function specialMarkup(group = { player_ids: [], probability: 20 }) {
+    return `<section class="special-rule"><div class="special-rule-head"><h3 data-special-title></h3><span data-special-count></span><button type="button" class="link danger" data-remove-special>${t('delete')}</button></div><div class="special-probability">${field('probability', input('special_probability', group.probability, 'number', 'min="1" max="100" required'))}<p class="help">${t('candidateHint')}</p></div><div class="special-candidates" data-special-candidates>${specialCandidatesMarkup(group)}</div></section>`;
   }
   function refreshSpecialCounts() {
     $$('.special-rule').forEach((row, index) => {
@@ -345,6 +345,7 @@
     const rules = readRulesDraft(form);
     const probabilities = [rules.ace_most_wins, rules.ace_most_losses, ...rules.ace_specials.map(group => group.probability)];
     if (probabilities.some(value => !Number.isInteger(value) || value < 0) || probabilities.reduce((sum, value) => sum + value, 0) > 100) throw Error(t('probabilityError'));
+    if (rules.ace_specials.some(group => group.probability === 0)) throw Error(t('specialProbabilityError'));
     if (rules.ace_specials.some(group => !group.player_ids.length)) throw Error(t('specialEmpty'));
     return rules;
   }

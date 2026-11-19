@@ -52,7 +52,22 @@ func TestAceSpecialGroupsAndFullRandomFallback(t *testing.T) {
 			rules.AceMostWins, rules.AceMostLosses = 0, 0
 			rules.RandomDrawSeconds, rules.AceDrawSeconds = 0, 0
 			rules.AceSpecials = test.groups
-			f.request(t, 2, "PATCH", fmt.Sprintf("/api/tournaments/%d/settings", id), map[string]any{"rules": rules}, 200)
+			legacy := false
+			for _, group := range test.groups {
+				legacy = legacy || group.Probability == 0
+			}
+			if legacy {
+				// 旧库零概率组仍须可抽签，但不能再通过设置接口录入。
+				raw, err := json.Marshal(rules)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := f.app.db.Exec(`UPDATE tournaments SET rules_json=? WHERE id=?`, string(raw), id); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				f.request(t, 2, "PATCH", fmt.Sprintf("/api/tournaments/%d/settings", id), map[string]any{"rules": rules}, 200)
+			}
 			f.enterKOF(t, id)
 			match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2`, id)
 			f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": f.teams(t, id)[1]}, 200)

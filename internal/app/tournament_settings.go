@@ -80,7 +80,7 @@ func (a *App) updateTournamentSettings(c *gin.Context) {
 			if req.AceDrawSeconds != nil {
 				rules.AceDrawSeconds = *req.AceDrawSeconds
 			}
-			if err := rules.validate(); err != nil {
+			if err := rules.validateStored(); err != nil {
 				return err
 			}
 			if err := saveRules(tx, tournamentID, rules); err != nil {
