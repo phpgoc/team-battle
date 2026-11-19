@@ -9,13 +9,7 @@
 
   // 历史复活由录入者选择真实人选；只在全队均输过且目标高于人数时开放。
   function nextPlayers(draft, side) {
-    const ids = teamIDs(draft, side), matches = draft.matches[2], last = matches.at(-1);
-    if (last?.who_win === side) return { ids: [last[side + '_id']], carry: true, revival: false };
-    const lost = new Set(matches.filter(match => match.who_win !== side).map(match => match[side + '_id']));
-    const fresh = ids.filter(id => !lost.has(id));
-    const revival = fresh.length === 0 && draft.round2_target > ids.length;
-    const eligible = revival && draft.kof_revival_no_repeat ? window.TBKOF.revivalCandidates(ids, matches, side) : ids;
-    return { ids: revival ? eligible : fresh, carry: false, revival };
+    return window.TBKOF.nextPlayers(teamIDs(draft, side), draft.matches[2], side, draft.round2_target, draft.kof_revival_no_repeat);
   }
 
   function create(time) {

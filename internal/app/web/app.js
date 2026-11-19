@@ -423,9 +423,43 @@
     const template = document.createElement('template'); template.innerHTML = eventManagementMarkup(e);
     if (panel.dataset.snapshot !== template.content.firstElementChild.dataset.snapshot) panel.replaceWith(template.content);
   }
+  const matchOrder = (a, b) => a.round - b.round || a.seq - b.seq;
+  const finishedMatches = e => e.matches.filter(match => match.status === 'finished').sort(matchOrder);
+  function correctionPlayersMarkup(e, match) {
+    const prefix = e.matches.filter(row => row.stage === 'round2' && row.seq < match.seq && row.status === 'finished').sort(matchOrder);
+    const pick = (side, index) => {
+      const team = e.teams[index].players.filter(player => player.active !== false);
+      const candidates = match.stage === 'round2'
+        ? window.TBKOF.nextPlayers(team.map(player => player.id), prefix, side, e.round2_target, e.rules.kof_revival_no_repeat)
+        : { ids: team.map(player => player.id) };
+      const name = 'correction_player_' + side + '_id';
+      const label = t(index === 0 ? 'teamA' : 'teamB') + (candidates.carry ? ' · ' + t('archiveCarry') : '');
+      return `<label>${label}<select name="${name}"${candidates.carry ? ' disabled' : ''}>${team.filter(player => candidates.ids.includes(player.id)).map(player => `<option value="${player.id}"${player.id === match['player_' + side + '_id'] ? ' selected' : ''}>${esc(player.display_name)}</option>`).join('')}</select></label>`;
+    };
+    return `<div class="correction-players" data-correction-players="${match.id}"><h3>${t('correctLastMatchPlayers')} · ${t(match.stage)} #${match.seq}</h3><input type="hidden" name="correction_players_match_id" value="${match.id}"><div class="correction-player-picks">${pick('a', 0)}${pick('b', 1)}</div></div>`;
+  }
+  function readCorrection(form, e) {
+    if (!e?.matches || !$('#event-correction', form)) return null;
+    const last = finishedMatches(e).at(-1);
+    const playerA = Number($('[name="correction_player_a_id"]', form).value) || last.player_a_id;
+    const playerB = Number($('[name="correction_player_b_id"]', form).value) || last.player_b_id;
+    const playersChanged = Number($('[name="correction_players_match_id"]', form).value) === last.id && (playerA !== last.player_a_id || playerB !== last.player_b_id);
+    const corrections = [...$$('[data-correction-winner]', form)].map(field => {
+      const match = e.matches.find(row => row.id === Number(field.dataset.matchId) && row.status === 'finished');
+      if (!match || match.winner_team_id === Number(field.value)) return null;
+      return { match, winner: Number(field.value), playersChanged: false };
+    }).filter(Boolean);
+    if (playersChanged) {
+      const existing = corrections.find(correction => correction.match.id === last.id);
+      if (existing) Object.assign(existing, { playersChanged: true, playerA, playerB });
+      else corrections.push({ match: last, winner: last.winner_team_id, playersChanged: true, playerA, playerB });
+    }
+    corrections.sort((a, b) => matchOrder(a.match, b.match));
+    return corrections.length ? { corrections, match: corrections[0].match } : null;
+  }
   function resultCorrectionMarkup(e) {
     if (!editable(e)) return '';
-    const matches = e.matches.filter(match => match.status === 'finished');
+    const matches = finishedMatches(e);
     if (!matches.length) return '';
     const people = e.teams.flatMap(team => team.players);
     const rounds = ['round1', 'round2', 'ace'].map(stage => {
@@ -437,34 +471,76 @@
         return `<div class="correction-row" data-correction-row="${match.id}"><span class="correction-match-no">#${match.seq}</span><div class="correction-player ${winsA ? 'is-winner' : 'is-loser'}">${boardIdentity(a)}</div><div class="correction-result"><strong>${t(winsA ? 'teamA' : 'teamB')} ${t('win')}</strong><small data-correction-status></small></div><div class="correction-player ${winsA ? 'is-loser' : 'is-winner'}">${boardIdentity(b)}</div><button type="button" class="outline" data-correct-match="${match.id}">${t('changeWinner').replace('{name}', esc(winsA ? b.display_name : a.display_name))}</button></div>`;
       }).join('')}</section>`;
     }).join('');
-    return `<section class="panel section-gap editor-section" id="event-correction"><div class="panel-head"><h2>${t('correct')}</h2><span>${matches.length} ${t('playedMatches')}</span></div><div class="panel-body"><p class="notice">${t('correctHint')} ${t('correctionSaveHint')}</p><input type="hidden" name="correction_match_id" value="0"><input type="hidden" name="correction_winner_team_id" value="0">${rounds}</div></section>`;
+    return `<section class="panel section-gap editor-section" id="event-correction"><div class="panel-head"><h2>${t('correct')}</h2><span>${matches.length} ${t('playedMatches')}</span></div><div class="panel-body"><p class="correction-warning"><strong>${t('correctHint')}</strong></p><p class="help">${t('correctionSaveHint')}</p><p class="correction-warning" data-correction-scope role="status" hidden></p><div data-correction-inputs hidden></div>${rounds}${correctionPlayersMarkup(e, matches.at(-1))}</div></section>`;
   }
   function syncResultCorrection(form) {
-    const selected = $('[name="correction_match_id"]', form), winner = $('[name="correction_winner_team_id"]', form);
-    if (!selected || !winner) return;
+    const panel = $('#event-correction', form);
+    if (!panel) return;
     const e = state.event;
-    const match = e.matches.find(match => match.id === Number(selected.value) && match.status === 'finished' && match.winner_team_id !== Number(winner.value));
-    if (!match) { selected.value = '0'; winner.value = '0'; }
-    const ordered = ['round1', 'round2', 'ace'];
-    $$('[data-correction-row]', form).forEach(row => {
+    const last = finishedMatches(e).at(-1);
+    const playerMatch = $('[name="correction_players_match_id"]', panel);
+    if (Number(playerMatch.value) !== last.id) {
+      playerMatch.value = String(last.id);
+      for (const side of ['a', 'b']) {
+        const field = $('[name="correction_player_' + side + '_id"]', panel);
+        field.value = String(last['player_' + side + '_id']);
+      }
+    }
+    const draft = readCorrection(form, e);
+    const scope = $('[data-correction-scope]', panel);
+    const later = draft?.corrections.length === 1 ? e.matches.filter(row => matchOrder(row, draft.match) > 0).length : 0;
+    scope.textContent = draft?.corrections.length > 1 ? t('correctionBatchHint').replace('{count}', draft.corrections.length) : later ? t('correctionClearCount').replace('{count}', later) : '';
+    scope.hidden = !scope.textContent;
+    const changed = new Map((draft?.corrections || []).filter(correction => !correction.playersChanged).map(correction => [correction.match.id, correction]));
+    $$('[data-correction-row]', panel).forEach(row => {
       const current = e.matches.find(current => current.id === Number(row.dataset.correctionRow));
-      const chosen = match?.id === current.id;
-      const discarded = match && (ordered.indexOf(current.stage) > ordered.indexOf(match.stage) || (current.stage === match.stage && current.seq > match.seq));
+      const chosen = draft?.match.id === current.id;
+      const discarded = draft?.corrections.length === 1 && matchOrder(current, draft.match) > 0;
       const button = $('[data-correct-match]', row);
-      button.setAttribute('aria-pressed', String(Boolean(chosen)));
-      button.textContent = chosen ? t('cancelCorrection') : t('changeWinner').replace('{name}', current.winner_team_id === e.teams[0].id ? current.player_b_name : current.player_a_name);
-      row.classList.toggle('is-selected', Boolean(chosen)); row.classList.toggle('is-discarded', Boolean(discarded));
-      $('[data-correction-status]', row).textContent = chosen ? t('pendingCorrection') : discarded ? t('clearedAfterSave') : '';
+      const correction = changed.get(current.id);
+      const originalSide = current.who_win === 'a' ? 'b' : 'a';
+      const winnerSide = correction?.winner === e.teams[0].id ? 'a' : correction ? 'b' : current.who_win;
+      const player = draft?.corrections.find(item => item.playersChanged && current.id === last.id);
+      if (current.id === last.id) {
+        const a = player ? e.teams[0].players.find(item => item.id === player.playerA) : e.teams[0].players.find(item => item.id === current.player_a_id);
+        const b = player ? e.teams[1].players.find(item => item.id === player.playerB) : e.teams[1].players.find(item => item.id === current.player_b_id);
+        const identities = $$('.correction-player', row);
+        if (a && b && identities.length === 2) {
+          identities[0].innerHTML = boardIdentity(a);
+          identities[1].innerHTML = boardIdentity(b);
+        }
+      }
+      const displayName = player ? e.teams[originalSide === 'a' ? 0 : 1].players.find(item => item.id === (originalSide === 'a' ? player.playerA : player.playerB))?.display_name : current['player_' + originalSide + '_name'];
+      button.setAttribute('aria-pressed', String(Boolean(correction)));
+      button.textContent = correction ? t('cancelCorrection') : t('changeWinner').replace('{name}', displayName || current['player_' + originalSide + '_name']);
+      row.classList.toggle('is-selected', Boolean(chosen || correction || player)); row.classList.toggle('is-discarded', Boolean(discarded));
+      $('[data-correction-status]', row).textContent = correction ? t(winnerSide === 'a' ? 'teamA' : 'teamB') + ' · ' + t('pendingCorrection') : discarded ? t('clearedAfterSave') : player ? t('pendingCorrection') : '';
     });
   }
   function refreshResultCorrection(e) {
     const form = $('#event-form');
     if (!form || state.editor !== 'settings') return;
-    const selected = $('[name="correction_match_id"]', form)?.value || '0', winner = $('[name="correction_winner_team_id"]', form)?.value || '0';
     const panel = $('#event-correction', form), markup = resultCorrectionMarkup(e);
+    const changes = panel ? [...$$('[data-correction-winner]', panel)].map(field => [field.dataset.matchId, field.value]) : [];
+    const oldLastID = $('[data-correction-players]', panel || form)?.dataset.correctionPlayers;
+    const oldPlayers = panel ? ['a', 'b'].map(side => $('[name="correction_player_' + side + '_id"]', panel)) : [];
+    const oldPicks = oldPlayers.map(field => ({ value: field.value, original: Array.from(field.options).find(option => option.defaultSelected)?.value }));
     if (panel) panel.outerHTML = markup;
     else if (markup) { $('.event-editor-actions', form).insertAdjacentHTML('beforebegin', markup); $('.editor-jumps').outerHTML = editorJumps(true); }
-    if (markup) { $('[name="correction_match_id"]', form).value = selected; $('[name="correction_winner_team_id"]', form).value = winner; syncResultCorrection(form); }
+    if (markup) {
+      const container = $('[data-correction-inputs]', form);
+      for (const [matchID, winnerID] of changes) {
+        if (!e.matches.some(match => match.id === Number(matchID) && match.status === 'finished')) continue;
+        container.insertAdjacentHTML('beforeend', `<input type="hidden" data-correction-winner data-match-id="${matchID}" name="correction_winner_${matchID}" value="${winnerID}">`);
+      }
+      if ($('[data-correction-players]', form).dataset.correctionPlayers === oldLastID) {
+        ['a', 'b'].forEach((side, index) => {
+          const field = $('[name="correction_player_' + side + '_id"]', form), pick = oldPicks[index];
+          if (pick.original === field.value && [...field.options].some(option => option.value === pick.value)) field.value = pick.value;
+        });
+      }
+      syncResultCorrection(form);
+    }
   }
   async function eventEditor(mode = 'create', preserve = false) {
     const source = mode === 'create' ? {} : state.event;
@@ -513,20 +589,22 @@
       click.preventDefault();
       action(async () => {
         const values = new FormData(form), current = state.event;
-        if (Number(values.get('correction_match_id')) || Number(values.get('background_id') || 0) !== Number(current.background_id || 0) || Number(values.get('random_draw_seconds')) !== current.rules.random_draw_seconds || Number(values.get('ace_draw_seconds')) !== current.rules.ace_draw_seconds) throw Error(t('saveSettingsBeforeConfirm'));
+        if (readCorrection(form, current) || Number(values.get('background_id') || 0) !== Number(current.background_id || 0) || Number(values.get('random_draw_seconds')) !== current.rules.random_draw_seconds || Number(values.get('ace_draw_seconds')) !== current.rules.ace_draw_seconds) throw Error(t('saveSettingsBeforeConfirm'));
         await confirmEventEnd();
       })(click);
     });
     form.addEventListener('click', click => {
       const button = click.target.closest('[data-correct-match]');
-      if (!button) return;
-      const selected = $('[name="correction_match_id"]', form), winner = $('[name="correction_winner_team_id"]', form);
+      if (!button || form.dataset.busy) return;
       const current = state.event, match = current.matches.find(match => match.id === Number(button.dataset.correctMatch) && match.status === 'finished');
       if (!match || !editable(current)) return;
-      if (Number(selected.value) === match.id) { selected.value = '0'; winner.value = '0'; }
-      else { selected.value = String(match.id); winner.value = String(current.teams.find(team => team.id !== match.winner_team_id).id); }
+      const container = $('[data-correction-inputs]', form);
+      const existing = $('[data-match-id="' + match.id + '"]', container);
+      if (existing) existing.remove();
+      else container.insertAdjacentHTML('beforeend', `<input type="hidden" data-correction-winner data-match-id="${match.id}" name="correction_winner_${match.id}" value="${current.teams.find(team => team.id !== match.winner_team_id).id}">`);
       syncResultCorrection(form);
     });
+    form.addEventListener('change', event => { if (event.target.closest('[data-correction-players]')) syncResultCorrection(form); });
     form.addEventListener('formrestored', () => syncResultCorrection(form));
     if (mode !== 'create' && mode !== 'roster' && roundSetupEditable) $('#event-ace').insertAdjacentHTML('beforebegin', `<div class="setup-draw-action"><button type="button" class="primary accent" id="start-setup-draw">${t('startSetupDraw')}</button><span class="help">${t('setupDrawHint')}</span></div>`);
     $('#start-setup-draw')?.addEventListener('click', () => {
@@ -548,22 +626,50 @@
         round1_target: Number(f.get('round1_target')), round2_target: Number(f.get('round2_target')), background_id: Number(f.get('background_id') || 0),
         rules: rulesValue(form), ...(!hasGrouping(e) ? rosterValue(form) : {})
       };
-      const correctionMatch = state.event?.matches.find(match => match.id === Number(f.get('correction_match_id')) && match.status === 'finished');
+      const correction = readCorrection(form, state.event);
       const aceMatchID = Number(f.get('ace_match_id'));
       if (aceMatchID) {
         const current = state.event.matches.find(match => match.id === aceMatchID && match.stage === 'ace' && match.status === 'pending');
         if (!current || state.event.status !== 'ace') throw Error(t('resultChanged'));
         const playerA = Number(f.get('ace_player_a_id')), playerB = Number(f.get('ace_player_b_id'));
         if (current.player_a_id !== playerA || current.player_b_id !== playerB) {
-          if (correctionMatch) throw Error(t('saveCorrectionBeforeAce'));
+          if (correction) throw Error(t('saveCorrectionBeforeAce'));
           body.ace_players = { match_id: aceMatchID, player_a_id: playerA, player_b_id: playerB };
         }
       }
-      if (correctionMatch && correctionMatch.winner_team_id !== Number(f.get('correction_winner_team_id'))) {
+      if (correction) {
+        const { match, corrections } = correction;
+        const matches = [...state.event.matches].sort(matchOrder);
+        const latest = matches.at(-1), later = matches.filter(row => matchOrder(row, match) > 0).length;
         const snapshot = JSON.stringify(state.event.matches);
-        if (!(await window.TBConfirm.ask(t('correctHint'), { title: t('correct'), match: { stage: t(correctionMatch.stage), seq: correctionMatch.seq, a: correctionMatch.player_a_name, b: correctionMatch.player_b_name, winner: Number(f.get('correction_winner_team_id')) === e.teams[0].id ? 'a' : 'b' } }))) return;
-        if (state.event?.id !== e.id || !editable(state.event) || JSON.stringify(state.event.matches) !== snapshot) throw new Error(t('resultChanged'));
-        body.correction = { match_id: correctionMatch.id, winner_team_id: Number(f.get('correction_winner_team_id')) };
+        const checkSnapshot = () => {
+          if (!form.isConnected || state.event?.id !== e.id || !editable(state.event) || JSON.stringify(state.event.matches) !== snapshot) throw Error(t('resultChanged'));
+        };
+        const summary = corrections.map(item => {
+          const preview = {
+            stage: t(item.match.stage), seq: item.match.seq, winner: item.winner === e.teams[0].id ? 'a' : 'b',
+            a: item.playersChanged ? e.teams[0].players.find(player => player.id === item.playerA)?.display_name : item.match.player_a_name,
+            b: item.playersChanged ? e.teams[1].players.find(player => player.id === item.playerB)?.display_name : item.match.player_b_name
+          };
+          return `${preview.stage} #${preview.seq}: ${preview.a} vs ${preview.b} · ${t(preview.winner === 'a' ? 'teamA' : 'teamB')} ${t('win')}`;
+        }).join('\n');
+        const message = corrections.length === 1
+          ? t('correctionReview') + '\n' + summary
+          : t('correctionBatchReview').replace('{count}', corrections.length) + '\n' + summary;
+        if (!(await window.TBConfirm.ask(message, { title: t('correct') }))) return;
+        checkSnapshot();
+        if (corrections.length === 1 && later) {
+          if (!(await window.TBConfirm.ask(t('correctionClearCount').replace('{count}', later), { title: t('correctionClearTitle') }))) return;
+          checkSnapshot();
+        }
+        body.corrections = corrections.map(item => ({
+          match_id: item.match.id, winner_team_id: item.winner,
+          ...(item.playersChanged ? { player_a_id: item.playerA, player_b_id: item.playerB } : {}),
+          expected: {
+            match_id: item.match.id, player_a_id: item.match.player_a_id, player_b_id: item.match.player_b_id, winner_team_id: item.match.winner_team_id,
+            latest_match_id: latest.id, latest_winner_team_id: latest.winner_team_id || 0
+          }
+        }));
       }
       if (mode === 'create') { const created = await post('/api/tournaments', body); toast(t('eventCreated')); go('/live/' + created.id); }
       else {

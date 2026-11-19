@@ -215,3 +215,55 @@ test('直播点击确认和公开SSE更新、历史筛选与软删除恢复', as
     await expect(publicPage.locator('.event-table')).toContainText('端到端历史');
   } finally { await visitor.close(); }
 });
+
+test('纠错确认清除范围、验证批量合法性并允许修正最后一局选手', async ({ page }) => {
+  await login(page);
+  const roster = await players(page.request, '纠错选手');
+  const created = await createTournament(page.request, '纠错赛程校验', roster);
+  await json(page.request, 'POST', `/api/tournaments/${created.id}/setup-draw`, {});
+  await json(page.request, 'POST', `/api/tournaments/${created.id}/start`, {});
+  await page.goto(`/live/${created.id}`);
+  const detailPath = `/api/public/tournaments/${created.id}`;
+  let detail = await json(page.request, 'GET', detailPath);
+  const teamA = detail.teams[0].id;
+  const teamB = detail.teams[1].id;
+  for (let score = 0; score < 3; score++) {
+    await page.locator(`[data-current-winner="${teamA}"]`).click();
+    await page.locator('[data-confirm-accept]').click();
+  }
+  await expect(page.locator('[data-stage="round1"] h2')).toHaveText('3 : 0');
+  const kofID = (await json(page.request, 'GET', detailPath)).matches.find(match => match.stage === 'round2').id;
+  await page.locator(`[data-current-winner="${teamA}"]`).click();
+  await page.locator('[data-confirm-accept]').click();
+  await page.goto(`/live/${created.id}/setting`);
+  detail = await json(page.request, 'GET', detailPath);
+  const firstRoundID = detail.matches.find(match => match.stage === 'round1' && match.seq === 1).id;
+  await page.locator(`[data-correct-match="${firstRoundID}"]`).click();
+  await page.locator(`[data-correct-match="${kofID}"]`).click();
+  await expect(page.locator('[data-correction-scope]')).toContainText('整批修改会被拒绝');
+  await page.locator('#event-form button[type="submit"]').click();
+  await expect(page.locator('#confirm-dialog')).toBeVisible();
+  await page.locator('[data-confirm-accept]').click();
+  await expect(page.locator('.form-error')).toContainText('第一轮尚未达到目标胜场');
+  await expect.poll(async () => (await json(page.request, 'GET', detailPath)).matches.filter(match => match.status === 'finished').length).toBe(4);
+
+  await page.locator(`[data-correct-match="${kofID}"]`).click();
+  await page.locator('#event-form button[type="submit"]').click();
+  await page.locator('[data-confirm-accept]').click();
+  await expect(page.locator('#confirm-dialog')).toContainText('全部');
+  await page.locator('[data-confirm-cancel]').click();
+  await expect.poll(async () => (await json(page.request, 'GET', detailPath)).matches.filter(match => match.status === 'finished').length).toBe(4);
+  await page.locator(`[data-correct-match="${firstRoundID}"]`).click();
+
+  const last = detail.matches.find(match => match.id === kofID);
+  const replacement = detail.teams[1].players.find(player => player.id !== last.player_b_id);
+  await page.locator('[name="correction_player_b_id"]').selectOption(String(replacement.id));
+  await page.locator('#event-form button[type="submit"]').click();
+  await expect(page.locator('#confirm-dialog')).toBeVisible();
+  await expect(page.locator('#confirm-dialog')).toContainText(replacement.display_name);
+  await page.locator('[data-confirm-accept]').click();
+  detail = await json(page.request, 'GET', detailPath);
+  expect(detail.matches.find(match => match.id === kofID).player_b_id).toBe(replacement.id);
+  expect(detail.matches.find(match => match.id === kofID).winner_team_id).toBe(teamA);
+  expect(teamB).not.toBe(teamA);
+});

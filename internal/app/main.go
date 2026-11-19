@@ -163,20 +163,21 @@ type createTournamentRequest struct {
 }
 
 type tournamentSettingsRequest struct {
-	Correction        *tournamentResultCorrection `json:"correction"`
-	AcePlayers        *tournamentAcePlayers       `json:"ace_players"`
-	BackgroundID      *int64                      `json:"background_id"`
-	RandomDrawSeconds *int                        `json:"random_draw_seconds"`
-	AceDrawSeconds    *int                        `json:"ace_draw_seconds"`
-	ManagerID         *int64                      `json:"manager_id"`
-	PlayerIDs         *[]int64                    `json:"player_ids"`
-	FixedAssignments  map[string]string           `json:"fixed_assignments"`
-	Name              string                      `json:"name"`
-	StartTime         string                      `json:"start_time"`
-	Description       string                      `json:"description"`
-	Round1Target      int                         `json:"round1_target"`
-	Round2Target      int                         `json:"round2_target"`
-	Rules             *TournamentRules            `json:"rules"`
+	Correction        *tournamentResultCorrection  `json:"correction"`
+	Corrections       []tournamentResultCorrection `json:"corrections"`
+	AcePlayers        *tournamentAcePlayers        `json:"ace_players"`
+	BackgroundID      *int64                       `json:"background_id"`
+	RandomDrawSeconds *int                         `json:"random_draw_seconds"`
+	AceDrawSeconds    *int                         `json:"ace_draw_seconds"`
+	ManagerID         *int64                       `json:"manager_id"`
+	PlayerIDs         *[]int64                     `json:"player_ids"`
+	FixedAssignments  map[string]string            `json:"fixed_assignments"`
+	Name              string                       `json:"name"`
+	StartTime         string                       `json:"start_time"`
+	Description       string                       `json:"description"`
+	Round1Target      int                          `json:"round1_target"`
+	Round2Target      int                          `json:"round2_target"`
+	Rules             *TournamentRules             `json:"rules"`
 }
 
 type tournamentAcePlayers struct {
@@ -186,9 +187,21 @@ type tournamentAcePlayers struct {
 }
 
 type tournamentResultCorrection struct {
-	MatchID      int64  `json:"match_id"`
-	WinnerTeamID int64  `json:"winner_team_id"`
-	Note         string `json:"note"`
+	MatchID      int64               `json:"match_id"`
+	WinnerTeamID int64               `json:"winner_team_id"`
+	PlayerAID    *int64              `json:"player_a_id"`
+	PlayerBID    *int64              `json:"player_b_id"`
+	Note         *string             `json:"note"`
+	Expected     *correctionSnapshot `json:"expected"`
+}
+
+type correctionSnapshot struct {
+	MatchID            int64 `json:"match_id"`
+	PlayerAID          int64 `json:"player_a_id"`
+	PlayerBID          int64 `json:"player_b_id"`
+	WinnerTeamID       int64 `json:"winner_team_id"`
+	LatestMatchID      int64 `json:"latest_match_id"`
+	LatestWinnerTeamID int64 `json:"latest_winner_team_id"`
 }
 
 type tournamentBackgroundRequest struct {

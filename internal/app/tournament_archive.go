@@ -132,7 +132,7 @@ func (a *App) archiveTournament(c *gin.Context) {
 		fail(c, 400, "偶数人数须两队相同，奇数人数须A队比B队多1人。")
 		return
 	}
-	if err := validateArchivedKOF(grouped[1], rosters, targets[1], req.KOFRevivalNoRepeat); err != nil {
+	if err := validateKOFSequence(grouped[1], rosters, targets[1], req.KOFRevivalNoRepeat); err != nil {
 		fail(c, 400, err.Error())
 		return
 	}
@@ -202,8 +202,8 @@ func (a *App) archiveTournament(c *gin.Context) {
 	ok(c, gin.H{"id": id})
 }
 
-// 历史KOF也须胜者留场，复活只放开全队已经输过且目标高于人数的队伍。
-func validateArchivedKOF(matches []archivedMatch, rosters [2][]int64, target int, noRepeat bool) error {
+// 历史导入和比分纠错共用KOF胜者留场及复活校验。
+func validateKOFSequence(matches []archivedMatch, rosters [2][]int64, target int, noRepeat bool) error {
 	lost := [2]map[int64]int{{}, {}}
 	for index, match := range matches {
 		ids := [2]int64{match.AID, match.BID}

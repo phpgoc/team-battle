@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -122,4 +123,171 @@ func TestKOFFinalCorrectionReturnsToKOFWithoutDrawingAce(t *testing.T) {
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=3`, id)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM tournament_actions WHERE tournament_id=? AND action='ace_drawn'`, id)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/ace/draw", id), nil, 400)
+}
+
+func TestSettingsCorrectionChangesOnlyLastScoredMatchPlayers(t *testing.T) {
+	f := newWorkflowFixture(t)
+	id := createRecoveryTournament(t, f, 1, 3)
+	teams := f.teams(t, id)
+	first := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=1`, id)
+	record := func(match, team int64) {
+		t.Helper()
+		f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": team}, 200)
+	}
+	record(first, teams[0])
+	kof := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2`, id)
+	survivor := f.scalar(t, `SELECT player_a_id FROM matches WHERE id=?`, kof)
+	eliminated := f.scalar(t, `SELECT player_b_id FROM matches WHERE id=?`, kof)
+	var bench []int64
+	for _, id := range []int64{6, 7, 8} {
+		if id != eliminated {
+			bench = append(bench, id)
+		}
+	}
+	record(kof, teams[0])
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/kof/next-player", id), map[string]any{"match_id": kof, "team_id": teams[1], "player_id": bench[0]}, 200)
+	last := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2 AND seq=2`, id)
+	record(last, teams[0])
+	path := fmt.Sprintf("/api/tournaments/%d/settings", id)
+	before := permissionDatabaseSnapshot(t, f)
+	for _, correction := range []map[string]any{
+		{"match_id": kof, "player_b_id": bench[1]},
+		{"match_id": last, "player_a_id": int64(3) + (survivor-3+1)%3},
+		{"match_id": last, "player_b_id": eliminated},
+		{"match_id": last, "player_b_id": survivor},
+		{"match_id": last, "player_b_id": 0},
+	} {
+		f.request(t, 2, "PATCH", path, map[string]any{"correction": correction, "random_draw_seconds": 7}, 400)
+		if after := permissionDatabaseSnapshot(t, f); !reflect.DeepEqual(before, after) {
+			t.Fatalf("非法换人修改了数据库: %+v", correction)
+		}
+	}
+	f.request(t, 2, "PATCH", path, map[string]any{"correction": map[string]any{"match_id": last, "player_b_id": bench[1]}}, 200)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE id=? AND player_a_id=? AND player_b_id=? AND b_id=? AND who_win='a'`, last, survivor, bench[1], bench[1])
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE id=? AND next_player_id=?`, kof, bench[1])
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM rounds WHERE tournament_id=? AND stage='round2' AND score_a=2 AND score_b=0`, id)
+	// 换人后的淘汰名单以修正后的实际出场为准。
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/kof/next-player", id), map[string]any{"match_id": last, "team_id": teams[1], "player_id": bench[0]}, 200)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=2 AND seq=3 AND player_a_id=? AND player_b_id=? AND status='pending'`, id, survivor, bench[0])
+}
+
+func TestCorrectionRejectsLaterEditsAndStaleSnapshots(t *testing.T) {
+	f := newWorkflowFixture(t)
+	id := createRecoveryTournament(t, f, 3, 4)
+	teams := f.teams(t, id)
+	path := fmt.Sprintf("/api/tournaments/%d/settings", id)
+	record := func(match, team int64) {
+		t.Helper()
+		f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": team}, 200)
+	}
+	for i := 0; i < 3; i++ {
+		record(f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=1 AND status='pending'`, id), teams[0])
+	}
+	first := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=1 AND seq=1`, id)
+	kof := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2 AND seq=1`, id)
+	snapshot := correctionSnapshot{
+		MatchID: first, LatestMatchID: kof, WinnerTeamID: teams[0],
+		PlayerAID: f.scalar(t, `SELECT player_a_id FROM matches WHERE id=?`, first),
+		PlayerBID: f.scalar(t, `SELECT player_b_id FROM matches WHERE id=?`, first),
+	}
+	record(kof, teams[0])
+	early := tournamentResultCorrection{MatchID: first, WinnerTeamID: teams[1]}
+	later := tournamentResultCorrection{MatchID: kof, WinnerTeamID: teams[1]}
+	before := permissionDatabaseSnapshot(t, f)
+	for _, request := range []tournamentSettingsRequest{
+		{Corrections: []tournamentResultCorrection{early, later}},
+		{Correction: &early, Corrections: []tournamentResultCorrection{later}},
+		{Correction: &tournamentResultCorrection{MatchID: first, WinnerTeamID: teams[1], Expected: &snapshot}},
+	} {
+		f.request(t, 2, "PATCH", path, request, 400)
+		if after := permissionDatabaseSnapshot(t, f); !reflect.DeepEqual(before, after) {
+			t.Fatal("跨轮次或过期纠错修改了数据库")
+		}
+	}
+	snapshot.LatestWinnerTeamID = teams[0]
+	early.Expected = &snapshot
+	f.request(t, 2, "PATCH", path, tournamentSettingsRequest{Correction: &early}, 200)
+	f.assertCount(t, 0, `SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=2`, id)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND status='round1'`, id)
+}
+
+func TestBatchCorrectionRejectsKOFWhenRound1NoLongerCompleted(t *testing.T) {
+	f := newWorkflowFixture(t)
+	id := createRecoveryTournament(t, f, 3, 4)
+	teams := f.teams(t, id)
+	record := func(match, winner int64) {
+		t.Helper()
+		f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": winner}, 200)
+	}
+	var first int64
+	for index := 0; index < 3; index++ {
+		match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=1 AND status='pending'`, id)
+		if index == 0 {
+			first = match
+		}
+		record(match, teams[0])
+	}
+	kof := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2`, id)
+	record(kof, teams[0])
+	makeSnapshot := func(matchID int64) correctionSnapshot {
+		return correctionSnapshot{
+			MatchID: matchID, PlayerAID: f.scalar(t, `SELECT player_a_id FROM matches WHERE id=?`, matchID),
+			PlayerBID:     f.scalar(t, `SELECT player_b_id FROM matches WHERE id=?`, matchID),
+			WinnerTeamID:  f.scalar(t, `SELECT winner_team_id FROM matches WHERE id=?`, matchID),
+			LatestMatchID: kof, LatestWinnerTeamID: teams[0],
+		}
+	}
+	before := permissionDatabaseSnapshot(t, f)
+	f.request(t, 2, "PATCH", fmt.Sprintf("/api/tournaments/%d/settings", id), map[string]any{"corrections": []tournamentResultCorrection{
+		{MatchID: first, WinnerTeamID: teams[1], Expected: ptrCorrectionSnapshot(makeSnapshot(first))},
+		{MatchID: kof, WinnerTeamID: teams[1], Expected: ptrCorrectionSnapshot(makeSnapshot(kof))},
+	}}, 400)
+	if after := permissionDatabaseSnapshot(t, f); !reflect.DeepEqual(before, after) {
+		t.Fatal("无效的跨轮次批量修正未完整回滚")
+	}
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM rounds WHERE tournament_id=? AND stage='round1' AND winner_team_id=?`, id, teams[0])
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=2 AND who_win='a'`, id)
+}
+
+func ptrCorrectionSnapshot(snapshot correctionSnapshot) *correctionSnapshot {
+	return &snapshot
+}
+
+func TestBatchCorrectionPreservesAValidMatchSequence(t *testing.T) {
+	f := newWorkflowFixture(t)
+	id := createRecoveryTournament(t, f, 3, 4)
+	teams := f.teams(t, id)
+	winners := []int64{teams[0], teams[1], teams[0], teams[0]}
+	var first, second, latest int64
+	for index, winner := range winners {
+		match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=1 AND status='pending'`, id)
+		if index == 0 {
+			first = match
+		}
+		if index == 1 {
+			second = match
+		}
+		f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": winner}, 200)
+		latest = match
+	}
+	kof := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2`, id)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, kof), map[string]any{"winner_team_id": teams[1]}, 200)
+	latest = kof
+	makeSnapshot := func(matchID int64) correctionSnapshot {
+		return correctionSnapshot{
+			MatchID: matchID, PlayerAID: f.scalar(t, `SELECT player_a_id FROM matches WHERE id=?`, matchID),
+			PlayerBID:     f.scalar(t, `SELECT player_b_id FROM matches WHERE id=?`, matchID),
+			WinnerTeamID:  f.scalar(t, `SELECT winner_team_id FROM matches WHERE id=?`, matchID),
+			LatestMatchID: latest, LatestWinnerTeamID: teams[1],
+		}
+	}
+	f.request(t, 2, "PATCH", fmt.Sprintf("/api/tournaments/%d/settings", id), map[string]any{"corrections": []tournamentResultCorrection{
+		{MatchID: first, WinnerTeamID: teams[1], Expected: ptrCorrectionSnapshot(makeSnapshot(first))},
+		{MatchID: second, WinnerTeamID: teams[0], Expected: ptrCorrectionSnapshot(makeSnapshot(second))},
+	}}, 200)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM rounds WHERE tournament_id=? AND stage='round1' AND score_a=3 AND score_b=1 AND status='finished' AND winner_team_id=?`, id, teams[0])
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE id=? AND who_win='b'`, first)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE id=? AND who_win='a'`, second)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE id=? AND who_win='b'`, kof)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND status='round2'`, id)
 }

@@ -50,9 +50,18 @@ func (a *App) updateTournamentSettings(c *gin.Context) {
 		fail(c, 403, "只有超级管理员可以更换赛事管理员")
 		return
 	}
+	// 从最早修改处重新推进时，任何更晚的对局都将失效。
+	if req.Correction != nil && len(req.Corrections) != 0 {
+		fail(c, 400, "请勿同时提交两种比分修正格式")
+		return
+	}
+	if len(req.Corrections) == 1 {
+		req.Correction = &req.Corrections[0]
+		req.Corrections = nil
+	}
 	err := a.runMatchMutation(tournamentID, actor.ID, func(e *matchEngine) error {
 		tx := e.db.(*sql.Tx)
-		if req.AcePlayers != nil && (req.Correction != nil || req.AcePlayers.MatchID <= 0) {
+		if req.AcePlayers != nil && (req.Correction != nil || len(req.Corrections) > 0 || req.AcePlayers.MatchID <= 0) {
 			return errors.New("请先保存比分修正，再调整当前大将对阵")
 		}
 		beforeRules, err := e.rules()
@@ -86,12 +95,12 @@ func (a *App) updateTournamentSettings(c *gin.Context) {
 			if err := saveRules(tx, tournamentID, rules); err != nil {
 				return err
 			}
-			if req.Correction != nil {
-				m, err := e.match(req.Correction.MatchID)
-				if err != nil {
-					return errors.New("对局不存在")
+			if len(req.Corrections) > 1 {
+				if err := e.correctBatch(req.Corrections); err != nil {
+					return err
 				}
-				if err := e.correct(m, req.Correction.WinnerTeamID, req.Correction.Note); err != nil {
+			} else if req.Correction != nil {
+				if err := e.correct(*req.Correction); err != nil {
 					return err
 				}
 			}
@@ -105,8 +114,8 @@ func (a *App) updateTournamentSettings(c *gin.Context) {
 		if req.AcePlayers != nil {
 			return errors.New("当前不是大将战阶段")
 		}
-		if req.Correction != nil {
-			return errors.New("只能修正已录入对局的合法胜者")
+		if req.Correction != nil || len(req.Corrections) > 0 {
+			return errors.New("只能修正已录入对局的合法结果")
 		}
 		var beforeRound1Target, beforeRound2Target int
 		if err := tx.QueryRow(`SELECT round1_target,round2_target FROM tournaments WHERE id=?`, tournamentID).Scan(&beforeRound1Target, &beforeRound2Target); err != nil {

@@ -18,6 +18,12 @@
 .correction-row>button{font-size:13px;padding:9px 12px;white-space:normal}
 .correction-row.is-selected{background:#fff7e6;outline:1px solid #d9ab57;outline-offset:-1px}
 .correction-row.is-discarded{background:#f6f7fa;border-bottom-style:dashed}
+.correction-warning{padding:12px 14px;margin:0 0 12px;border:1px solid #e4b9b3;border-left:4px solid #bd3c36;border-radius:6px;background:#fff1ef;color:#862f28;line-height:1.55}
+.correction-players{margin-top:22px;padding-top:16px;border-top:1px solid var(--line)}
+.correction-players h3{font-size:16px;margin:0 0 10px}
+.correction-player-picks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.correction-player-picks label{display:grid;gap:6px;min-width:0}
+.correction-player-picks select{width:100%}
 @media(max-width:700px){
   .correction-column-head{display:none}
   .correction-row{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;padding:14px 4px}

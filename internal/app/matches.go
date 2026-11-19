@@ -172,18 +172,13 @@ func (a *App) correctResult(c *gin.Context) {
 		fail(c, 400, "对局编号无效")
 		return
 	}
-	var req resultRequest
+	var req tournamentResultCorrection
 	if err := c.ShouldBindJSON(&req); err != nil {
-		fail(c, 400, "请选择胜者")
+		fail(c, 400, "修正结果格式不正确")
 		return
 	}
-	err = a.runMatchMutation(id, actor.ID, func(e *matchEngine) error {
-		m, err := e.match(matchID)
-		if err != nil {
-			return errors.New("对局不存在")
-		}
-		return e.correct(m, req.WinnerTeamID, req.Note)
-	})
+	req.MatchID = matchID
+	err = a.runMatchMutation(id, actor.ID, func(e *matchEngine) error { return e.correct(req) })
 	if err != nil {
 		fail(c, 400, err.Error())
 		return

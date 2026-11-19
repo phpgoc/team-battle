@@ -17,5 +17,14 @@
     const minimum = Math.min(...losses.values());
     return ids.filter(id => losses.get(id) === minimum);
   }
-  window.TBKOF = { teamSizes, needsRevivalRule, revivalCandidates };
+  function nextPlayers(ids, matches, side, target, noRepeat) {
+    const last = matches.at(-1);
+    if (last?.who_win === side) return { ids: [last[side + '_id']], carry: true, revival: false };
+    const lost = new Set(matches.filter(match => match.who_win !== side).map(match => match[side + '_id']));
+    const fresh = ids.filter(id => !lost.has(id));
+    const revival = fresh.length === 0 && target > ids.length;
+    const eligible = revival && noRepeat ? revivalCandidates(ids, matches, side) : ids;
+    return { ids: revival ? eligible : fresh, carry: false, revival };
+  }
+  window.TBKOF = { teamSizes, needsRevivalRule, revivalCandidates, nextPlayers };
 })();
