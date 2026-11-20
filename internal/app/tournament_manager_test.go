@@ -9,10 +9,14 @@ import (
 
 func TestTournamentRosterRequiresCategoryForNewPlayers(t *testing.T) {
 	f := newWorkflowFixture(t)
-	if _, err := f.app.db.Exec("UPDATE users SET category_id=NULL WHERE id=2"); err != nil {
+	if _, err := f.app.db.Exec("UPDATE users SET category_id=NULL WHERE id IN (2,3)"); err != nil {
 		t.Fatal(err)
 	}
 	body := map[string]any{"name": "分类校验", "start_time": "2026-11-19T20", "manager_id": 2, "player_ids": []int{2}}
+	body["player_ids"] = []int{3}
+	f.request(t, 1, "POST", "/api/tournaments", body, 400)
+	f.assertCount(t, 0, "SELECT COUNT(*) FROM tournaments")
+	body["player_ids"] = []int{2}
 	var created struct{ ID int64 }
 	if err := json.Unmarshal(f.request(t, 1, "POST", "/api/tournaments", body, 200), &created); err != nil {
 		t.Fatal(err)
@@ -21,16 +25,18 @@ func TestTournamentRosterRequiresCategoryForNewPlayers(t *testing.T) {
 	if raw := f.request(t, 2, "GET", path+"/eligible-users", nil, 200); !strings.Contains(string(raw), `"username":"user2"`) {
 		t.Fatal("未分类的赛事管理员没有出现在候选中")
 	}
-	f.request(t, 2, "POST", path+"/players", map[string]any{"player_ids": []int{2, 3}}, 200)
+	f.request(t, 2, "POST", path+"/players", map[string]any{"player_ids": []int{2, 5}}, 200)
 	f.assertCount(t, 1, "SELECT COUNT(*) FROM tournament_setup_roster WHERE tournament_id=? AND user_id=2", created.ID)
 
-	if _, err := f.app.db.Exec("UPDATE users SET category_id=NULL WHERE id IN (3,4)"); err != nil {
+	if _, err := f.app.db.Exec("UPDATE users SET category_id=NULL WHERE id=4"); err != nil {
 		t.Fatal(err)
 	}
 	f.request(t, 2, "POST", path+"/players", map[string]any{"player_ids": []int{2, 3, 4}}, 400)
 	f.request(t, 2, "PATCH", path+"/settings", map[string]any{"player_ids": []int{2, 3, 4}}, 400)
 	f.assertCount(t, 2, "SELECT COUNT(*) FROM tournament_setup_roster WHERE tournament_id=?", created.ID)
-	f.request(t, 1, "PATCH", path+"/settings", map[string]any{"manager_id": 4, "player_ids": []int{2, 3, 4}}, 200)
+	f.request(t, 1, "PATCH", path+"/settings", map[string]any{"manager_id": 4, "player_ids": []int{2, 3, 4}}, 400)
+	f.assertCount(t, 1, "SELECT COUNT(*) FROM tournaments WHERE id=? AND manager_id=2", created.ID)
+	f.request(t, 1, "PATCH", path+"/settings", map[string]any{"manager_id": 4, "player_ids": []int{4}}, 200)
 	f.assertCount(t, 1, "SELECT COUNT(*) FROM tournament_setup_roster WHERE tournament_id=? AND user_id=4", created.ID)
 
 	body["player_ids"] = []int{2, 3, 4, 5, 6, 7}
@@ -48,6 +54,16 @@ func TestTournamentRosterRequiresCategoryForNewPlayers(t *testing.T) {
 	}
 	f.request(t, 1, "POST", "/api/tournaments/archive", archive, 200)
 	f.assertCount(t, 2, "SELECT COUNT(*) FROM tournaments")
+}
+
+func TestSetupDrawRejectsPlayerWithoutCategory(t *testing.T) {
+	f := newWorkflowFixture(t)
+	id := createSetupTournament(t, f, 6, "random", "random", nil)
+	if _, err := f.app.db.Exec(`UPDATE users SET category_id=NULL WHERE id=3`); err != nil {
+		t.Fatal(err)
+	}
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/setup-draw", id), nil, 400)
+	f.assertCount(t, 0, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=?`, id)
 }
 
 func TestTournamentRequiresExplicitRegisteredManager(t *testing.T) {

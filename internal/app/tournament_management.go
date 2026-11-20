@@ -409,7 +409,8 @@ func assignPlayers(tx *sql.Tx, tournamentID, teamA, teamB int64, ids []int64, fi
 		args = append(args, id)
 	}
 	var count int
-	if err := tx.QueryRow(`SELECT COUNT(*) FROM users WHERE id IN (`+strings.Join(placeholders, ",")+`) AND role<>'superadmin' AND status='active' AND is_deleted=0`, args...).Scan(&count); err != nil || count != len(ids) {
+	args = append(args, tournamentID)
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM users WHERE id IN (`+strings.Join(placeholders, ",")+`) AND role<>'superadmin' AND status='active' AND is_deleted=0 AND (COALESCE(category_id,0)>0 OR id=(SELECT manager_id FROM tournaments WHERE id=?))`, args...).Scan(&count); err != nil || count != len(ids) {
 		return errors.New("参赛选手列表中存在无效账号")
 	}
 	remaining := append([]int64(nil), ids...)

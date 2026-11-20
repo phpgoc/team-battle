@@ -25,15 +25,10 @@ func saveSetupRoster(tx *sql.Tx, tournamentID int64, ids []int64, fixed map[stri
 		}
 		seen[id] = true
 		var categoryID int64
-		var alreadyEntered bool
-		// 既有名单在保存时保留，避免后来清除分类导致无法调整其他队员。
-		if err := tx.QueryRow(`SELECT COALESCE(category_id,0),
-			EXISTS(SELECT 1 FROM tournament_setup_roster WHERE tournament_id=? AND user_id=users.id)
-			OR EXISTS(SELECT 1 FROM tournament_players WHERE tournament_id=? AND user_id=users.id AND active=1)
-			FROM users WHERE id=? AND role<>'superadmin' AND status='active' AND is_deleted=0`, tournamentID, tournamentID, id).Scan(&categoryID, &alreadyEntered); err != nil {
+		if err := tx.QueryRow(`SELECT COALESCE(category_id,0) FROM users WHERE id=? AND role<>'superadmin' AND status='active' AND is_deleted=0`, id).Scan(&categoryID); err != nil {
 			return errors.New("参赛选手列表中存在无效账号")
 		}
-		if categoryID <= 0 && !alreadyEntered && id != managerID {
+		if categoryID <= 0 && id != managerID {
 			return errors.New("参赛选手必须先选择分类")
 		}
 	}
