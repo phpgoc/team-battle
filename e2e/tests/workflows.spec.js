@@ -407,6 +407,8 @@ test('直播点击确认和公开SSE更新、历史筛选与软删除恢复', as
     await publicPage.goto('/');
     await publicPage.setViewportSize({ width: 390, height: 844 });
     await expect(publicPage.locator('.event-table')).toBeVisible();
+    await expect(publicPage.locator('.event-table thead')).toContainText('赛事管理员');
+    await expect(publicPage.locator(`[data-tournament-row="${history.id}"] .event-manager`)).toHaveText('超级管理员');
     await expect(publicPage.locator('.event-table tbody tr').first().locator('.event-date, .event-result')).toHaveCount(2);
     expect(await publicPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await publicPage.locator('#history-filter [name=name]').fill('端到端历史');
@@ -420,6 +422,8 @@ test('直播点击确认和公开SSE更新、历史筛选与软删除恢复', as
 
     await page.goto('/tournaments');
     await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator('.event-table thead')).toContainText('赛事管理员');
+    await expect(page.locator(`[data-tournament-row="${history.id}"] .event-manager`)).toHaveText('超级管理员');
     await expect(page.locator(`[data-tournament-row="${created.id}"] .event-status`)).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await expect(page.locator(`[data-tournament-row="${created.id}"] [data-tournament-action]`)).toHaveCount(0);

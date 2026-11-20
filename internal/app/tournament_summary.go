@@ -8,6 +8,10 @@ func (a *App) publicTournamentSummaries(history bool) ([]map[string]any, error) 
 	if history {
 		where, order = "e.status='completed'", "e.start_time DESC,e.id DESC"
 	}
+	directory, err := a.userDirectory()
+	if err != nil {
+		return nil, err
+	}
 	rows, err := a.db.Query(`SELECT e.id,e.name,e.description,e.start_time,e.status,e.round1_target,e.round2_target,e.created_at,COALESCE(e.manager_id,0),e.is_deleted,
 		(SELECT COUNT(*) FROM tournament_players p WHERE p.tournament_id=e.id AND p.active=1),
 		(SELECT COUNT(DISTINCT p.team_id) FROM tournament_players p WHERE p.tournament_id=e.id AND p.active=1),
@@ -27,8 +31,12 @@ func (a *App) publicTournamentSummaries(history bool) ([]map[string]any, error) 
 		if err := rows.Scan(&id, &name, &description, &startTime, &status, &round1, &round2, &created, &managerID, &deleted, &players, &assignedTeams, &setup, &winsA, &winsB); err != nil {
 			return nil, err
 		}
+		managerName := ""
+		if manager, exists := directory[managerID]; exists {
+			managerName = manager.DisplayName
+		}
 		ready := rosterReadiness(int(players), int(assignedTeams), int(setup))
-		items = append(items, gin.H{"id": id, "name": name, "description": description, "start_time": startTime, "status": status, "is_deleted": deleted, "round1_target": round1, "round2_target": round2, "created_at": created, "manager_id": managerID, "has_roster": assignedTeams == 2, "public_ready": ready.publicReady, "player_count": ready.playerCount, "round_wins_a": winsA, "round_wins_b": winsB})
+		items = append(items, gin.H{"id": id, "name": name, "description": description, "start_time": startTime, "status": status, "is_deleted": deleted, "round1_target": round1, "round2_target": round2, "created_at": created, "manager_id": managerID, "manager_name": managerName, "has_roster": assignedTeams == 2, "public_ready": ready.publicReady, "player_count": ready.playerCount, "round_wins_a": winsA, "round_wins_b": winsB})
 	}
 	return items, rows.Err()
 }

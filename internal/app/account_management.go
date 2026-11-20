@@ -299,6 +299,9 @@ func (a *App) saveAccountChange(c *gin.Context, actor, target User, req profileR
 		a.logAccountOperation(actor, target.ID, displayName, action, fields)
 	}
 	a.invalidateCategoryDirectory()
+	if displayName != target.DisplayName {
+		a.invalidateHistoryCache()
+	}
 	updated, err := a.userByID(target.ID)
 	if err != nil {
 		fail(c, 500, "读取账号失败")

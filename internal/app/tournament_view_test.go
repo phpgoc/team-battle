@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"fmt"
+	"net/url"
 	"testing"
 )
 
@@ -22,6 +23,11 @@ func TestPublicTournamentIncludesManagerDisplayName(t *testing.T) {
 		if bytes.Contains(raw, []byte(`"password_hash"`)) {
 			t.Fatal("公开管理员资料不得包含密码哈希")
 		}
+	}
+	history := f.request(t, 0, "GET", "/api/public/history?name="+url.QueryEscape("首发验证"), nil, 200)
+	assertNoLoginNames(t, history)
+	if !bytes.Contains(history, []byte(`"manager_name":"选手2"`)) {
+		t.Fatalf("历史赛事摘要缺少赛事管理员显示名: %s", history)
 	}
 	// 已删除或找不到的管理员允许显示空名称，详情仍正常访问。
 	if _, err := f.app.db.Exec(`UPDATE users SET is_deleted=1 WHERE id=2`); err != nil {
