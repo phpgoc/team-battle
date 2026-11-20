@@ -24,12 +24,16 @@
 .shell .brand strong { font-size: 14px; letter-spacing: 0; }
 .shell .brand-mark { width: 34px; height: 36px; border-radius: 7px 7px 7px 2px; }
 .shell .nav { gap: 4px; }
+.shell .nav-group { display: grid; gap: 3px; }
 .shell .nav a { min-height: 40px; padding: 9px 12px; gap: 11px; border-radius: 5px; color: #bdc7c4; font-size: 13px; }
 .shell .nav a.active { background: #3a4543; color: #fff; }
 .shell .nav a:hover { background: #35403e; color: #fff; }
 .shell .nav a.active::before { width: 3px; height: 17px; }
 .shell .nav-icon { width: 19px; height: 19px; flex: 0 0 19px; display: grid; place-items: center; }
 .shell .nav-icon svg { width: 19px; height: 19px; }
+.shell .nav-submenu { display: grid; gap: 2px; margin-left: 20px; padding-left: 9px; border-left: 1px solid #56615f; }
+.shell .nav-submenu a { min-height: 32px; padding: 6px 10px; gap: 0; border-radius: 4px; font-size: 12px; }
+.shell .nav-submenu a.active::before { width: 2px; height: 14px; }
 .shell .side-footer { border-color: #414948; padding: 16px 9px 0; }
 .shell .side-footer .person strong { font-size: 13px; }
 .shell .side-footer .account-role { color: #aab6b2; font-size: 11px; }
@@ -237,8 +241,7 @@
 .shell .accounts-table .account-actions .danger:enabled:hover { border-color: #dda9a2; background: #fff7f5; }
 .accounts-panel .table-wrap { overflow-x: auto; }
 
-/* 网站设置把默认值、名称和分类作为三组工作区呈现。 */
-.shell .site-settings-page .settings-columns { grid-template-columns: minmax(0, .9fr) minmax(0, 1.2fr); gap: 16px; }
+/* 网站设置各子页使用统一的表单行和操作列。 */
 .shell .site-settings-page .settings-panel .panel-body { padding: 14px var(--panel-inset); }
 .shell .settings-default-fields { display: grid; grid-template-columns: max-content max-content minmax(180px, 1fr) auto; align-items: center; gap: 8px 18px; }
 .shell .settings-default-fields > button { min-width: 68px; margin-left: auto; }
@@ -309,7 +312,6 @@
   .shell .sidebar { width: 210px; }
   .shell .main { width: calc(100% - 210px); margin-left: 210px; }
   .shell .page { padding-inline: 22px; }
-  .shell .site-settings-page .settings-columns { grid-template-columns: 1fr; }
   .shell .filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .shell .filter-bar .field:first-child { grid-column: 1 / -1; }
   .shell #tournament-filter { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -324,6 +326,9 @@
   .shell .sidebar .brand small, .shell .side-footer, .shell .nav-caption { display: none; }
   .shell .nav { display: flex; overflow: auto; gap: 5px; padding: 4px 0; }
   .shell .nav a { flex: 0 0 auto; white-space: nowrap; padding: 9px 11px; }
+  .shell .nav-group { display: flex; flex: 0 0 auto; align-items: center; gap: 3px; }
+  .shell .nav-submenu { display: flex; flex: 0 0 auto; gap: 2px; margin: 0; padding: 0; border: 0; }
+  .shell .nav-submenu a { min-height: 36px; padding: 7px 9px; }
   .shell .main { width: 100%; margin: 0; }
   .shell .topbar { position: static; height: auto; min-height: 56px; padding: 9px 16px; flex-wrap: wrap; }
   .shell .page { padding: 20px 16px 24px; }

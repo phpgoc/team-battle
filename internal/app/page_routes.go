@@ -13,7 +13,10 @@ func (a *App) registerPageRoutes(r *gin.Engine) {
 	r.GET("/", a.serveIndex)
 	r.GET("/login", a.serveIndex)
 	r.GET("/account", func(c *gin.Context) { a.serveWorkspaceEntry(c, false) })
-	for _, path := range []string{"/tournaments", "/tournaments/new", "/tournaments/archive", "/accounts", "/accounts/new", "/site-settings", "/backgrounds"} {
+	for _, path := range []string{
+		"/tournaments", "/tournaments/new", "/tournaments/archive", "/accounts", "/accounts/new", "/backgrounds",
+		"/site-settings", "/site-settings/tournament-names", "/site-settings/categories", "/site-settings/extra-infos",
+	} {
 		r.GET(path, func(c *gin.Context) { a.serveWorkspaceEntry(c, true) })
 	}
 	r.GET("/accounts/:id", func(c *gin.Context) {

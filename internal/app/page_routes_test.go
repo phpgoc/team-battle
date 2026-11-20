@@ -9,7 +9,10 @@ import (
 
 func TestWorkspacePageRoutesAndPermissions(t *testing.T) {
 	f := newWorkflowFixture(t)
-	for _, path := range []string{"/tournaments/new", "/tournaments/archive", "/accounts", "/accounts/new", "/accounts/3", "/site-settings", "/backgrounds", "/account"} {
+	for _, path := range []string{
+		"/tournaments/new", "/tournaments/archive", "/accounts", "/accounts/new", "/accounts/3", "/backgrounds", "/account",
+		"/site-settings", "/site-settings/tournament-names", "/site-settings/categories", "/site-settings/extra-infos",
+	} {
 		t.Run(path, func(t *testing.T) {
 			response := sessionRequest(f.handler, http.MethodGet, path, nil, nil)
 			if response.Code != http.StatusFound || response.Header().Get("Location") != "/login?return="+url.QueryEscape(path) {

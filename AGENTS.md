@@ -69,7 +69,7 @@
 - 右上同排按权限显示排阵/赛事设置，最右三横线仅为通用观赛菜单：透明度、语言、首页、登录。透明度默认30%，本浏览器保存，只影响轮次/规则/名单底色。赞助背景仅管理员在设置修改并SSE同步。
 - 动画仅发起操作的管理员播放；服务端立即随机保存响应，SSE不带重播指令。原对战卡片每250ms换候选，短移动淡入淡出，最后250ms平滑停定；分组/排阵飞入对应位置，大将规则和人选连续分段，单候选侧不滚动，刷新/访客/重复响应不补播。
 - 公开战绩弹层统一显示总胜负、对手当前分类胜负、大将战和团战胜负。团战只计确认赛事，正式队员未出场也计，取消排除。
-- 页面独立路径：/account、/accounts[/new|/:id]、/tournaments、/tournaments/new、/tournaments/archive、/site-settings、/backgrounds；服务端校验入口权限，旧workspace只重定向，筛选分页可用查询参数。
+- 页面独立路径：/account、/accounts[/new|/:id]、/tournaments、/tournaments/new、/tournaments/archive、/site-settings[/tournament-names|/categories|/extra-infos]、/backgrounds；服务端校验入口权限，旧workspace只重定向，筛选分页可用查询参数。
 
 ## 端到端测试
 

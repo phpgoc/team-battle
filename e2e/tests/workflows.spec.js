@@ -13,7 +13,7 @@ test('额外信息在选手抽签后逐秒揭晓并留出展示时间', async ({
 });
 
 test('管理员KOF抽签先揭晓选手，再逐项揭晓额外信息', async ({ page }) => {
-  await json(page.request, 'POST', '/api/auth/login', { username: 'admin', password: 'test1234' });
+  await login(page);
   for (const [name, option] of [['地图演示', '地图甲'], ['比赛模式', '昼间']]) {
     const response = await page.request.post('/api/site-settings/extra-infos', { multipart: { name, options: option } });
     expect(response.ok(), await response.text()).toBeTruthy();
@@ -38,7 +38,7 @@ test('管理员KOF抽签先揭晓选手，再逐项揭晓额外信息', async ({
   before = await json(page.request, 'GET', `/api/public/tournaments/${created.id}`);
   const firstKOFMatch = before.matches.find(match => match.stage === 'round2' && match.status === 'pending');
   expect(firstKOFMatch).toBeTruthy();
-  await login(page, `/live/${created.id}`);
+  await page.goto(`/live/${created.id}`);
   await expect(page.locator('.board-current-extra-info-rows dd')).toHaveCount(2);
   const recordAWin = async () => {
     await page.locator(`[data-current-winner="${before.teams[0].id}"]`).click();
@@ -148,23 +148,45 @@ test('账号创建、密码二次校验、头像和手机搜索', async ({ page 
   await expect(page.locator('#avatar-preview img')).toBeVisible();
 });
 
-test('网站默认值、常用名称、分类图片和背景上传', async ({ page }) => {
+test('网站设置子菜单、默认值、分类图片和背景上传', async ({ page }) => {
   await login(page, '/site-settings');
+  const submenu = page.locator('.nav-submenu');
+  await expect(submenu.getByRole('link')).toHaveText(['常用赛事名', '分类', '额外信息']);
   await page.locator('[name=random_draw_seconds]').fill('6');
   await page.locator('[name=ace_draw_seconds]').fill('7');
   await Promise.all([page.waitForResponse('/api/site-settings/tournament-defaults'), page.locator('#tournament-defaults-form button').click()]);
+  await submenu.getByRole('link', { name: '常用赛事名', exact: true }).click();
+  await expect(page).toHaveURL(/\/site-settings\/tournament-names$/);
+  await expect(page.locator('#name-form')).toBeVisible();
+  await expect(page.locator('#category-form, #extra-info-form, #tournament-defaults-form')).toHaveCount(0);
   await page.locator('#name-form [name=name]').fill('端到端常用赛事');
   await Promise.all([page.waitForResponse('/api/site-settings/tournament-names'), page.locator('#name-form button').click()]);
   const nameRow = page.locator('[data-name]').filter({ has: page.locator('input[value="端到端常用赛事"]') });
   await expect(nameRow).toHaveCount(1);
   await nameRow.locator('[name=name]').fill('更新的常用赛事');
   await Promise.all([page.waitForResponse(response => response.url().includes('/tournament-names/') && response.request().method() === 'PATCH'), nameRow.locator('button').first().click()]);
+  await expect(page.locator('input[value="更新的常用赛事"]')).toBeVisible();
+  await submenu.getByRole('link', { name: '分类', exact: true }).click();
+  await expect(page).toHaveURL(/\/site-settings\/categories$/);
   await page.locator('#category-form [name=name]').fill('端到端分类');
   await page.locator('#category-form [name=icon]').setInputFiles(image);
   await Promise.all([page.waitForResponse('/api/site-settings/categories'), page.locator('#category-form button').click()]);
   const category = page.locator('[data-category]').filter({ has: page.locator('input[value="端到端分类"]') });
   await expect(category.locator('img')).toBeVisible();
   expect(await category.locator('img').evaluate(img => img.complete && img.naturalWidth > 0)).toBeTruthy();
+  const extraInfoLink = submenu.getByRole('link', { name: '额外信息', exact: true });
+  await extraInfoLink.click();
+  await expect(page).toHaveURL(/\/site-settings\/extra-infos$/);
+  await expect(extraInfoLink).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByText('可为每场对局设置额外信息，例如比赛地图。')).toBeVisible();
+  await expect(page.locator('#category-form, #name-form, #tournament-defaults-form')).toHaveCount(0);
+  await page.locator('#extra-info-form [name=name]').fill('子菜单测试地图');
+  await page.locator('#extra-info-form [name=options]').fill('地图甲\n地图乙');
+  await page.locator('#extra-info-form button').click();
+  await expect(page.locator('input[value="子菜单测试地图"]')).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: '额外信息', exact: true })).toBeVisible();
+  await expect(page.locator('input[value="子菜单测试地图"]')).toBeVisible();
   await page.goto('/tournaments/new');
   await expect(page.locator('[name=random_draw_seconds]')).toHaveValue('6');
   await expect(page.locator('[name=ace_draw_seconds]')).toHaveValue('7');
@@ -182,7 +204,7 @@ test('网站默认值、常用名称、分类图片和背景上传', async ({ pa
   await createTournament(page.request, '背景绑定赛事', roster, { background_id: backgroundID });
   await page.reload();
   await expect(page.locator(`[data-delete-background="${backgroundID}"]`)).toBeDisabled();
-  await page.goto('/site-settings');
+  await page.goto('/site-settings/tournament-names');
   const updatedName = page.locator('[data-name]').filter({ has: page.locator('input[value="更新的常用赛事"]') });
   await updatedName.locator('[data-delete-name]').click();
   await expect(page.locator('#confirm-dialog')).toBeVisible();

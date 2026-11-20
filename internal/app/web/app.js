@@ -3,7 +3,8 @@
   const app = document.getElementById('app');
   const state = { user: null, language: localStorage.getItem('tb_language') || 'zh', boardTransparency: readBoardTransparency(), rulesEventId: null, rulesExpanded: true, event: null, stream: null, editor: null, roster: {}, rosterOrder: [], users: [], page: 1, filters: {}, connection: '', drawTimer: null, drawToken: 0, draw: null };
   const langs = { zh: '中文', en: 'English', ko: '한국어' };
-  const pagePaths = { home: '/', createEvent: '/tournaments/new', accounts: '/accounts', tournamentManagement: '/tournaments', archive: '/tournaments/archive', siteSettings: '/site-settings', backgrounds: '/backgrounds', settings: '/account' };
+  const siteSettingsPages = { names: '/site-settings/tournament-names', category: '/site-settings/categories', extraInfo: '/site-settings/extra-infos' };
+  const pagePaths = { home: '/', createEvent: '/tournaments/new', accounts: '/accounts', tournamentManagement: '/tournaments', archive: '/tournaments/archive', siteSettings: '/site-settings', ...siteSettingsPages, backgrounds: '/backgrounds', settings: '/account' };
   const pageForPath = (path = location.pathname) => Object.keys(pagePaths).find(page => pagePaths[page] === path) || (/^\/accounts\/(new|[1-9]\d*)$/.test(path) ? 'accounts' : null);
   const t = key => window.TB_I18N[state.language]?.[key] || window.TB_I18N.zh[key] || key;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -145,7 +146,12 @@
     };
     const navIcons = Object.fromEntries(Object.entries(navPaths).map(([key, path]) => [key, `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`]));
     const brand = `<a class="brand" href="/" data-go="/"><span class="brand-mark" aria-hidden="true">TB<span></span></span><strong>TEAM BATTLE</strong></a>`;
-    const sidebar = state.user ? `<aside class="sidebar">${brand}<nav class="nav">${nav.map(key => `<a href="${pageURL(key)}" class="${page === key ? 'active' : ''}" ${page === key ? 'aria-current="page"' : ''} data-go="${pageURL(key)}"><span class="nav-icon" aria-hidden="true">${navIcons[key]}</span><span>${t(key)}</span></a>`).join('')}</nav><div class="side-footer">${person(state.user)}<span class="account-role">${t(state.user.role)}</span></div></aside>` : '';
+    const inSiteSettings = page === 'siteSettings' || Object.hasOwn(siteSettingsPages, page);
+    const navLink = key => `<a href="${pageURL(key)}" class="${page === key ? 'active' : ''}" ${page === key ? 'aria-current="page"' : ''} data-go="${pageURL(key)}">${navIcons[key] ? `<span class="nav-icon" aria-hidden="true">${navIcons[key]}</span>` : ''}<span>${t(key)}</span></a>`;
+    const navLinks = nav.map(key => key === 'siteSettings' && inSiteSettings
+      ? `<div class="nav-group">${navLink(key)}<div class="nav-submenu" role="group" aria-label="${t(key)}">${Object.keys(siteSettingsPages).map(navLink).join('')}</div></div>`
+      : navLink(key)).join('');
+    const sidebar = state.user ? `<aside class="sidebar">${brand}<nav class="nav">${navLinks}</nav><div class="side-footer">${person(state.user)}<span class="account-role">${t(state.user.role)}</span></div></aside>` : '';
     app.innerHTML = `<div class="shell${state.user ? '' : ' public-shell'}">${sidebar}<main class="main"><header class="topbar">${state.user ? `<span class="breadcrumb">TEAM BATTLE <span>/</span> <b>${t(page)}</b></span>` : brand}<div class="top-actions">${picker()}${state.user ? `<button class="ghost" id="logout">${t('logout')}</button>` : `<a class="primary" href="/login" data-go="/login">${t('login')} <span aria-hidden="true">↗</span></a>`}</div></header><div class="page">${content}</div></main></div>`;
     bindCommon();
     // 手机导航保持横向滚动，新页面自动露出当前标签，不滚动正文。
@@ -303,65 +309,70 @@
     $$('[data-delete-user]').forEach(button => button.onclick = action(async () => { if (!(await confirmAction(t('deleteAccountConfirm')))) return; await api('/api/users/' + button.dataset.deleteUser, { method: 'DELETE' }); await usersPage(); toast(t('saved')); }));
   }
 
-  async function siteSettingsPage() {
+  async function siteSettingsPage(page) {
     const data = await api('/api/site-settings');
+    if (location.pathname !== pageURL(page)) return;
     const defaults = data.tournament_defaults;
     const actions = contents => `<div class="settings-row-actions">${contents}</div>`;
     const extraInfoPreview = info => `<span class="settings-extra-info-preview">${info.icon_url ? `<img src="${esc(info.icon_url)}" alt="${esc(info.name)}">` : `<span>${esc(info.name || t('extraInfo'))}</span>`}</span>`;
     const nameInput = value => input('name', value, 'text', `required aria-label="${t('names')}" placeholder="${t('names')}"`);
     const categoryFields = (category = {}) => `<div class="settings-category-fields">${input('name', category.name || '', 'text', `required aria-label="${t('categoryName')}" placeholder="${t('categoryName')}"`)}<input type="file" name="icon" accept="image/jpeg,image/png,image/gif,image/webp" aria-label="${esc(t('icon') + (category.name ? ' · ' + category.name : ''))}"${category.id ? '' : ' required'}></div>`;
     const preview = category => `<span class="settings-category-preview">${category.icon_url ? `<img src="${esc(category.icon_url)}" alt="${esc(category.name)}">` : '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="9" cy="9" r="2"/><path d="m4 18 5-5 4 3 3-5 5 7"/></svg>'}</span>`;
-    shell(`<div class="site-settings-page">
-      <div class="page-head"><h1>${t('siteSettings')}</h1></div>
+    const sections = {
+      siteSettings: () => `
       <section class="panel settings-panel section-gap"><div class="panel-head"><h2>${t('tournamentDefaults')}</h2></div>
         <form id="tournament-defaults-form" class="panel-body settings-default-fields">
           ${drawDurationFields(defaults)}
           <button class="primary">${t('save')}</button><p class="help settings-note">${t('tournamentDefaultsHint')}</p>
         </form>
-      </section>
-      <div class="settings-columns">
-        <section class="panel settings-panel"><div class="panel-head"><h2>${t('names')}</h2><span class="count-badge">${data.tournament_names.length}</span></div><div class="panel-body">
+      </section>`,
+      names: () => `<section class="panel settings-panel"><div class="panel-body">
           <form id="name-form" class="settings-name-row settings-create-row">${nameInput('')}${actions(`<button class="primary">${t('add')}</button>`)}</form>
           ${data.tournament_names.map(n => `<form class="settings-name-row settings-list-row" data-name="${n.id}">${nameInput(n.name)}${actions(`<button class="outline">${t('save')}</button><button type="button" class="outline danger" data-delete-name="${n.id}">${t('delete')}</button>`)}</form>`).join('')}
-        </div></section>
-        <section class="panel settings-panel"><div class="panel-head"><h2>${t('categories')}</h2><span class="count-badge">${data.categories.length}</span></div><div class="panel-body">
+        </div></section>`,
+      category: () => `<section class="panel settings-panel"><div class="panel-body">
           <form id="category-form" class="settings-category-row settings-create-row">${preview({})}${categoryFields()}${actions(`<button class="primary">${t('add')}</button>`)}</form>
           <p class="help settings-upload-hint">${t('imageHint')}</p>
           ${data.categories.map(c => `<form class="settings-category-row settings-list-row" data-category="${c.id}">${preview(c)}${categoryFields(c)}${actions(`<button class="outline">${t('save')}</button><button type="button" class="outline danger" data-delete-category="${c.id}">${t('delete')}</button>`)}</form>`).join('')}
-        </div></section>
-      </div>
-      <section class="panel settings-panel section-gap"><div class="panel-head"><h2>${t('extraInfoSettings')}</h2><span class="count-badge">${data.extra_infos.length}</span></div><div class="panel-body">
-        <form id="extra-info-form" class="settings-extra-info-row settings-create-row">${extraInfoPreview({})}<label>${t('extraInfoName')}${input('name', '', 'text', `required maxlength="80" aria-label="${t('extraInfoName')}"`)}</label><label>${t('extraInfoOptions')}<textarea name="options" rows="3" required aria-label="${t('extraInfoOptions')}" placeholder="${esc(t('extraInfoOptionsHint'))}"></textarea></label><label>${t('extraInfoIcon')}<input type="file" name="icon" accept="image/jpeg,image/png,image/gif,image/webp" aria-label="${t('extraInfoIcon')}"></label>${actions(`<button class="primary">${t('add')}</button>`)}</form>
+        </div></section>`,
+      extraInfo: () => `<section class="panel settings-panel"><div class="panel-body">
         <p class="help settings-upload-hint">${t('extraInfoSettingsHint')}</p>
+        <form id="extra-info-form" class="settings-extra-info-row settings-create-row">${extraInfoPreview({})}<label>${t('extraInfoName')}${input('name', '', 'text', `required maxlength="80" aria-label="${t('extraInfoName')}"`)}</label><label>${t('extraInfoOptions')}<textarea name="options" rows="3" required aria-label="${t('extraInfoOptions')}" placeholder="${esc(t('extraInfoOptionsHint'))}"></textarea></label><label>${t('extraInfoIcon')}<input type="file" name="icon" accept="image/jpeg,image/png,image/gif,image/webp" aria-label="${t('extraInfoIcon')}"></label>${actions(`<button class="primary">${t('add')}</button>`)}</form>
         ${data.extra_infos.map(info => `<form class="settings-extra-info-row settings-list-row" data-extra-info="${info.id}">${extraInfoPreview(info)}<label>${t('extraInfoName')}${input('name', info.name, 'text', `required maxlength="80" aria-label="${t('extraInfoName')}"`)}</label><label>${t('extraInfoOptions')}<textarea name="options" rows="3" required aria-label="${esc(t('extraInfoOptions') + ' · ' + info.name)}">${esc(info.options.join('\n'))}</textarea></label><label>${t('extraInfoIcon')}<input type="file" name="icon" accept="image/jpeg,image/png,image/gif,image/webp" aria-label="${esc(t('extraInfoIcon') + ' · ' + info.name)}"></label>${info.icon_url ? `<label class="check extra-info-remove-icon"><input type="checkbox" name="remove_icon">${t('removeIcon')}</label>` : ''}${actions(`<button class="outline">${t('save')}</button><button type="button" class="outline danger" data-delete-extra-info="${info.id}">${t('delete')}</button>`)}</form>`).join('')}
-      </div></section>
-    </div>`, 'siteSettings');
-    $('#tournament-defaults-form').onsubmit = action(async event => {
+      </div></section>`
+    };
+    shell(`<div class="site-settings-page"><div class="page-head"><h1>${t(page)}</h1></div>${sections[page]()}</div>`, page);
+    const reload = async () => {
+      if (location.pathname !== pageURL(page)) return;
+      await siteSettingsPage(page);
+      toast(t('saved'));
+    };
+    $('#tournament-defaults-form')?.addEventListener('submit', action(async event => {
       event.preventDefault();
       const f = new FormData(event.target);
       await post('/api/site-settings/tournament-defaults', { random_draw_seconds: Number(f.get('random_draw_seconds')), ace_draw_seconds: Number(f.get('ace_draw_seconds')) }, 'PATCH');
-      await siteSettingsPage(); toast(t('saved'));
-    });
-    $('#name-form').onsubmit = action(async event => { event.preventDefault(); await post('/api/site-settings/tournament-names', Object.fromEntries(new FormData(event.target))); await siteSettingsPage(); toast(t('saved')); });
-    $('#category-form').onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/categories', { method: 'POST', body: new FormData(event.target) }); await siteSettingsPage(); toast(t('saved')); });
-    $('#extra-info-form').onsubmit = action(async event => {
+      await reload();
+    }));
+    $('#name-form')?.addEventListener('submit', action(async event => { event.preventDefault(); await post('/api/site-settings/tournament-names', Object.fromEntries(new FormData(event.target))); await reload(); }));
+    $('#category-form')?.addEventListener('submit', action(async event => { event.preventDefault(); await api('/api/site-settings/categories', { method: 'POST', body: new FormData(event.target) }); await reload(); }));
+    $('#extra-info-form')?.addEventListener('submit', action(async event => {
       event.preventDefault();
       await api('/api/site-settings/extra-infos', { method: 'POST', body: new FormData(event.target) });
-      await siteSettingsPage(); toast(t('saved'));
-    });
-    $$('[data-name]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); await post('/api/site-settings/tournament-names/' + form.dataset.name, Object.fromEntries(new FormData(form)), 'PATCH'); await siteSettingsPage(); toast(t('saved')); }));
-    $$('[data-category]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/categories/' + form.dataset.category, { method: 'PATCH', body: new FormData(form) }); await siteSettingsPage(); toast(t('saved')); }));
+      await reload();
+    }));
+    $$('[data-name]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); await post('/api/site-settings/tournament-names/' + form.dataset.name, Object.fromEntries(new FormData(form)), 'PATCH'); await reload(); }));
+    $$('[data-category]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/categories/' + form.dataset.category, { method: 'PATCH', body: new FormData(form) }); await reload(); }));
     $$('[data-extra-info]').forEach(form => form.onsubmit = action(async event => {
       event.preventDefault();
       await api('/api/site-settings/extra-infos/' + form.dataset.extraInfo, { method: 'PATCH', body: new FormData(form) });
-      await siteSettingsPage(); toast(t('saved'));
+      await reload();
     }));
     $$('[data-delete-extra-info]').forEach(button => button.onclick = action(async () => {
       if (!(await confirmAction(t('deleteConfirm')))) return;
       await api('/api/site-settings/extra-infos/' + button.dataset.deleteExtraInfo, { method: 'DELETE' });
-      await siteSettingsPage(); toast(t('saved'));
+      await reload();
     }));
-    for (const kind of ['name', 'category']) $$(`[data-delete-${kind}]`).forEach(button => button.onclick = action(async () => { if (!(await confirmAction(t('deleteConfirm')))) return; const id = button.getAttribute('data-delete-' + kind); const path = kind === 'name' ? 'tournament-names' : 'categories'; await api('/api/site-settings/' + path + '/' + id, { method: 'DELETE' }); await siteSettingsPage(); toast(t('saved')); }));
+    for (const kind of ['name', 'category']) $$(`[data-delete-${kind}]`).forEach(button => button.onclick = action(async () => { if (!(await confirmAction(t('deleteConfirm')))) return; const id = button.getAttribute('data-delete-' + kind); const path = kind === 'name' ? 'tournament-names' : 'categories'; await api('/api/site-settings/' + path + '/' + id, { method: 'DELETE' }); await reload(); }));
   }
 
   async function backgroundsPage() {
@@ -1424,7 +1435,7 @@
     if (page === 'createEvent') return eventEditor('create', preserve);
     if (page === 'tournamentManagement') return tournamentManagementPage();
     if (page === 'accounts') return usersPage(path.split('/')[2] || '');
-    if (page === 'siteSettings') return siteSettingsPage();
+    if (page === 'siteSettings' || Object.hasOwn(siteSettingsPages, page)) return siteSettingsPage(page);
     if (page === 'backgrounds') return backgroundsPage();
     if (page === 'archive') return archivePage(preserve);
     return homePage();

@@ -2,9 +2,10 @@ const { test, expect, login, json, players, createTournament } = require('./help
 
 const adminRoutes = [
   '/tournaments', '/tournaments/new', '/tournaments/archive',
-  '/accounts', '/accounts/new', '/accounts/1', '/site-settings', '/backgrounds'
+  '/accounts', '/accounts/new', '/accounts/1', '/backgrounds',
+  '/site-settings', '/site-settings/tournament-names', '/site-settings/categories', '/site-settings/extra-infos'
 ];
-const privateForms = '#event-form, #user-form, #account-form, #account-search, #name-form, #category-form, #background-form, #round1-lineup-form';
+const privateForms = '#event-form, #user-form, #account-form, #account-search, #name-form, #category-form, #extra-info-form, #background-form, #round1-lineup-form';
 
 async function preparePermissions(browser, label) {
   // 数据准备使用独立会话；接受权限检查的访客页面从未登录过。
@@ -24,7 +25,7 @@ async function preparePermissions(browser, label) {
       rules: { round1_mode: 'manual', kof_starter: 'captain', random_draw_seconds: 0, ace_draw_seconds: 0 }
     });
     await json(admin.request, 'POST', `/api/tournaments/${other.id}/setup-draw`, {});
-    return { roster, id: tournament.id, otherID: other.id };
+    return { roster, id: tournament.id, otherID: other.id, adminCookies: await admin.cookies() };
   } finally { await admin.close(); }
 }
 
@@ -78,7 +79,7 @@ test('未登录逐个访问后台路由均被拦截', async ({ page, browser }) 
 });
 
 test('选手和队长不能越权，赛事管理员仅能管理本赛事', async ({ page, browser }) => {
-  const { roster, id, otherID } = await preparePermissions(browser, '身份权限选手');
+  const { roster, id, otherID, adminCookies } = await preparePermissions(browser, '身份权限选手');
   for (const identity of [
     { label: '普通选手', user: roster[1], settings: false, lineup: false },
     { label: '队长', user: roster[2], settings: false, lineup: true },
@@ -107,7 +108,7 @@ test('选手和队长不能越权，赛事管理员仅能管理本赛事', async
     });
   }
   await test.step('超管可以打开所有后台入口', async () => {
-    await login(page);
+    await page.context().addCookies(adminCookies);
     for (const route of adminRoutes) {
       const response = await page.goto(route);
       expect(response.status(), route).toBe(200);
