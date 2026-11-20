@@ -7,8 +7,16 @@
       const byID = id => people.find(player => player.id === id);
       const drawn = new Set(steps.filter(step => step.kind === 'group').flatMap(step => [step.a, step.b, step.extra_a]));
       const visible = new Set(people.filter(player => !drawn.has(player.id)).map(player => player.id));
-      const progress = { visible, round1: 0, kof: false, step: null };
+      const progress = { visible, round1: 0, kof: false, step: null, extraInfoVisibleCount: 0 };
       const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+      const waitUntil = async deadline => {
+        while (Date.now() < deadline) {
+          if (!isActive()) return false;
+          await pause(Math.min(100, deadline - Date.now()));
+        }
+        return isActive();
+      };
+      const extraInfoCount = step => (event.rules.extra_info?.[step.kind] || []).filter(selection => step.extra_info?.[selection.name]).length;
       const draw = () => { if (isActive()) render(progress); };
       const slots = () => [...document.querySelectorAll('.board-current-side > .current-player')];
       const paint = (ids, animate = true) => {
@@ -52,9 +60,11 @@
         for (const step of steps) {
           if (!isActive()) return;
           progress.step = step;
+          progress.extraInfoVisibleCount = 0;
           draw();
           const duration = Math.max(0, Number(event.rules.random_draw_seconds) || 0) * 1000;
-          const until = Date.now() + duration;
+          const drawStartedAt = Date.now();
+          const until = drawStartedAt + duration;
           let tick = 0;
           while (Date.now() < until) {
             if (!isActive()) return;
@@ -78,6 +88,15 @@
           draw();
           paint([step.a, step.b], false);
           await fly(sources, step);
+          const infoCount = extraInfoCount(step);
+          if (infoCount) {
+            for (let count = 1; count <= infoCount; count++) {
+              if (!(await waitUntil(drawStartedAt + duration + count * 1000))) return;
+              progress.extraInfoVisibleCount = count;
+              draw();
+            }
+            if (!(await waitUntil(drawStartedAt + duration + (infoCount + 1) * 1000))) return;
+          }
         }
       } finally {
         document.querySelectorAll('.setup-flying-player').forEach(node => node.remove());

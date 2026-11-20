@@ -105,6 +105,50 @@ func TestSetupDrawCombinationsAndOddRemainder(t *testing.T) {
 	}
 }
 
+func TestSetupDrawKeepsExtraInfoWithItsMatch(t *testing.T) {
+	f := newWorkflowFixture(t)
+	options, err := json.Marshal([]string{"地图甲", "地图乙"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := f.app.db.Exec(`INSERT INTO site_extra_infos(name,options_json) VALUES('地图',?)`, string(options))
+	if err != nil {
+		t.Fatal(err)
+	}
+	definitionID, err := result.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := createSetupTournament(t, f, 6, "random", "random", nil)
+	rules := defaultRules()
+	rules.Round1Mode = "random"
+	rules.KOFStarter = "random"
+	rules.ExtraInfo = map[string][]TournamentExtraInfo{
+		stageRound1: {{DefinitionID: definitionID, Name: "地图", Options: []string{"地图甲", "地图乙"}, Selected: []string{"地图乙"}}},
+		stageRound2: {{DefinitionID: definitionID, Name: "地图", Options: []string{"地图甲", "地图乙"}, Selected: []string{"地图乙"}}},
+	}
+	f.request(t, 2, "PATCH", fmt.Sprintf("/api/tournaments/%d/settings", id), map[string]any{"rules": rules}, 200)
+	var draw struct {
+		Steps []setupDrawStep `json:"steps"`
+	}
+	if err := json.Unmarshal(f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/setup-draw", id), nil, 200), &draw); err != nil {
+		t.Fatal(err)
+	}
+	for _, step := range draw.Steps {
+		if step.Kind == stageRound1 || step.Kind == stageRound2 {
+			if step.ExtraInfo["地图"] != "地图乙" {
+				t.Fatalf("赛前抽签步骤 %s #%d 未选定额外信息: %+v", step.Kind, step.Position, step.ExtraInfo)
+			}
+		}
+	}
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/start", id), nil, 200)
+	teams := f.teams(t, id)
+	firstMatch := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=1 AND status='pending'`, id)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE id=? AND json_extract(extra_info_json,'$."地图"')='地图乙'`, firstMatch)
+	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, firstMatch), map[string]any{"winner_team_id": teams[0]}, 200)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=2 AND json_extract(extra_info_json,'$."地图"')='地图乙'`, id)
+}
+
 func TestSetupDrawFixedTeamsAndAtomicFailure(t *testing.T) {
 	f := newWorkflowFixture(t)
 	fixed := map[string]string{"3": "A", "4": "A", "5": "A", "6": "A", "7": "A", "8": "A"}

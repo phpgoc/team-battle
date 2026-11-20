@@ -158,9 +158,15 @@
 .event-editor-page .event-background-panel select { width: min(100%, 28rem); }
 .event-editor-page .tournament-extra-info { display: grid; gap: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 .event-editor-page .tournament-extra-info > h3 { margin: 0; color: #52615d; font-size: 12px; font-weight: 650; }
+.event-editor-page .extra-info-add { display: flex; align-items: center; gap: 7px; }
+.event-editor-page .extra-info-add select { width: min(100%, 260px); min-height: 34px; padding-block: 6px; font-size: 12px; }
+.event-editor-page .extra-info-add button { min-height: 34px; padding: 6px 10px; font-size: 12px; }
 .event-editor-page .extra-info-stage-list { display: grid; gap: 7px; }
-.event-editor-page .extra-info-config { display: grid; grid-template-columns: minmax(120px, .65fr) minmax(0, 2fr); align-items: start; gap: 12px; padding: 8px 0; border-bottom: 1px solid #e9edeb; }
-.event-editor-page .extra-info-enable { padding-top: 5px; color: #465550; font-size: 12px; }
+.event-editor-page .extra-info-config { display: grid; grid-template-columns: minmax(150px, .65fr) minmax(0, 2fr); align-items: start; gap: 12px; padding: 8px 0; border-bottom: 1px solid #e9edeb; }
+.event-editor-page .extra-info-config-heading { display: flex; align-items: center; gap: 8px; min-width: 0; padding-top: 5px; color: #465550; font-size: 12px; }
+.event-editor-page .extra-info-config-heading img { width: 24px; height: 24px; flex: none; object-fit: contain; }
+.event-editor-page .extra-info-config-heading strong { min-width: 0; overflow-wrap: anywhere; }
+.event-editor-page .extra-info-config-heading button { flex: none; margin-left: auto; padding: 4px 6px; font-size: 11px; }
 .event-editor-page .extra-info-config fieldset { min-width: 0; margin: 0; padding: 8px 10px; border: 1px solid #dfe6e2; border-radius: 5px; }
 .event-editor-page .extra-info-config fieldset:disabled { opacity: .58; }
 .event-editor-page .extra-info-config legend { padding: 0 5px; color: #66736e; font-size: 11px; }

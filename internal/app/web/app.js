@@ -447,13 +447,16 @@
       available.push({ id: item.definition_id, name: item.name, options: item.options });
     }
     if (!available.length) return '';
-    const rows = available.map(definition => {
-      const saved = currentByID.get(Number(definition.id));
-      const options = saved?.options || definition.options || [];
-      const selectedValues = saved?.selected || [];
-      return `<div class="extra-info-config" data-extra-info-config data-extra-stage="${stage}" data-extra-id="${definition.id}" data-extra-name="${esc(saved?.name || definition.name)}" data-extra-options="${esc(JSON.stringify(options))}"><label class="check extra-info-enable"><input type="checkbox" data-extra-enabled${saved ? ' checked' : ''}${editable ? '' : ' disabled'}>${esc(saved?.name || definition.name)}</label><fieldset data-extra-options${saved && editable ? '' : ' disabled'}><legend>${t('extraInfoPool')}</legend><div class="extra-info-options">${options.map(option => `<label class="extra-info-choice"><input type="checkbox" data-extra-option value="${esc(option)}"${selectedValues.includes(option) ? ' checked' : ''}>${esc(option)}</label>`).join('')}</div><p class="help">${t('extraInfoNoneMeansAll')}</p></fieldset></div>`;
-    }).join('');
-    return `<div class="full tournament-extra-info"><h3>${t('extraInfo')}</h3><div class="extra-info-stage-list">${rows}</div></div>`;
+    const rows = selected.map(item => extraInfoConfigMarkup(stage, item, editable)).join('');
+    const remaining = available.filter(item => !currentByID.has(Number(item.id)));
+    const definitionsJSON = esc(JSON.stringify(available));
+    return `<div class="full tournament-extra-info" data-extra-info-stage="${stage}" data-extra-info-editable="${editable}" data-extra-definitions="${definitionsJSON}"><h3>${t('extraInfo')}</h3><div class="extra-info-add"><select data-extra-info-select aria-label="${t('extraInfo')}"${!editable || !remaining.length ? ' disabled' : ''}><option value="">${t('extraInfoChoose')}</option>${remaining.map(item => `<option value="${item.id}">${esc(item.name)}</option>`).join('')}</select><button type="button" class="outline" data-add-extra-info disabled>${t('add')}</button></div><div class="extra-info-stage-list" data-extra-config-list>${rows}</div></div>`;
+  }
+  function extraInfoConfigMarkup(stage, item, editable) {
+    const options = item.options || [];
+    const selectedValues = item.selected || [];
+    const icon = item.icon_url ? `<img src="${esc(item.icon_url)}" alt="">` : '';
+    return `<div class="extra-info-config" data-extra-info-config data-extra-stage="${stage}" data-extra-id="${item.definition_id}" data-extra-name="${esc(item.name)}" data-extra-options="${esc(JSON.stringify(options))}"><div class="extra-info-config-heading">${icon}<strong>${esc(item.name)}</strong>${editable ? `<button type="button" class="link danger" data-remove-extra-info aria-label="${esc(t('delete'))}">${t('delete')}</button>` : ''}</div><fieldset data-extra-options${editable ? '' : ' disabled'}><legend>${t('extraInfoPool')}</legend><div class="extra-info-options">${options.map(option => `<label class="extra-info-choice"><input type="checkbox" data-extra-option value="${esc(option)}"${selectedValues.includes(option) ? ' checked' : ''}>${esc(option)}</label>`).join('')}</div><p class="help">${t('extraInfoNoneMeansAll')}</p></fieldset></div>`;
   }
   function kofManualRevivalMarkup(rules, disabled) {
     return `<div class="full" data-kof-manual-revival hidden><label class="check"><input name="kof_manual_revival" type="checkbox"${rules.kof_manual_revival ? ' checked' : ''}${disabled}>${t('kofManualRevival')}</label></div>`;
@@ -469,7 +472,7 @@
   function readExtraInfoDraft(form) {
     const result = {};
     for (const stage of ['round1', 'round2', 'ace']) {
-      const selected = $$(`[data-extra-info-config][data-extra-stage="${stage}"]`, form).filter(row => $('[data-extra-enabled]', row).checked).map(row => ({
+      const selected = $$(`[data-extra-info-config][data-extra-stage="${stage}"]`, form).map(row => ({
         definition_id: Number(row.dataset.extraId),
         name: row.dataset.extraName,
         options: JSON.parse(row.dataset.extraOptions),
@@ -503,10 +506,45 @@
       uniqueRevival.disabled = manualRevival.disabled || manualRevival.checked;
       if (manualRevival.checked) uniqueRevival.checked = true;
     };
+    const refreshExtraInfoOptions = section => {
+      const definitions = JSON.parse(section.dataset.extraDefinitions);
+      const used = new Set($$('[data-extra-info-config]', section).map(row => Number(row.dataset.extraId)));
+      const select = $('[data-extra-info-select]', section);
+      const add = $('[data-add-extra-info]', section);
+      const selected = select.value;
+      const remaining = definitions.filter(item => !used.has(Number(item.id)));
+      select.innerHTML = `<option value="">${t('extraInfoChoose')}</option>${remaining.map(item => `<option value="${item.id}">${esc(item.name)}</option>`).join('')}`;
+      select.value = remaining.some(item => String(item.id) === selected) ? selected : '';
+      select.disabled = section.dataset.extraInfoEditable !== 'true' || !remaining.length;
+      add.disabled = select.disabled || !select.value;
+    };
     form.addEventListener('change', event => {
-      const toggle = event.target.closest('[data-extra-enabled]');
-      if (toggle) toggle.closest('[data-extra-info-config]').querySelector('[data-extra-options]').disabled = !toggle.checked || toggle.disabled;
+      if (event.target.matches('[data-extra-info-select]')) {
+        const section = event.target.closest('[data-extra-info-stage]');
+        $('[data-add-extra-info]', section).disabled = event.target.disabled || !event.target.value;
+      }
     });
+    form.addEventListener('click', event => {
+      const add = event.target.closest('[data-add-extra-info]');
+      const remove = event.target.closest('[data-remove-extra-info]');
+      if (add) {
+        const section = add.closest('[data-extra-info-stage]');
+        const select = $('[data-extra-info-select]', section);
+        const definition = JSON.parse(section.dataset.extraDefinitions).find(item => Number(item.id) === Number(select.value));
+        if (!definition) return;
+        $('[data-extra-config-list]', section).insertAdjacentHTML('beforeend', extraInfoConfigMarkup(section.dataset.extraInfoStage, {
+          definition_id: definition.id, name: definition.name, icon_url: definition.icon_url, options: definition.options, selected: []
+        }, true));
+        refreshExtraInfoOptions(section);
+        form.dispatchEvent(new Event('change', { bubbles: true }));
+      } else if (remove) {
+        const section = remove.closest('[data-extra-info-stage]');
+        remove.closest('[data-extra-info-config]').remove();
+        refreshExtraInfoOptions(section);
+        form.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+    $$('[data-extra-info-stage]', form).forEach(refreshExtraInfoOptions);
     $('#add-special').onclick = () => { $('#special-rules').insertAdjacentHTML('beforeend', specialMarkup()); refresh(); };
     $('#special-rules').addEventListener('click', event => { const remove = event.target.closest('[data-remove-special]'); if (remove) { remove.closest('.special-rule').remove(); refresh(); } });
     form.addEventListener('rosterchange', refresh);
@@ -980,19 +1018,29 @@
     return `<details class="board-rules"${state.rulesExpanded ? ' open' : ''}><summary class="board-roster-head">${t('eventRules')}</summary><div class="board-rules-content">${content}</div></details>`;
   }
   // 预抽对阵只用于展示，正式开赛后由比赛引擎按同一份排阵生成真实对局。
+  function setupStepExtraInfo(event, step, visibleCount) {
+    if (!step?.extra_info || visibleCount <= 0) return {};
+    const selections = (event.rules.extra_info?.[step.kind] || []).filter(selection => step.extra_info[selection.name]);
+    return Object.fromEntries(selections.slice(0, visibleCount).map(selection => [selection.name, step.extra_info[selection.name]]));
+  }
   function plannedMatches(e, stage) {
     if (!['round1', 'round2'].includes(stage) || terminal(e) || e.rounds.find(round => round.stage === stage)?.status === 'finished') return [];
     if (stage === 'round1' && preMatch(e) && e.rules.round1_mode === 'manual' && !e.teams.every(team => team.lineup_submitted)) return [];
     const existing = e.matches.filter(match => match.stage === stage);
     const positions = stage === 'round1' ? [...new Set(e.lineups.map(entry => entry.position))].sort((a, b) => a - b) : (e.kof_starters?.length === 2 ? [1] : []);
+    const setup = state.setupDraw?.id === e.id ? state.setupDraw : null;
+    const setupSteps = setup?.steps || (e.setup_draw || []).map(item => ({ kind: item.stage, position: item.seq, extra_info: item.extra_info }));
     return positions.filter(position => !existing.some(match => match.seq === position)).map(position => {
       const player = side => stage === 'round1' ? e.lineups.find(entry => entry.team_id === e.teams[side].id && entry.position === position)?.player_id : e.kof_starters.find(entry => entry.team_id === e.teams[side].id)?.player_id;
-      return { stage, seq: position, player_a_id: player(0) || 0, player_b_id: player(1) || 0, player_a_name: t('toConfirm'), player_b_name: t('toConfirm'), who_win: '0', status: 'planned' };
+      const step = setupSteps.find(item => item.kind === stage && item.position === position);
+      const activeStep = step && setup?.progress?.step && step.kind === setup.progress.step.kind && step.position === setup.progress.step.position;
+      const visibleCount = activeStep ? setup.progress.extraInfoVisibleCount : Number.MAX_SAFE_INTEGER;
+      return { stage, seq: position, player_a_id: player(0) || 0, player_b_id: player(1) || 0, player_a_name: t('toConfirm'), player_b_name: t('toConfirm'), who_win: '0', status: 'planned', extra_info: step ? setupStepExtraInfo(e, step, visibleCount) : {} };
     });
   }
   async function playSetupDraw(steps, e) {
     if (!steps.length || !manages(e)) return;
-    const session = { id: e.id, progress: null };
+    const session = { id: e.id, steps, progress: null };
     state.setupDraw = session;
     const active = () => state.setupDraw === session && state.event?.id === e.id && !state.editor && manages(state.event) && preMatch(state.event);
     try {
@@ -1034,7 +1082,7 @@
       }
       return roundMarkup(rounds.find(round => round.stage === stage), matches, people, e);
     };
-    const pending = setup?.step ? { stage: setup.step.kind === 'group' ? 'setupGrouping' : setup.step.kind, player_a_id: setup.step.a, player_b_id: setup.step.b, player_a_name: t('toConfirm'), player_b_name: t('toConfirm') } : !terminal(e) ? (e.matches.find(match => match.status === 'pending' && match.stage === e.status) || waitingKOFMatch(e) || (e.status === 'ace' && !e.matches.some(match => match.stage === 'ace') ? { stage: 'ace', status: 'waiting' } : null) || (preMatch(e) ? plannedMatches(e, 'round1').find(match => match.player_a_id && match.player_b_id) : null)) : null;
+    const pending = setup?.step ? { stage: setup.step.kind === 'group' ? 'setupGrouping' : setup.step.kind, player_a_id: setup.step.a, player_b_id: setup.step.b, player_a_name: t('toConfirm'), player_b_name: t('toConfirm'), extra_info: setupStepExtraInfo(e, setup.step, setup.extraInfoVisibleCount) } : !terminal(e) ? (e.matches.find(match => match.status === 'pending' && match.stage === e.status) || waitingKOFMatch(e) || (e.status === 'ace' && !e.matches.some(match => match.stage === 'ace') ? { stage: 'ace', status: 'waiting' } : null) || (preMatch(e) ? plannedMatches(e, 'round1').find(match => match.player_a_id && match.player_b_id) : null)) : null;
     const rosterRows = ungrouped ? Math.ceil((e.setup_roster || []).length / 2) : Math.max(...teams.map(team => team.players.length));
     // 共用较长名单的行数，抽签逐个揭示时也保留最终行高。
     const roster = (team, side, unassigned = false) => {

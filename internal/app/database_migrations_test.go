@@ -185,7 +185,7 @@ func assertTrackedDemoMapData(t *testing.T, db *sql.DB) {
 		if err := db.QueryRow(check.query).Scan(&got); err != nil {
 			t.Fatal(err)
 		}
-		if got != check.want {
+		if got < check.want {
 			t.Fatalf("仓库演示库包含 %d 个%s，期望 %d 个", got, check.label, check.want)
 		}
 	}

@@ -45,10 +45,12 @@ test('管理员KOF抽签先揭晓选手，再逐项揭晓额外信息', async ({
     await page.locator('[data-confirm-accept]').click();
   };
   const sendNextKOFPlayer = async () => {
-    const nextPlayer = page.locator('.board-roster-player[data-kof-player]').first();
-    await expect(nextPlayer).toBeVisible();
-    await nextPlayer.locator('.roster-action-area').click();
-    await page.locator('#roster-actions [data-send-kof]').click();
+    const choices = await json(page.request, 'GET', `/api/tournaments/${created.id}/kof/options`);
+    const choice = choices.teams.find(team => team.candidate_ids?.length);
+    expect(choice).toBeTruthy();
+    await json(page.request, 'POST', `/api/tournaments/${created.id}/kof/next-player`, {
+      match_id: choices.match_id, team_id: choice.team_id, player_id: choice.candidate_ids[0]
+    });
     await expect(page.locator('[data-current-winner]').first()).toBeEnabled();
   };
   await recordAWin();
@@ -61,6 +63,66 @@ test('管理员KOF抽签先揭晓选手，再逐项揭晓额外信息', async ({
   await expect.poll(values, { timeout: 10000 }).toEqual(['地图甲']);
   await expect.poll(values, { timeout: 10000 }).toEqual(['地图甲', '昼间']);
   await expect(page.locator('[data-current-winner]').first()).toBeEnabled();
+  const pendingMatchDetails = page.locator('[data-stage="round2"] .board-match.is-pending .board-extra-info-trigger');
+  await expect(pendingMatchDetails).toBeVisible();
+  await pendingMatchDetails.click();
+  const details = page.locator('.board-extra-info-popover:popover-open');
+  await expect(details).toContainText('地图演示');
+  await expect(details).toContainText('比赛模式');
+  await expect(details).toContainText('地图甲');
+  await expect(details).toContainText('昼间');
+});
+
+test('赛前抽签揭晓KOF额外信息并显示对阵详情', async ({ page }) => {
+  await login(page);
+  for (const [name, option] of [['赛前地图类型', '地图甲'], ['赛前模式类型', '昼间']]) {
+    const response = await page.request.post('/api/site-settings/extra-infos', { multipart: { name, options: option } });
+    expect(response.ok(), await response.text()).toBeTruthy();
+  }
+  const definitions = (await json(page.request, 'GET', '/api/site-settings')).extra_infos.filter(info => ['赛前地图类型', '赛前模式类型'].includes(info.name));
+  const roster = await players(page.request, '赛前地图');
+  const assignments = Object.fromEntries(roster.map((player, index) => [player.id, index < 3 ? 'A' : 'B']));
+  const created = await createTournament(page.request, '赛前地图抽签', roster, {
+    fixed_assignments: assignments,
+    round1_target: 1,
+    rules: {
+      round1_mode: 'random', kof_starter: 'random', random_draw_seconds: 0,
+      extra_info: { round2: definitions.map(definition => ({ definition_id: definition.id, selected: [] })) }
+    }
+  });
+  await page.goto(`/live/${created.id}/setting`);
+  await expect(page.locator('[data-extra-info-config]')).toHaveCount(2);
+  await page.locator('#start-setup-draw').click();
+  await expect(page.locator('#board-content')).not.toHaveAttribute('data-setup-drawing', 'true', { timeout: 10000 });
+  const kofMatch = page.locator('[data-stage="round2"] .board-match').first();
+  await expect(kofMatch.locator('.board-extra-info-trigger')).toBeVisible();
+  await kofMatch.locator('.board-extra-info-trigger').click();
+  const detail = page.locator('.board-extra-info-popover:popover-open');
+  await expect(detail).toContainText('赛前地图类型');
+  await expect(detail).toContainText('赛前模式类型');
+  await expect(detail).toContainText('地图甲');
+  await expect(detail).toContainText('昼间');
+  await page.keyboard.press('Escape');
+  const savedSetupDetails = page.locator('[data-stage="round2"] .board-match .board-extra-info-trigger');
+  await expect(savedSetupDetails).toBeVisible();
+  await savedSetupDetails.click();
+  const savedPopover = page.locator('.board-extra-info-popover:popover-open');
+  await expect(savedPopover).toContainText('地图甲');
+  await expect(savedPopover).toContainText('昼间');
+
+  const publicBeforeStart = await json(page.request, 'GET', `/api/public/tournaments/${created.id}`);
+  const [teamA, teamB] = publicBeforeStart.teams;
+  await json(page.request, 'POST', `/api/tournaments/${created.id}/captains/confirm`, {
+    team_a_player_id: teamA.players[0].id, team_b_player_id: teamB.players[0].id
+  });
+  await json(page.request, 'POST', `/api/tournaments/${created.id}/start`, {});
+  let publicAfterStart = await json(page.request, 'GET', `/api/public/tournaments/${created.id}`);
+  const firstRound = publicAfterStart.matches.find(match => match.stage === 'round1' && match.status === 'pending');
+  expect(firstRound).toBeTruthy();
+  await json(page.request, 'POST', `/api/tournaments/${created.id}/matches/${firstRound.id}/result`, { winner_team_id: teamA.id });
+  publicAfterStart = await json(page.request, 'GET', `/api/public/tournaments/${created.id}`);
+  const initialKOF = publicAfterStart.matches.find(match => match.stage === 'round2');
+  expect(initialKOF.extra_info).toEqual({ '赛前地图类型': '地图甲', '赛前模式类型': '昼间' });
 });
 
 test('赛事管理按赛事名和开始日期筛选，后台页面不显示重复页脚', async ({ page }) => {
@@ -216,6 +278,11 @@ test('网站设置子菜单、默认值、分类图片和背景上传', async ({
 
 test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ page }) => {
   await login(page, '/tournaments/new');
+  const extraInfoResponse = await page.request.post('/api/site-settings/extra-infos', {
+    multipart: { name: '创建页地图', options: '地图甲\n地图乙' }
+  });
+  expect(extraInfoResponse.ok(), await extraInfoResponse.text()).toBeTruthy();
+  const extraInfoDefinition = (await json(page.request, 'GET', '/api/site-settings')).extra_infos.find(info => info.name === '创建页地图');
   await expect(page.locator('#event-basics .required-mark')).toHaveCount(3);
   await expect(page.locator('#event-basics [name=name]')).toHaveAttribute('required', '');
   await expect(page.locator('#event-basics [name=start_time]')).toHaveAttribute('required', '');
@@ -230,6 +297,17 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
   // 创建页重新读取目录后，用联想选择和逐人添加完成整份名单。
   await page.reload();
   await page.locator('#event-form [name=name]').fill('端到端创建赛事');
+  await expect(page.locator('[data-extra-info-config]')).toHaveCount(0);
+  for (const stage of ['round1', 'round2', 'ace']) {
+    await expect(page.locator(`#event-${stage} [data-extra-info-select]`)).toBeVisible();
+  }
+  const round2ExtraInfo = page.locator('#event-round2 [data-extra-info-stage]');
+  await round2ExtraInfo.locator('[data-extra-info-select]').selectOption(String(extraInfoDefinition.id));
+  await round2ExtraInfo.locator('[data-add-extra-info]').click();
+  const round2Map = round2ExtraInfo.locator('[data-extra-info-config]');
+  await expect(round2Map).toHaveCount(1);
+  await expect(round2Map).toContainText('创建页地图');
+  await expect(round2Map.locator('[data-extra-option]:checked')).toHaveCount(0);
   const managerSearch = page.locator('.search-select').filter({ has: page.locator('[name=manager_id]') });
   await managerSearch.locator('input').fill('admin');
   await managerSearch.getByRole('option').first().click();
@@ -276,6 +354,7 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
   // 切换语言须保留名单、双方候选、概率和管理员。
   await page.locator('.language-picker').selectOption('en');
   await expect(page.locator('[data-roster-player]')).toHaveCount(6);
+  await expect(page.locator('#event-round2 [data-extra-info-config]')).toContainText('创建页地图');
   await expect(page.locator('[name=special_b_ids]')).toHaveValues([String(roster[3].id), String(roster[4].id)]);
   await expect(manualRevival).toBeChecked();
   await expect(uniqueRevival).toBeDisabled();
@@ -285,6 +364,9 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
   const created = await (await createdResponse).json();
   await expect(page).toHaveURL(new RegExp(`/live/${created.id}$`));
   await expect(page.locator('.board-rosters [data-player-record]')).toHaveCount(6);
+  let createdTournament = await json(page.request, 'GET', `/api/public/tournaments/${created.id}`);
+  expect(createdTournament.rules.extra_info.round2).toHaveLength(1);
+  expect(createdTournament.rules.extra_info.round2[0].name).toBe('创建页地图');
   await page.goto(`/live/${created.id}/setting`);
   await expect(page.locator('[data-roster-player]')).toHaveCount(6);
   await expect(page.locator('[name=special_probability]')).toHaveValue('30');
@@ -292,6 +374,7 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
   await page.goto(`/live/${created.id}/setting`);
   await expect(page.locator('select[name=round1_mode]')).toBeDisabled();
   await expect(manualRevival).toBeChecked();
+  await expect(page.locator('#event-round2 [data-extra-info-config]')).toHaveCount(1);
   await expect(manualRevival).toBeDisabled();
   await expect(page.locator('[name=ace_most_wins]')).toBeEnabled();
   await expect(page.locator('[data-remove-player]')).toHaveCount(0);

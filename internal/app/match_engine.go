@@ -105,14 +105,6 @@ func (e *matchEngine) insertMatch(stage string, a, b int64) error {
 	if err != nil {
 		return err
 	}
-	extraInfo, err := rules.extraInfoForMatch(stage, e.rng)
-	if err != nil {
-		return err
-	}
-	extraInfoJSON, err := json.Marshal(extraInfo)
-	if err != nil {
-		return err
-	}
 	r, err := e.round(stage)
 	if err != nil {
 		return err
@@ -121,8 +113,43 @@ func (e *matchEngine) insertMatch(stage string, a, b int64) error {
 	if err := e.db.QueryRow(`SELECT COALESCE(MAX(seq),0)+1 FROM matches WHERE round_id=?`, r.id).Scan(&seq); err != nil {
 		return err
 	}
+	extraInfo, exists, err := e.setupDrawExtraInfo(stage, seq)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		extraInfo, err = rules.extraInfoForMatch(stage, e.rng)
+		if err != nil {
+			return err
+		}
+	}
+	extraInfoJSON, err := json.Marshal(extraInfo)
+	if err != nil {
+		return err
+	}
 	_, err = e.db.Exec(`INSERT INTO matches(tournament_id,round_id,seq,team_a_id,team_b_id,player_a_id,player_b_id,status,created_by,extra_info_json) VALUES(?,?,?,?,?,?,?,'pending',?,?)`, e.tournamentID, r.id, seq, teams[0], teams[1], a, b, e.actorID, string(extraInfoJSON))
 	return err
+}
+
+func (e *matchEngine) setupDrawExtraInfo(stage string, seq int) (map[string]string, bool, error) {
+	var raw string
+	err := e.db.QueryRow(`SELECT payload FROM tournament_actions WHERE tournament_id=? AND action='tournament_setup_drawn' ORDER BY id DESC LIMIT 1`, e.tournamentID).Scan(&raw)
+	if err == sql.ErrNoRows {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	var steps []setupDrawStep
+	if err := json.Unmarshal([]byte(raw), &steps); err != nil {
+		return nil, false, err
+	}
+	for _, step := range steps {
+		if step.Kind == stage && step.Position == seq && step.ExtraInfo != nil {
+			return step.ExtraInfo, true, nil
+		}
+	}
+	return nil, false, nil
 }
 func (e *matchEngine) start() error {
 	s, err := e.status()

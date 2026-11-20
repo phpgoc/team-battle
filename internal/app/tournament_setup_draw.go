@@ -48,13 +48,14 @@ func saveSetupRoster(tx *sql.Tx, tournamentID int64, ids []int64, fixed map[stri
 }
 
 type setupDrawStep struct {
-	Kind     string  `json:"kind"`
-	Position int     `json:"position,omitempty"`
-	A        int64   `json:"a"`
-	B        int64   `json:"b"`
-	ExtraA   int64   `json:"extra_a,omitempty"`
-	PoolA    []int64 `json:"pool_a"`
-	PoolB    []int64 `json:"pool_b"`
+	Kind      string            `json:"kind"`
+	Position  int               `json:"position,omitempty"`
+	A         int64             `json:"a"`
+	B         int64             `json:"b"`
+	ExtraA    int64             `json:"extra_a,omitempty"`
+	ExtraInfo map[string]string `json:"extra_info,omitempty"`
+	PoolA     []int64           `json:"pool_a"`
+	PoolB     []int64           `json:"pool_b"`
 }
 
 // 后台一次确定全部结果并原子保存，动画计划仅随主动操作响应返回，SSE不补播。
@@ -177,6 +178,10 @@ func (a *App) drawTournamentSetup(c *gin.Context) {
 		if rules.Round1Mode == "random" {
 			for pos := 0; pos < len(ids)/2; pos++ {
 				step := setupDrawStep{Kind: "round1", Position: pos + 1, PoolA: append([]int64{}, groups[0][pos%len(groups[0]):]...), PoolB: append([]int64{}, groups[1][pos%len(groups[1]):]...)}
+				step.ExtraInfo, err = rules.extraInfoForMatch(stageRound1, e.rng)
+				if err != nil {
+					return err
+				}
 				for side, group := range groups {
 					player := group[pos%len(group)]
 					if side == 0 {
@@ -193,6 +198,10 @@ func (a *App) drawTournamentSetup(c *gin.Context) {
 		}
 		if rules.KOFStarter == "random" {
 			step := setupDrawStep{Kind: "round2", Position: 1, A: groups[0][e.rng.Intn(len(groups[0]))], B: groups[1][e.rng.Intn(len(groups[1]))], PoolA: groups[0], PoolB: groups[1]}
+			step.ExtraInfo, err = rules.extraInfoForMatch(stageRound2, e.rng)
+			if err != nil {
+				return err
+			}
 			if _, err := e.db.Exec(`UPDATE tournaments SET kof_initial_a=?,kof_initial_b=? WHERE id=?`, step.A, step.B, id); err != nil {
 				return err
 			}

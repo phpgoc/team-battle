@@ -141,6 +141,13 @@ func (a *App) buildTournament(tournamentID int64, includePrivate bool) (map[stri
 		return nil, err
 	}
 	tournament["rules"] = rules
+	setupDraw, err := a.loadSetupDrawInfo(tournamentID)
+	if err != nil {
+		return nil, err
+	}
+	if setupDraw != nil {
+		tournament["setup_draw"] = setupDraw
+	}
 	starters := []map[string]any{}
 	selectionRows, err := a.db.Query(`SELECT team_id,player_id FROM player_selections WHERE tournament_id=? AND stage='round2' AND EXISTS (SELECT 1 FROM matches WHERE tournament_id=? AND round_no=2) ORDER BY team_id`, tournamentID, tournamentID)
 	if err != nil {
@@ -230,6 +237,29 @@ func (a *App) buildTournament(tournamentID int64, includePrivate bool) (map[stri
 		}
 	}
 	return tournament, nil
+}
+
+func (a *App) loadSetupDrawInfo(tournamentID int64) ([]map[string]any, error) {
+	var raw string
+	err := a.db.QueryRow(`SELECT payload FROM tournament_actions WHERE tournament_id=? AND action='tournament_setup_drawn' ORDER BY id DESC LIMIT 1`, tournamentID).Scan(&raw)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var steps []setupDrawStep
+	if err := json.Unmarshal([]byte(raw), &steps); err != nil {
+		return nil, err
+	}
+	result := []map[string]any{}
+	for _, step := range steps {
+		if len(step.ExtraInfo) == 0 {
+			continue
+		}
+		result = append(result, map[string]any{"stage": step.Kind, "seq": step.Position, "extra_info": step.ExtraInfo})
+	}
+	return result, nil
 }
 
 func (a *App) loadTeams(tournamentID int64) ([]map[string]any, error) {
