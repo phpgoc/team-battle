@@ -440,9 +440,9 @@
   }
   function drawTimingMarkup(e, editableTiming, creating) {
     const rules = { ...defaultRules(), ...e.rules };
-    return `<section class="panel section-gap editor-section" id="event-timing">
-      <div class="panel-head"><h2>${t('drawTiming')}</h2></div>
-      <div class="panel-body draw-duration-fields">${drawDurationFields(rules, !editableTiming)}</div>
+    return `<section class="draw-timing-section editor-section" id="event-timing">
+      <h2>${t('drawTiming')}</h2>
+      <div class="draw-duration-fields">${drawDurationFields(rules, !editableTiming)}</div>
     </section>`;
   }
   function editorJumps(settings, correction, management) {

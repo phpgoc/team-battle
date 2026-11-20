@@ -1,265 +1,334 @@
-/* 管理页面使用独立作用域，避免改变全屏直播的排版和尺寸。 */
+/* 管理工作区使用紧凑、清晰的表单和列表层级。 */
 :is(.shell, .event-editor-page) {
-  --muted: #56677b;
-  --panel-inset: 22px;
+  --ink: #252d2f;
+  --muted: #657173;
+  --line: #dfe5e2;
+  --paper: #f3f5f3;
+  --panel: #fff;
+  --accent: #dc7046;
+  --blue: #47776c;
+  --green: #34795f;
+  --red: #b9514a;
+  --shadow: 0 1px 3px #1724210d;
+  --panel-inset: 18px;
+  --page-gutter: 28px;
+  color: var(--ink);
   font-size: 14px;
   line-height: 1.5;
 }
-.shell .page { max-width: 1496px; padding: 28px 32px 36px; }
-.event-editor-page { padding-top: 28px; padding-bottom: 24px; }
-:is(.shell, .event-editor-page) .page-head { margin-bottom: 20px; }
-:is(.shell, .event-editor-page) .page-head h1, .shell .home-heading h1 { font-size: 28px; line-height: 1.25; letter-spacing: -.025em; }
-:is(.shell, .event-editor-page) .subtitle { font-size: 13px; line-height: 1.55; margin-top: 6px; }
-:is(.shell, .event-editor-page) .panel { border-radius: 10px; }
-:is(.shell, .event-editor-page) .panel-head { padding: 13px var(--panel-inset); flex-wrap: wrap; gap: 6px 14px; }
-:is(.shell, .event-editor-page) .panel-head h2, .shell .section-title h2 { font-size: 16px; }
-:is(.shell, .event-editor-page) .panel-head > span { font-size: 12px; }
-:is(.shell, .event-editor-page) .panel-body { padding: 18px var(--panel-inset); }
-:is(.shell, .event-editor-page) .field-label, :is(.shell, .event-editor-page) .field > label { font-size: 13px; color: #42556d; }
-:is(.shell, .event-editor-page) .help { font-size: 12px; line-height: 1.55; margin: 8px 0 12px; }
-:is(.shell, .event-editor-page) .panel-body > .help:last-child { margin-bottom: 0; }
-:is(.shell, .event-editor-page) .settings-note { font-size: 12px; color: var(--muted); }
-:is(.shell, .event-editor-page) .section-gap { margin-top: 16px; margin-bottom: 0; }
-:is(.shell, .event-editor-page) .form-grid { gap: 14px 18px; }
-:is(.shell, .event-editor-page) .field { gap: 6px; }
-:is(.shell, .event-editor-page) :is(.notice, .form-error) { font-size: 14px; }
-:is(.shell, .event-editor-page) .eyebrow { font-size: 11px; }
-:is(.shell, .event-editor-page) .count-badge { font-size: 13px; padding: 5px 10px; }
-:is(.shell, .event-editor-page) input:not([type=checkbox]):not([type=radio]):not([type=file]),
-:is(.shell, .event-editor-page) select:not([multiple]), :is(.shell, .event-editor-page) textarea {
-  min-height: 40px;
-  font-size: 14px;
-  padding: 8px 11px;
-}
-:is(.shell, .event-editor-page) .required-mark { margin-left: 4px; color: #c94036; font-size: 17px; font-weight: 800; line-height: 1; }
-:is(.shell, .event-editor-page) .compact-number-field { display: flex; align-items: center; gap: 8px; color: #42556d; font-size: 13px; font-weight: 650; }
-:is(.shell, .event-editor-page) .compact-number-control { display: inline-flex; align-items: center; gap: 5px; flex: none; }
-:is(.shell, .event-editor-page) input.compact-number-input[type=number] { width: 60px; min-height: 36px; height: 36px; padding: 5px 6px; text-align: center; font-variant-numeric: tabular-nums; }
-:is(.shell, .event-editor-page) .probability-number-field input.compact-number-input[type=number] { width: 54px; }
-:is(.shell, .event-editor-page) .compact-number-control > span { color: var(--muted); font-size: 12px; }
-:is(.shell, .event-editor-page) :is(.ace-probability-grid, .draw-duration-fields) { display: flex; flex-wrap: wrap; gap: 8px 28px; }
-.shell #event-basics .field-label { display: inline-flex; align-items: baseline; }
-:is(.shell, .event-editor-page) input[type=number]::-webkit-inner-spin-button { opacity: 1; }
-:is(.shell, .event-editor-page) :is(.primary, .outline, .ghost) { min-height: 44px; font-size: 14px; padding: 10px 18px; }
-:is(.shell, .event-editor-page) .password-toggle { min-height: 34px; font-size: 12px; padding: 7px 10px; }
-:is(.shell, .event-editor-page) input[type=file] { min-height: 44px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; background: #f8fafc !important; color: #52657b; }
-:is(.shell, .event-editor-page) input[type=file]::file-selector-button { padding: 7px 10px; font-size: 13px; background: #fff; margin-right: 8px; }
-:is(.shell, .event-editor-page) .mode-choices span { min-height: 40px; font-size: 13px; padding: 9px 12px; }
-:is(.shell, .event-editor-page) .check { font-size: 13px; padding: 8px 10px; }
-:is(.shell, .event-editor-page) .search-select > input { padding-right: 70px; }
-:is(.shell, .event-editor-page) .search-select-menu > button { font-size: 15px; min-height: 44px; }
-:is(.shell, .event-editor-page) .roster-search > input { font-size: 15px; }
-:is(.shell, .event-editor-page) .person strong { font-size: 15px; }
-:is(.shell, .event-editor-page) .person small { font-size: 12px; }
-:is(.shell, .event-editor-page) .roster-list-heading { font-size: 13px; }
-:is(.shell, .event-editor-page) .roster-entry > [data-remove-player] { font-size: 14px; min-height: 44px; }
-:is(.shell, .event-editor-page) .special-rule-head h3 { font-size: 16px; }
-:is(.shell, .event-editor-page) .special-rule-head [data-special-count] { font-size: 13px; }
-:is(.shell, .event-editor-page) .special-rule-head button { font-size: 14px; min-height: 40px; }
-:is(.shell, .event-editor-page) .editor-jumps { top: 60px; gap: 4px; padding: 4px; margin-bottom: 16px; scrollbar-width: thin; }
-:is(.shell, .event-editor-page) .editor-jumps a { flex: none; font-size: 13px; font-weight: 600; padding: 8px 10px; color: #42556d; }
-.event-editor-page .editor-jumps { top: 10px; }
-:is(.shell, .event-editor-page) .editor-section { scroll-margin-top: 112px; }
-.event-editor-page .editor-section { scroll-margin-top: 64px; }
-:is(.shell, .event-editor-page) #event-form { padding-bottom: 74px; }
-:is(.shell, .event-editor-page) .event-editor-actions { padding: 8px; gap: 8px; border-color: #d8e2ec; background: #fff; box-shadow: 0 6px 20px #17283d1f; }
-:is(.shell, .event-editor-page) .event-editor-actions button { min-height: 40px; }
-:is(.shell, .event-editor-page) .tournament-editor-heading { align-items: start; }
-.event-editor-page .event-background-panel select { width: min(100%, 28rem); }
-:is(.shell, .event-editor-page) .roster-add { margin-top: 12px; }
-:is(.shell, .event-editor-page) .roster-entry { padding-block: 7px; }
-:is(.shell, .event-editor-page) .roster-list-heading { padding-top: 10px; }
 
-/* 两轮设置并列，抢分输入与排阵选项在各自面板内连续阅读。 */
-:is(.shell, .event-editor-page) .event-settings-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-:is(.shell, .event-editor-page) .event-settings-fields > .editor-section { grid-column: 1 / -1; margin: 0; }
-:is(.shell, .event-editor-page) .event-settings-fields > :is(#event-round1, #event-round2) { grid-column: auto; }
-:is(.shell, .event-editor-page) :is(#event-round1, #event-round2) .form-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-:is(.shell, .event-editor-page) :is(#event-round1, #event-round2) .form-grid > .help { margin: 0; }
-:is(.shell, .event-editor-page) .special-rule { margin: 12px 0; padding: 14px; }
-:is(.shell, .event-editor-page) .special-rule-head { margin-bottom: 8px; padding-bottom: 6px; }
-:is(.shell, .event-editor-page) .special-candidates { margin-top: 10px; }
-:is(.shell, .event-editor-page) .special-player-select { min-height: 130px; }
-.shell .archive-steps { scroll-margin-top: 68px; }
-.shell .archive-actions { margin-inline: 0; min-height: 52px; padding: 6px 10px; background: #fff; }
-.shell .archive-current { margin-bottom: 12px; }
-.shell .archive-current-head { margin-top: 10px; }
-.shell .lineup-slots { gap: 8px; margin-top: 14px; }
-.shell .lineup-slot { padding: 10px 12px; }
-
-/* 侧栏图标使用同一组线条，当前标签在手机横向导航中也始终可达。 */
-.shell .brand strong { display: block; font-size: 14px; }
-.shell .sidebar .brand { margin-bottom: 24px; }
+.shell { background: var(--paper); }
+.event-editor-page { min-height: 100vh; max-width: 1560px; margin: 0 auto; padding: 24px 32px 88px; background: var(--paper); }
+.shell .sidebar { width: 224px; padding: 22px 14px; background: #2b3031; color: #edf0ed; }
+.shell .sidebar .brand { padding: 0 9px; margin: 0 0 22px; }
+.shell .brand strong { font-size: 14px; letter-spacing: 0; }
+.shell .brand-mark { width: 34px; height: 36px; border-radius: 7px 7px 7px 2px; }
 .shell .nav { gap: 4px; }
-.shell .nav a { font-size: 14px; min-height: 42px; gap: 10px; padding-block: 9px; }
-.shell .nav-icon { display: grid; place-items: center; width: 20px; height: 20px; flex: 0 0 20px; }
-.shell .nav-icon svg { width: 20px; height: 20px; }
-.shell .topbar { min-height: 56px; height: 56px; padding: 0 32px; }
-.shell .breadcrumb { font-size: 11px; gap: 12px; }
-.shell .breadcrumb b { font-size: 14px; }
-.shell .topbar .language-picker { min-height: 40px; font-size: 14px; padding: 7px 10px; }
-.shell .side-footer .person strong { font-size: 14px; }
-.shell .side-footer .account-role { font-size: 11px; }
-.shell.public-shell .topbar { padding-inline: max(40px, calc((100vw - 1416px) / 2)); }
+.shell .nav a { min-height: 40px; padding: 9px 12px; gap: 11px; border-radius: 5px; color: #bdc7c4; font-size: 13px; }
+.shell .nav a.active { background: #3a4543; color: #fff; }
+.shell .nav a:hover { background: #35403e; color: #fff; }
+.shell .nav a.active::before { width: 3px; height: 17px; }
+.shell .nav-icon { width: 19px; height: 19px; flex: 0 0 19px; display: grid; place-items: center; }
+.shell .nav-icon svg { width: 19px; height: 19px; }
+.shell .side-footer { border-color: #414948; padding: 16px 9px 0; }
+.shell .side-footer .person strong { font-size: 13px; }
+.shell .side-footer .account-role { color: #aab6b2; font-size: 11px; }
+.shell .main { width: calc(100% - 224px); margin-left: 224px; background: var(--paper); }
+.shell .topbar { position: sticky; top: 0; z-index: 5; height: 58px; min-height: 58px; padding: 0 28px; background: #fff; }
+.shell .breadcrumb { color: #77827f; font-size: 11px; letter-spacing: 0; }
+.shell .breadcrumb > span { color: #aeb8b4; }
+.shell .breadcrumb b { color: var(--ink); font-size: 13px; font-weight: 600; }
+.shell .top-actions { gap: 10px; }
+.shell .language-picker { min-height: 36px; font-size: 13px; }
+.shell .topbar .language-picker { color: #46524f; }
+.shell .top-actions .ghost { color: #46524f; }
+.shell .page { width: 100%; max-width: 1560px; padding: 26px var(--page-gutter) 30px; }
+.shell .page:has(.event-editor-actions), .shell .page:has(.archive-actions) { padding-bottom: calc(var(--page-gutter) + 64px); }
+.shell .page-head { align-items: center; margin-bottom: 18px; gap: 16px; }
+.shell .page-head h1, .event-editor-page .page-head h1, .shell .home-heading h1 { margin: 0; font-size: 25px; line-height: 1.25; font-weight: 680; letter-spacing: 0; }
+.shell .page-head h2 { font-size: 17px; }
+.shell .subtitle { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.shell .home-heading { margin-bottom: 18px; }
+.shell .section-gap { margin-top: 16px; margin-bottom: 0; }
 
-/* 列表和首页使用同一字号，行内操作保持明确的点击范围。 */
-.shell .table th, .shell .table td { font-size: 14px; padding: 10px var(--panel-inset); }
-.shell .table th { font-size: 13px; letter-spacing: 0; background: #f8fafc; }
-.shell .event-name { font-size: 16px; }
-.shell .event-name small, .shell .event-date { font-size: 13px !important; }
-.shell .event-mini-score b { font-size: 19px; }
-.shell .event-mini-score small { font-size: 12px; }
-.shell .row-view { width: 40px; height: 40px; }
+:is(.shell, .event-editor-page) .panel { border: 1px solid var(--line); border-radius: 6px; box-shadow: none; background: var(--panel); }
+:is(.shell, .event-editor-page) .panel-head { min-height: 46px; padding: 12px var(--panel-inset); gap: 12px; }
+:is(.shell, .event-editor-page) .panel-head h2, .shell .section-title h2 { margin: 0; font-size: 15px; line-height: 1.35; font-weight: 650; }
+:is(.shell, .event-editor-page) .panel-head > span { color: var(--muted); font-size: 12px; }
+:is(.shell, .event-editor-page) .panel-body { padding: 16px var(--panel-inset); }
+:is(.shell, .event-editor-page) .count-badge { padding: 4px 8px; border-color: #e2e7e4; border-radius: 4px; background: #f3f5f4; color: #596562; font-size: 12px; }
+:is(.shell, .event-editor-page) .help { margin: 7px 0 11px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+:is(.shell, .event-editor-page) .panel-body > .help:last-child { margin-bottom: 0; }
+:is(.shell, .event-editor-page) .eyebrow { color: #727f7b; font-size: 11px; letter-spacing: 0; }
+
+:is(.shell, .event-editor-page) :is(.primary, .outline, .ghost) { min-height: 38px; padding: 8px 14px; border-radius: 5px; font-size: 13px; font-weight: 600; }
+:is(.shell, .event-editor-page) .primary { background: var(--ink); box-shadow: none; }
+:is(.shell, .event-editor-page) .primary:hover { background: #3b4546; }
+:is(.shell, .event-editor-page) .primary.accent { background: var(--accent); }
+:is(.shell, .event-editor-page) .primary.accent:hover { background: #c9603b; }
+:is(.shell, .event-editor-page) .outline { border-color: #d6dedb; color: #414e4b; }
+:is(.shell, .event-editor-page) .outline:hover { border-color: #aebbb6; background: #f6f8f6; }
+:is(.shell, .event-editor-page) .ghost { color: #65726f; }
+:is(.shell, .event-editor-page) .ghost:hover { background: #edf1ef; color: var(--ink); }
+:is(.shell, .event-editor-page) .danger { color: var(--red) !important; }
+:is(.shell, .event-editor-page) .link { color: var(--blue); }
+
+:is(.shell, .event-editor-page) .form-grid { gap: 12px 18px; }
+:is(.shell, .event-editor-page) .field { gap: 5px; }
+:is(.shell, .event-editor-page) .field-label, :is(.shell, .event-editor-page) .field > label { color: #45524f; font-size: 12px; font-weight: 600; }
+:is(.shell, .event-editor-page) input:not([type=checkbox]):not([type=radio]):not([type=file]),
+:is(.shell, .event-editor-page) select:not([multiple]),
+:is(.shell, .event-editor-page) textarea {
+  min-height: 38px;
+  padding: 7px 10px;
+  border-color: #d8e0dc;
+  border-radius: 5px;
+  background-color: #fff;
+  color: var(--ink);
+  font-size: 13px;
+}
+:is(.shell, .event-editor-page) :is(input, select, textarea):focus-visible { outline: 2px solid #94b5a9; outline-offset: 1px; }
+:is(.shell, .event-editor-page) textarea { min-height: 48px; line-height: 1.45; }
+:is(.shell, .event-editor-page) .required-mark { margin-left: 4px; color: #c4473d; font-size: 15px; font-weight: 750; line-height: 1; }
+:is(.shell, .event-editor-page) .compact-number-field { display: inline-flex; align-items: center; gap: 7px; color: #46524f; font-size: 12px; font-weight: 600; white-space: nowrap; }
+:is(.shell, .event-editor-page) .compact-number-control { display: inline-flex; align-items: center; gap: 5px; flex: none; }
+:is(.shell, .event-editor-page) input.compact-number-input[type=number] { width: 54px; min-height: 34px; height: 34px; padding: 4px 5px; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; }
+:is(.shell, .event-editor-page) .probability-number-field input.compact-number-input[type=number] { width: 48px; }
+:is(.shell, .event-editor-page) .compact-number-control > span { color: #64716e; font-size: 12px; }
+:is(.shell, .event-editor-page) input[type=number]::-webkit-inner-spin-button { opacity: .65; }
+:is(.shell, .event-editor-page) .check { min-height: 36px; padding: 7px 9px; border-color: #e1e7e4; border-radius: 5px; background: #f8faf8; color: #475451; font-size: 12px; }
+:is(.shell, .event-editor-page) .check:has(input:checked) { border-color: #c7d9d1; background: #f1f7f3; }
+:is(.shell, .event-editor-page) .mode-choices { gap: 7px; }
+:is(.shell, .event-editor-page) .mode-choices span { min-height: 36px; padding: 8px 10px; border-radius: 5px; color: #596562; font-size: 12px; }
+:is(.shell, .event-editor-page) .mode-choices input:checked + span { border-color: #78a091; background: #edf5f1; color: #315f52; }
+:is(.shell, .event-editor-page) input[type=file] { min-height: 36px; padding: 3px; border: 1px solid #d8e0dc; border-radius: 5px; background: #f8faf8 !important; color: #586562; font-size: 12px; }
+:is(.shell, .event-editor-page) input[type=file]::file-selector-button { margin-right: 7px; padding: 5px 8px; border: 0; border-radius: 3px; background: #e9eeeb; color: #3e4b47; font-size: 12px; }
+:is(.shell, .event-editor-page) .search-select > input { padding-right: 62px; }
+:is(.shell, .event-editor-page) .search-select-menu > button { min-height: 40px; font-size: 13px; }
+:is(.shell, .event-editor-page) .person strong { font-size: 14px; }
+:is(.shell, .event-editor-page) .person small { font-size: 11px; }
+:is(.shell, .event-editor-page) .roster-search > input { font-size: 13px; }
+:is(.shell, .event-editor-page) .roster-add { margin-top: 10px; }
+:is(.shell, .event-editor-page) .roster-list-heading { padding-top: 9px; font-size: 12px; }
+:is(.shell, .event-editor-page) .roster-entry { min-height: 46px; padding-block: 5px; }
+:is(.shell, .event-editor-page) .roster-entry > [data-remove-player] { min-height: 36px; font-size: 12px; }
+
+/* 规则区使用分组线组织信息，避免每项设置都变成独立大卡片。 */
+:is(.shell, .event-editor-page) .event-settings-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 22px; border: 0; padding: 0; margin: 0; min-width: 0; }
+:is(.shell, .event-editor-page) .event-settings-fields > .editor-section { grid-column: 1 / -1; margin: 0; }
+:is(.shell, .event-editor-page) .event-settings-fields > :is(#event-basics, #event-round1, #event-round2, #event-ace) { border: 0; border-top: 1px solid var(--line); border-radius: 0; box-shadow: none; background: transparent; }
+:is(.shell, .event-editor-page) .event-settings-fields > #event-basics { border-top: 0; }
+:is(.shell, .event-editor-page) .event-settings-fields > :is(#event-round1, #event-round2) { grid-column: auto; }
+:is(.shell, .event-editor-page) .event-settings-fields > #event-ace { grid-column: 1 / -1; }
+:is(.shell, .event-editor-page) .event-settings-fields > :is(#event-basics, #event-round1, #event-round2, #event-ace) > .panel-head { min-height: 39px; padding: 9px 0; border-bottom: 0; }
+:is(.shell, .event-editor-page) .event-settings-fields > :is(#event-basics, #event-round1, #event-round2, #event-ace) > .panel-body { padding: 8px 0 12px; }
+:is(.shell, .event-editor-page) #event-basics .panel-body:has([name="manager_id"]) { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; gap: 10px 16px; }
+:is(.shell, .event-editor-page) #event-basics .panel-body:not(:has([name="manager_id"])) { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; gap: 10px 16px; }
+:is(.shell, .event-editor-page) #event-basics .panel-body > .field:has([name="name"]) { grid-column: 1 / -1; }
+:is(.shell, .event-editor-page) #event-basics .panel-body > .field:has([name="start_time"]),
+:is(.shell, .event-editor-page) #event-basics .panel-body > .field:has([name="manager_id"]) { grid-column: span 2; }
+:is(.shell, .event-editor-page) #event-basics .panel-body > .field:has([name="background_id"]) { grid-column: span 2; }
+:is(.shell, .event-editor-page) #event-basics .panel-body > .field:has(textarea) { grid-column: span 2; }
+:is(.shell, .event-editor-page) :is(#event-round1, #event-round2) .panel-body.form-grid { grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); gap: 10px 16px; }
+:is(.shell, .event-editor-page) :is(#event-round1, #event-round2) .panel-body > .help { margin: 0; }
+:is(.shell, .event-editor-page) #event-round2 .panel-body > .help.full { grid-column: 1 / -1; }
+:is(.shell, .event-editor-page) .ace-editor-heading { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+:is(.shell, .event-editor-page) .ace-edit-hint { color: var(--muted); font-size: 11px; }
+:is(.shell, .event-editor-page) .ace-probability-grid { display: flex; flex-wrap: wrap; gap: 8px 26px; }
+:is(.shell, .event-editor-page) #event-ace .panel-body > .help { margin: 6px 0 10px; }
+:is(.shell, .event-editor-page) .special-rule { margin: 10px 0; padding: 12px; border-color: #e1e6e3; border-radius: 5px; background: #f8faf8; }
+:is(.shell, .event-editor-page) .special-rule-head { gap: 10px; padding-bottom: 8px; margin-bottom: 10px; }
+:is(.shell, .event-editor-page) .special-rule-head h3 { font-size: 14px; }
+:is(.shell, .event-editor-page) .special-rule-head [data-special-count] { color: #65736f; font-size: 12px; }
+:is(.shell, .event-editor-page) .special-rule-head button { min-height: 32px; font-size: 12px; }
+:is(.shell, .event-editor-page) .special-candidates { margin-top: 8px; }
+:is(.shell, .event-editor-page) .special-player-select { min-height: 120px; border-radius: 4px; }
+:is(.shell, .event-editor-page) .editor-section { scroll-margin-top: 76px; }
+:is(.shell, .event-editor-page) .event-editor-actions { position: sticky; bottom: 0; z-index: 4; display: flex; justify-content: flex-end; gap: 8px; margin: 18px calc(-1 * var(--page-gutter)) calc(-1 * var(--page-gutter)); padding: 9px var(--page-gutter); border: 0; border-top: 1px solid var(--line); border-radius: 0; background: #ffffffed; box-shadow: 0 -4px 14px #26312d0d; backdrop-filter: blur(8px); }
+:is(.shell, .event-editor-page) .event-editor-actions button { min-width: 92px; min-height: 38px; }
+:is(.shell, .event-editor-page) #event-form { padding-bottom: 0; }
+.shell .editor-jumps { position: sticky; top: 58px; z-index: 3; display: flex; gap: 2px; margin: -5px 0 14px; padding: 4px 0; overflow-x: auto; border-bottom: 1px solid var(--line); background: #f3f5f3ed; backdrop-filter: blur(8px); scrollbar-width: thin; }
+.event-editor-page .editor-jumps { position: sticky; top: 0; z-index: 3; display: flex; gap: 2px; margin: -4px 0 14px; padding: 4px 0; overflow-x: auto; border-bottom: 1px solid var(--line); background: #f3f5f3ed; backdrop-filter: blur(8px); scrollbar-width: thin; }
+:is(.shell, .event-editor-page) .editor-jumps a { flex: 0 0 auto; padding: 7px 10px; border-radius: 4px; color: #596663; font-size: 12px; font-weight: 550; }
+:is(.shell, .event-editor-page) .editor-jumps a:hover, :is(.shell, .event-editor-page) .editor-jumps a:focus-visible { background: #e8eeeb; color: #2c5d50; }
+.event-editor-page .event-background-panel select { width: min(100%, 28rem); }
+.draw-timing-section { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: 14px; margin-top: 14px; padding: 10px 14px; border-left: 3px solid #6f9a87; border-radius: 4px; background: #edf2ef; }
+.draw-timing-section h2 { margin: 0; color: #394743; font-size: 13px; font-weight: 650; }
+.draw-timing-section .draw-duration-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 22px; }
+
+/* 首页赛事卡片与历史表格保持同一明度，比赛比分承担视觉重点。 */
+.shell .live-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); gap: 10px; }
+.shell .live-card { border: 1px solid var(--line); border-left: 3px solid #5d947d; border-radius: 5px; background: #fff; color: var(--ink); padding: 13px 15px; box-shadow: none; transition: border-color .15s, background .15s; }
+.shell .live-card::after { display: none; }
+.shell .live-card:hover { transform: none; border-color: #b8c9c1; background: #fcfdfc; box-shadow: 0 2px 8px #26312d0c; }
+.shell .live-card-top { min-height: 16px; }
+.shell .live-indicator { color: #34795f; font-size: 11px; }
+.shell .live-indicator::before { width: 7px; height: 7px; background: #3c9b70; }
+.shell .live-card .tag { border: 1px solid #e2e8e4; background: #f4f7f5; color: #5d6965; }
+.shell .live-card h3 { margin: 8px 0 3px; color: var(--ink); font-size: 16px; font-weight: 650; }
+.shell .live-card p, .shell .live-card-footer > span { color: #6b7773; font-size: 12px; }
+.shell .live-card-score { gap: 16px; margin: 11px 0; }
+.shell .live-card-score > span { font-size: 12px; }
+.shell .live-card-score > span:first-child { color: #bf613d; }
+.shell .live-card-score > span:last-child { color: #39796b; }
+.shell .live-card-score > b { gap: 10px; color: #273230; font-size: 24px; }
+.shell .live-card-score i { color: #87918e; font-size: 14px; }
+.shell .live-card-footer { padding-top: 8px; border-color: #e6ebe8; }
+.shell .live-card-footer > strong { gap: 10px; color: #456b60; font-size: 12px; }
+.shell .home-live { margin-bottom: 18px; }
+.shell .home-heading { margin-bottom: 16px; }
+.shell .home-history-link { color: #3f7568; font-size: 13px; font-weight: 600; }
+.shell .status-dot { background: #4b9274; box-shadow: 0 0 0 3px #4b92741a; }
+
+/* 搜索、表格和分页压缩行高，保留足够的扫描间距。 */
+.shell .filter-bar { gap: 10px; padding: 12px var(--panel-inset); background: #f8faf8; }
+.shell .filter-bar .field-label { color: #5f6d69; font-size: 11px; }
+.shell .filter-bar input, .shell .filter-bar select { min-height: 36px; font-size: 13px; }
+.shell .filter-bar button { min-height: 36px; padding: 7px 12px; font-size: 12px; }
+.shell #tournament-filter { grid-template-columns: minmax(0, 1fr) repeat(2, minmax(130px, 10rem)) auto; }
+.shell .history-filter-actions { display: flex; gap: 5px; }
+.shell .table th, .shell .table td { padding: 9px var(--panel-inset); border-color: #e9edeb; font-size: 13px; }
+.shell .table th { background: #f7f9f8; color: #65716e; font-size: 11px; font-weight: 600; }
 .shell .event-table { min-width: 620px; }
-.shell .home-heading { margin-bottom: 20px; }
-.shell .home-history-link { color: #285a86; font-weight: 650; }
-.shell .home-history-link:hover { text-decoration: underline; }
-.shell .home-live { margin-bottom: 20px; }
-.shell .history-panel { scroll-margin-top: 68px; }
-.shell .filter-bar { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.2fr) repeat(2, minmax(140px, 1fr)) auto; padding: 12px var(--panel-inset); }
-.shell #tournament-filter { grid-template-columns: minmax(0, 1fr) repeat(2, minmax(140px, 10.5rem)) auto; }
-.shell .history-filter-actions { display: flex; gap: 4px; }
-.shell .pagination { font-size: 13px; padding: 12px var(--panel-inset); }
-.shell .pagination button { min-height: 40px; font-size: 14px; }
-.shell .live-grid { gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); }
-.shell .live-card { padding: 14px 16px; border-radius: 10px; }
-.shell .live-card h3 { font-size: 18px; margin: 0 0 4px; }
-.shell .live-card p, .shell .live-card-footer > span { font-size: 12px; }
-.shell .live-card-score { margin: 10px 0; gap: 14px; }
-.shell .live-card-score > b { font-size: 25px; gap: 10px; }
-.shell .live-card-footer { padding-top: 8px; }
-.shell .live-card-footer > strong { font-size: 12px; gap: 8px; }
-.shell .show-deleted-control { font-size: 13px; margin: 0; }
+.shell .event-name { gap: 10px; font-size: 14px; }
+.shell .event-name small, .shell .event-date { color: #6d7975; font-size: 12px !important; }
+.shell .event-emblem { width: 32px; height: 34px; flex-basis: 32px; border-radius: 5px; background: #eef2ef; color: #697772; }
+.shell .event-mini-score { gap: 7px; }
+.shell .event-mini-score b { color: var(--ink); font-size: 17px; }
+.shell .event-mini-score b:nth-of-type(1) { color: #c15f3c; }
+.shell .event-mini-score b:nth-of-type(2) { color: #367b69; }
+.shell .event-mini-score small { color: #697672; font-size: 11px; }
+.shell .row-view { width: 34px; height: 34px; border-radius: 5px; color: #54766c; }
+.shell .show-deleted-control { margin: 0; color: #55625f; font-size: 12px; }
+.shell .pagination { padding: 10px var(--panel-inset); color: #65716e; font-size: 12px; }
+.shell .pagination button { min-height: 34px; font-size: 12px; }
+.shell .pagination > div { gap: 10px; }
 
-/* 账号资料保留分区，避免在宽屏上出现过长的输入行。 */
-.shell .profile-panel { max-width: 1120px; }
-.shell .profile-section legend { font-size: 16px; padding-bottom: 12px; }
-.shell .profile-section + .profile-section { padding-top: 16px; }
-.shell .profile-section .category-choices label { font-size: 13px; min-height: 40px; padding: 8px 12px; }
-.shell .avatar-upload > div:last-child { min-width: 0; }
-.shell .account-avatar-preview, .shell .account-avatar-empty { width: 96px; height: 96px; font-size: 13px; }
-
-/* 网站设置的保存、删除保持同一行，上传控件与其余表单等高。 */
-.shell .site-settings-page .settings-panel .panel-body { padding: 16px var(--panel-inset); }
-.shell .settings-default-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; }
-.shell .settings-default-fields > button { margin-left: auto; }
-.shell .settings-default-fields > .settings-note { flex-basis: 100%; margin: 0; }
-.shell .settings-row-actions { min-width: 134px; gap: 8px; }
-.shell .settings-row-actions > button { font-size: 14px; min-width: 62px; min-height: 44px; padding: 9px 13px; }
-.shell .settings-category-preview { width: 44px; height: 44px; }
-.shell .settings-category-fields > input[type=file] { font-size: 13px; }
-.shell .settings-list-row { padding: 12px 0; }
-.shell .settings-list-row:last-child { padding-bottom: 0; }
-.shell .background-edit { grid-template-columns: 144px minmax(0, 1fr); gap: 8px 16px; padding-top: 14px; margin-top: 14px; }
-.shell .background-preview { grid-column: 1; grid-row: 1 / 3; width: 144px; height: 90px; border-radius: 8px; }
-.shell .background-edit > input { grid-column: 2; }
-.shell .background-file-actions > button { padding: 9px 14px; }
-.shell .background-edit .background-file-actions { grid-column: 2; }
-
-@media (max-width: 1100px) {
-  .shell .page { padding: 30px 24px 40px; }
-  .shell .topbar { padding: 0 24px; }
-  .shell.public-shell .topbar { padding-inline: 24px; }
-  .shell :is(.filter-bar, #tournament-filter) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .shell .filter-bar .field:first-child { grid-column: 1 / -1; }
-  .shell .history-filter-actions { flex-wrap: wrap; }
-  :is(.shell, .event-editor-page) .event-settings-fields > :is(#event-round1, #event-round2) { grid-column: 1 / -1; }
-}
-@media (max-width: 760px) {
-  .shell .sidebar { padding: 16px; }
-  .shell .sidebar .brand { margin-bottom: 0; }
-  .shell .nav { padding: 4px 2px 8px; }
-  .shell .nav a { min-height: 44px; padding: 10px 12px; }
-  .shell .page { padding: 26px 16px 36px; }
-  .shell .topbar { height: auto; min-height: 68px; padding: 12px 16px; flex-wrap: wrap; gap: 8px 12px; }
-  .shell.public-shell .topbar { padding-inline: 16px; }
-  .shell .breadcrumb { font-size: 10px; gap: 8px; }
-  .shell .breadcrumb b { font-size: 13px; }
-  .shell .top-actions { gap: 6px; margin-left: auto; }
-  .shell .top-actions .ghost { padding: 9px; }
-  .shell .topbar .language-picker { max-width: 114px; }
-  :is(.shell, .event-editor-page) .page-head { flex-wrap: wrap; gap: 16px; margin-bottom: 22px; }
-  :is(.shell, .event-editor-page) .page-head h1, .shell .home-heading h1 { font-size: 28px; }
-  :is(.shell, .event-editor-page) { --panel-inset: 16px; }
-  .shell .editor-jumps { top: 0; }
-  .shell .editor-section { scroll-margin-top: 64px; }
-  :is(.shell, .event-editor-page) .editor-jumps a { padding: 9px 10px; }
-  .shell .site-settings-page .settings-panel .panel-body { padding: 18px; }
-  .shell .settings-row-actions { min-width: 126px; }
-  .shell .settings-row-actions > button { min-width: 58px; padding: 9px 11px; }
-  .shell .settings-name-row { grid-template-columns: minmax(0, 1fr); }
-  .shell .settings-name-row > .settings-row-actions { justify-self: end; }
-  .shell .settings-category-row { grid-template-columns: 44px minmax(0, 1fr); }
-  .shell .settings-category-row > .settings-row-actions { grid-column: 2; justify-self: end; }
-  .shell .background-edit { grid-template-columns: 96px minmax(0, 1fr); gap: 12px; }
-  .shell .background-preview { grid-row: 1; width: 96px; height: 62px; }
-  .shell .background-edit .background-file-actions { grid-column: 1 / -1; }
-  .shell .background-file-actions { gap: 8px; }
-  .shell .background-file-actions > button { padding: 9px 10px; }
-}
-
-.accounts-toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 480px) auto;
-  align-items: end;
-  justify-content: space-between;
-  gap: 12px 24px;
-  border-bottom: 1px solid var(--line);
-}
+/* 账号列表让身份、分类和操作保持稳定对齐。 */
+.accounts-toolbar { display: grid; grid-template-columns: minmax(0, 480px) auto; align-items: end; justify-content: space-between; gap: 10px 20px; border-bottom: 1px solid var(--line); }
 .accounts-toolbar #account-search { width: 100%; }
 .accounts-toolbar .help { grid-column: 1 / -1; margin: 0; }
 .accounts-toolbar .count-badge { align-self: center; white-space: nowrap; }
-.shell .accounts-table th, .shell .accounts-table td { padding: 10px var(--panel-inset); font-size: 14px; }
-.shell .accounts-table th { font-size: 13px; background: #f8fafc; letter-spacing: 0; }
+.shell .accounts-table th, .shell .accounts-table td { padding: 9px var(--panel-inset); font-size: 13px; }
+.shell .accounts-table th { background: #f7f9f8; font-size: 11px; }
 .shell .accounts-table th:first-child { width: 38%; }
-.shell .accounts-table .person { gap: 12px; }
+.shell .accounts-table .person { gap: 10px; }
 .shell .accounts-table .person > span:not(.board-avatar) { min-width: 90px; }
-.shell .accounts-table .person strong { font-size: 16px; }
-.shell .accounts-table .person small { font-size: 13px; }
-.shell .accounts-table .person .board-avatar { width: 44px; height: 44px; flex-basis: 44px; }
-.shell .accounts-table .person .board-category-icon { margin-left: 2px; width: 24px; height: 24px; flex-basis: 24px; }
-.shell .accounts-table .account-actions { gap: 10px; }
-.shell .accounts-table .account-actions button { min-height: 42px; font-size: 14px; padding: 9px 14px; }
-.shell .accounts-table .account-actions .danger { border-color: #efdedb; background: #fffafa; }
-.shell .accounts-table .account-actions .danger:enabled:hover { background: #fff0ed; border-color: #e5b0a8; }
+.shell .accounts-table .person strong { font-size: 14px; }
+.shell .accounts-table .person small { color: #6b7773; font-size: 12px; }
+.shell .accounts-table .person .board-avatar { width: 40px; height: 40px; flex-basis: 40px; }
+.shell .accounts-table .person .board-category-icon { width: 20px; height: 20px; flex-basis: 20px; margin-left: 2px; }
+.shell .accounts-table .account-actions { gap: 7px; }
+.shell .accounts-table .account-actions button { min-height: 36px; padding: 7px 10px; font-size: 12px; }
+.shell .accounts-table .account-actions .danger { border-color: #ecd8d5; background: #fff; }
+.shell .accounts-table .account-actions .danger:enabled:hover { border-color: #dda9a2; background: #fff7f5; }
+.accounts-panel .table-wrap { overflow-x: auto; }
 
-/* 窄屏将每个账号排成一张信息行，姓名和登录名始终保留可用宽度。 */
-@media (max-width: 680px) {
-  :is(.shell, .public-shell) .event-table { display: block; min-width: 0; }
-  :is(.shell, .public-shell) .event-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  :is(.shell, .public-shell) .event-table tbody { display: block; }
-  :is(.shell, .public-shell) .event-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
-  :is(.shell, .public-shell) .event-table tr:last-child { border-bottom: 0; }
-  :is(.shell, .public-shell) .event-table td { display: block; min-width: 0; padding: 0; border: 0; white-space: normal; }
-  :is(.shell, .public-shell) .event-name-cell { grid-column: 1; grid-row: 1; }
-  :is(.shell, .public-shell) .event-name { min-width: 0; align-items: flex-start; gap: 10px; overflow-wrap: anywhere; }
-  :is(.shell, .public-shell) .event-name > span:last-child { min-width: 0; overflow-wrap: anywhere; }
-  :is(.shell, .public-shell) .event-date { grid-column: 1; grid-row: 2; white-space: normal; }
-  :is(.shell, .public-shell) .event-result { grid-column: 2; grid-row: 2; justify-self: end; }
-  :is(.shell, .public-shell) .event-open-cell { grid-column: 2; grid-row: 1; justify-self: end; }
-  :is(.shell, .public-shell) .management-table .event-name-cell { grid-column: 1 / -1; }
-  :is(.shell, .public-shell) .management-table .event-status { grid-column: 1; grid-row: 3; color: var(--muted); font-size: 13px; }
-  :is(.shell, .public-shell) .management-table .event-status::before { content: attr(data-label); margin-right: 10px; color: #718197; }
-  :is(.shell, .public-shell) .management-table .tournament-row-action { grid-column: 2; grid-row: 3; justify-self: end; }
-  :is(.shell, .public-shell) .event-date { font-size: 12px !important; }
-  :is(.shell, .public-shell) .row-view { width: 34px; height: 34px; }
-  .accounts-toolbar { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-  .accounts-toolbar .count-badge { justify-self: start; }
-  .accounts-panel .table-wrap { overflow: visible; }
+/* 网站设置把默认值、名称和分类作为三组工作区呈现。 */
+.shell .site-settings-page .settings-columns { grid-template-columns: minmax(0, .9fr) minmax(0, 1.2fr); gap: 16px; }
+.shell .site-settings-page .settings-panel .panel-body { padding: 14px var(--panel-inset); }
+.shell .settings-default-fields { display: grid; grid-template-columns: max-content max-content minmax(180px, 1fr) auto; align-items: center; gap: 8px 18px; }
+.shell .settings-default-fields > button { min-width: 68px; margin-left: auto; }
+.shell .settings-default-fields > .settings-note { max-width: 34rem; margin: 0; font-size: 11px; line-height: 1.4; }
+.shell .settings-row-actions { min-width: 118px; gap: 6px; }
+.shell .settings-row-actions > button { min-width: 52px; min-height: 34px; padding: 6px 9px; font-size: 12px; }
+.shell .settings-row-actions > button.danger { border-color: #ecd8d5; background: #fff; }
+.shell .settings-category-preview { width: 38px; height: 38px; border-color: #e1e7e4; border-radius: 5px; background: #f7f9f7; }
+.shell .settings-category-preview > img { width: 28px; height: 28px; }
+.shell .settings-category-row { grid-template-columns: 38px minmax(0, 1fr) auto; gap: 9px; }
+.shell .settings-category-fields { gap: 6px; }
+.shell .settings-category-fields > input[type=file] { min-height: 32px; padding: 2px 4px; font-size: 11px; }
+.shell .settings-category-fields > input[type=file]::file-selector-button { padding: 4px 7px; font-size: 11px; }
+.shell .settings-create-row { padding-bottom: 12px; }
+.shell .settings-list-row { padding: 10px 0; }
+.shell .settings-list-row:last-child { padding-bottom: 0; }
+.shell .settings-upload-hint { margin: 0 0 10px; font-size: 11px; }
+.shell .settings-name-row { gap: 8px; }
+.shell .settings-name-row > input { min-height: 36px; }
+.shell .settings-name-row .settings-row-actions > button { min-height: 34px; }
+
+/* 背景管理预览使用缩略图，操作按钮随名称和文件输入排列。 */
+.shell .backgrounds-panel > .panel-body { padding: 14px var(--panel-inset); }
+.shell .background-edit { grid-template-columns: 128px minmax(0, 1fr); gap: 7px 12px; padding-top: 12px; margin-top: 12px; }
+.shell .background-preview { grid-column: 1; grid-row: 1 / 3; width: 128px; height: 80px; border-radius: 5px; }
+.shell .background-edit > input { grid-column: 2; min-height: 36px; }
+.shell .background-edit .background-file-actions { grid-column: 2; }
+.shell .background-file-actions > button { min-height: 34px; padding: 6px 11px; }
+
+/* 补录步骤与确认操作保持轻量且可见。 */
+.shell .archive-steps { gap: 6px 14px; margin-bottom: 12px; scroll-margin-top: 66px; }
+.shell .archive-steps li { gap: 7px; font-size: 12px; }
+.shell .archive-steps li > span { width: 24px; height: 24px; border: 1px solid #dbe3df; background: #f8faf8; color: #687571; font-size: 12px; }
+.shell .archive-steps li[aria-current] { color: #2d5d51; }
+.shell .archive-steps li[aria-current] > span { border-color: #527c6f; background: #527c6f; color: #fff; }
+.shell .archive-actions { position: sticky; bottom: 0; z-index: 4; min-height: 48px; margin: 12px calc(-1 * var(--page-gutter)) calc(-1 * var(--page-gutter)); padding: 7px var(--page-gutter); border: 0; border-top: 1px solid var(--line); border-radius: 0; background: #ffffffed; box-shadow: 0 -3px 10px #26312d0a; backdrop-filter: blur(8px); }
+.shell .archive-actions button { min-height: 36px !important; padding: 7px 12px !important; font-size: 12px !important; }
+.shell .archive-stage-panel > .panel-body { padding-top: 12px; padding-bottom: 14px; }
+.shell .archive-current { margin: 8px 0 12px; }
+.shell .archive-current-head { margin: 8px 0; padding: 8px 10px; border-color: var(--line); border-radius: 4px; background: #f6f8f6; font-size: 12px; }
+.shell .archive-current-head b { font-size: 13px; }
+.shell .archive-target { margin: 5px 0; font-size: 12px; }
+.shell .archive-target b { font-size: 14px; }
+.shell .archive-results li { min-height: 38px; }
+
+/* 个人资料表单缩短输入行，头像仍是明确的预览对象。 */
+.shell .profile-panel { max-width: 1180px; }
+.shell .profile-section legend { padding-bottom: 10px; font-size: 15px; }
+.shell .profile-section + .profile-section { padding-top: 14px; margin-top: 4px; }
+.shell .account-avatar-preview, .shell .account-avatar-empty { width: 80px; height: 80px; border-radius: 8px; font-size: 12px; }
+.shell .avatar-upload { gap: 18px; }
+
+/* 保留窄窗口时账号姓名、登录名和操作按钮的可读性。 */
+@media (max-width: 1100px) {
+  .shell .sidebar { width: 210px; }
+  .shell .main { width: calc(100% - 210px); margin-left: 210px; }
+  .shell .page { padding-inline: 22px; }
+  .shell .site-settings-page .settings-columns { grid-template-columns: 1fr; }
+  .shell .filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shell .filter-bar .field:first-child { grid-column: 1 / -1; }
+  .shell #tournament-filter { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :is(.shell, .event-editor-page) .event-settings-fields > :is(#event-round1, #event-round2) { grid-column: 1 / -1; }
+  .shell .settings-default-fields { grid-template-columns: max-content max-content minmax(160px, 1fr) auto; }
+}
+
+@media (max-width: 760px) {
+  .shell { display: block; }
+  .shell .sidebar { position: static; inset: auto; width: 100%; padding: 14px; gap: 10px; }
+  .shell .sidebar .brand { margin-bottom: 0; padding: 0; }
+  .shell .sidebar .brand small, .shell .side-footer, .shell .nav-caption { display: none; }
+  .shell .nav { display: flex; overflow: auto; gap: 5px; padding: 4px 0; }
+  .shell .nav a { flex: 0 0 auto; white-space: nowrap; padding: 9px 11px; }
+  .shell .main { width: 100%; margin: 0; }
+  .shell .topbar { position: static; height: auto; min-height: 56px; padding: 9px 16px; flex-wrap: wrap; }
+  .shell .page { padding: 20px 16px 24px; }
+  .shell :is(.filter-bar, #tournament-filter) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shell .history-filter-actions { flex-wrap: wrap; }
+  :is(.shell, .event-editor-page) .page-head { align-items: start; flex-wrap: wrap; }
+  :is(.shell, .event-editor-page) .event-settings-fields { grid-template-columns: 1fr; }
+  :is(.shell, .event-editor-page) .event-settings-fields > :is(#event-round1, #event-round2) { grid-column: 1 / -1; }
+  .shell .settings-default-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shell .settings-default-fields > .settings-note { grid-column: 1 / -1; }
+  .shell .settings-default-fields > button { grid-column: 1 / -1; justify-self: end; }
+  .shell .settings-category-row { grid-template-columns: 34px minmax(0, 1fr); }
+  .shell .settings-category-preview { width: 34px; height: 34px; }
+  .shell .settings-category-row > .settings-row-actions { grid-column: 2; justify-self: end; }
+  .shell .background-edit { grid-template-columns: 88px minmax(0, 1fr); }
+  .shell .background-preview { width: 88px; height: 56px; }
+  .shell .background-edit .background-file-actions { grid-column: 1 / -1; }
+  .shell .accounts-toolbar { grid-template-columns: minmax(0, 1fr); }
+  .shell .accounts-toolbar .count-badge { justify-self: start; }
+  .shell .accounts-panel .table-wrap { overflow: visible; }
   .shell .accounts-table, .shell .accounts-table tbody { display: block; }
   .shell .accounts-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .shell .accounts-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 12px; padding: 20px; border-bottom: 1px solid var(--line); }
-  .shell .accounts-table tr:last-child { border-bottom: 0; }
+  .shell .accounts-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 12px; padding: 14px; border-bottom: 1px solid var(--line); }
   .shell .accounts-table td { display: block; padding: 0; border: 0; white-space: normal; }
   .shell .accounts-table .account-identity { grid-column: 1; min-width: 0; }
-  .shell .accounts-table .person { flex-wrap: wrap; gap: 6px 10px; }
+  .shell .accounts-table .person { flex-wrap: wrap; gap: 6px 9px; }
   .shell .accounts-table .person > span:not(.board-avatar) { flex: 1; min-width: 70px; }
   .shell .accounts-table .person strong, .shell .accounts-table .person small { white-space: normal; overflow-wrap: anywhere; }
-  .shell .accounts-table .person .board-category-icon { margin-left: 0; }
-  .shell .accounts-table .account-role-cell, .shell .accounts-table .account-category-cell { grid-column: 1; font-size: 13px; color: #52657b; }
-  .shell .accounts-table td[data-label]::before { content: attr(data-label); margin-right: 10px; color: #718197; }
+  .shell .accounts-table .account-role-cell, .shell .accounts-table .account-category-cell { grid-column: 1; color: #52615d; font-size: 12px; }
+  .shell .accounts-table td[data-label]::before { margin-right: 9px; color: #6d7975; content: attr(data-label); }
   .shell .accounts-table .account-action-cell { grid-column: 2; grid-row: 1 / 4; }
-  .shell .accounts-table .account-actions { flex-direction: column; gap: 8px; }
-  .shell .accounts-table .account-actions button { width: 100%; padding: 9px 11px; }
-  .shell .accounts-table #account-empty { display: block; }
+  .shell .accounts-table .account-actions { flex-direction: column; gap: 6px; }
+  .shell .accounts-table .account-actions button { width: 100%; padding: 7px 9px; }
 }
