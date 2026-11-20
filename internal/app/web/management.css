@@ -1,45 +1,51 @@
 /* 管理页面使用独立作用域，避免改变全屏直播的排版和尺寸。 */
 :is(.shell, .event-editor-page) {
-  --muted: #65758a;
-  font-size: 15px;
-  line-height: 1.6;
+  --muted: #56677b;
+  --panel-inset: 22px;
+  font-size: 14px;
+  line-height: 1.5;
 }
-.shell .page { max-width: 1496px; padding: 36px 40px 48px; }
-:is(.shell, .event-editor-page) .page-head { margin-bottom: 28px; }
-:is(.shell, .event-editor-page) .page-head h1, .shell .home-heading h1 { font-size: 34px; line-height: 1.3; letter-spacing: -.035em; }
-:is(.shell, .event-editor-page) .subtitle { font-size: 15px; margin-top: 10px; }
-:is(.shell, .event-editor-page) .panel { border-radius: 14px; }
-:is(.shell, .event-editor-page) .panel-head { padding: 22px 28px; }
-:is(.shell, .event-editor-page) .panel-head h2, .shell .section-title h2 { font-size: 18px; }
-:is(.shell, .event-editor-page) .panel-head > span { font-size: 13px; }
-:is(.shell, .event-editor-page) .panel-body { padding: 28px; }
-:is(.shell, .event-editor-page) .field-label, :is(.shell, .event-editor-page) .field > label { font-size: 14px; color: #4e627a; }
-:is(.shell, .event-editor-page) .help { font-size: 14px; line-height: 1.7; }
+.shell .page { max-width: 1496px; padding: 28px 32px 36px; }
+.event-editor-page { padding-top: 28px; padding-bottom: 24px; }
+:is(.shell, .event-editor-page) .page-head { margin-bottom: 20px; }
+:is(.shell, .event-editor-page) .page-head h1, .shell .home-heading h1 { font-size: 28px; line-height: 1.25; letter-spacing: -.025em; }
+:is(.shell, .event-editor-page) .subtitle { font-size: 13px; line-height: 1.55; margin-top: 6px; }
+:is(.shell, .event-editor-page) .panel { border-radius: 10px; }
+:is(.shell, .event-editor-page) .panel-head { padding: 13px var(--panel-inset); flex-wrap: wrap; gap: 6px 14px; }
+:is(.shell, .event-editor-page) .panel-head h2, .shell .section-title h2 { font-size: 16px; }
+:is(.shell, .event-editor-page) .panel-head > span { font-size: 12px; }
+:is(.shell, .event-editor-page) .panel-body { padding: 18px var(--panel-inset); }
+:is(.shell, .event-editor-page) .field-label, :is(.shell, .event-editor-page) .field > label { font-size: 13px; color: #42556d; }
+:is(.shell, .event-editor-page) .help { font-size: 12px; line-height: 1.55; margin: 8px 0 12px; }
+:is(.shell, .event-editor-page) .panel-body > .help:last-child { margin-bottom: 0; }
+:is(.shell, .event-editor-page) .settings-note { font-size: 12px; color: var(--muted); }
+:is(.shell, .event-editor-page) .section-gap { margin-top: 16px; margin-bottom: 0; }
+:is(.shell, .event-editor-page) .form-grid { gap: 14px 18px; }
+:is(.shell, .event-editor-page) .field { gap: 6px; }
 :is(.shell, .event-editor-page) :is(.notice, .form-error) { font-size: 14px; }
 :is(.shell, .event-editor-page) .eyebrow { font-size: 11px; }
 :is(.shell, .event-editor-page) .count-badge { font-size: 13px; padding: 5px 10px; }
 :is(.shell, .event-editor-page) input:not([type=checkbox]):not([type=radio]):not([type=file]),
 :is(.shell, .event-editor-page) select:not([multiple]), :is(.shell, .event-editor-page) textarea {
-  min-height: 46px;
-  font-size: 15px;
-  padding: 11px 13px;
+  min-height: 40px;
+  font-size: 14px;
+  padding: 8px 11px;
 }
 :is(.shell, .event-editor-page) .required-mark { margin-left: 4px; color: #c94036; font-size: 17px; font-weight: 800; line-height: 1; }
-:is(.shell, .event-editor-page) .compact-number-field { display: flex; align-items: center; justify-content: flex-start; gap: 10px; min-height: 44px; color: #4e627a; font-size: 14px; font-weight: 650; }
-:is(.shell, .event-editor-page) .compact-number-control { display: inline-flex; align-items: center; gap: 7px; flex: none; }
-.shell .compact-number-input,
-:is(.shell, .event-editor-page) .compact-number-input { width: 66px; min-height: 38px !important; height: 38px; padding: 6px 8px !important; text-align: center; font-size: 15px !important; font-variant-numeric: tabular-nums; }
-:is(.shell, .event-editor-page) .probability-number-field .compact-number-input { width: 54px; }
-:is(.shell, .event-editor-page) .compact-number-control > span { min-width: 20px; color: var(--muted); font-size: 13px; }
-.shell .ace-probability-grid { display: grid; grid-template-columns: repeat(2, minmax(210px, 290px)); gap: 12px 30px; }
+:is(.shell, .event-editor-page) .compact-number-field { display: flex; align-items: center; gap: 8px; color: #42556d; font-size: 13px; font-weight: 650; }
+:is(.shell, .event-editor-page) .compact-number-control { display: inline-flex; align-items: center; gap: 5px; flex: none; }
+:is(.shell, .event-editor-page) input.compact-number-input[type=number] { width: 60px; min-height: 36px; height: 36px; padding: 5px 6px; text-align: center; font-variant-numeric: tabular-nums; }
+:is(.shell, .event-editor-page) .probability-number-field input.compact-number-input[type=number] { width: 54px; }
+:is(.shell, .event-editor-page) .compact-number-control > span { color: var(--muted); font-size: 12px; }
+:is(.shell, .event-editor-page) :is(.ace-probability-grid, .draw-duration-fields) { display: flex; flex-wrap: wrap; gap: 8px 28px; }
 .shell #event-basics .field-label { display: inline-flex; align-items: baseline; }
 :is(.shell, .event-editor-page) input[type=number]::-webkit-inner-spin-button { opacity: 1; }
 :is(.shell, .event-editor-page) :is(.primary, .outline, .ghost) { min-height: 44px; font-size: 14px; padding: 10px 18px; }
 :is(.shell, .event-editor-page) .password-toggle { min-height: 34px; font-size: 12px; padding: 7px 10px; }
 :is(.shell, .event-editor-page) input[type=file] { min-height: 44px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; background: #f8fafc !important; color: #52657b; }
 :is(.shell, .event-editor-page) input[type=file]::file-selector-button { padding: 7px 10px; font-size: 13px; background: #fff; margin-right: 8px; }
-:is(.shell, .event-editor-page) .mode-choices span { min-height: 46px; font-size: 14px; padding: 11px 15px; }
-:is(.shell, .event-editor-page) .check { font-size: 14px; }
+:is(.shell, .event-editor-page) .mode-choices span { min-height: 40px; font-size: 13px; padding: 9px 12px; }
+:is(.shell, .event-editor-page) .check { font-size: 13px; padding: 8px 10px; }
 :is(.shell, .event-editor-page) .search-select > input { padding-right: 70px; }
 :is(.shell, .event-editor-page) .search-select-menu > button { font-size: 15px; min-height: 44px; }
 :is(.shell, .event-editor-page) .roster-search > input { font-size: 15px; }
@@ -50,31 +56,54 @@
 :is(.shell, .event-editor-page) .special-rule-head h3 { font-size: 16px; }
 :is(.shell, .event-editor-page) .special-rule-head [data-special-count] { font-size: 13px; }
 :is(.shell, .event-editor-page) .special-rule-head button { font-size: 14px; min-height: 40px; }
-:is(.shell, .event-editor-page) .special-team-candidates .help,
-:is(.shell, .event-editor-page) .ace-editor-heading > .ace-edit-hint { font-size: 14px; }
-:is(.shell, .event-editor-page) .editor-jumps a { font-size: 14px; padding: 10px 14px; }
-:is(.shell, .event-editor-page) .editor-jumps a span { width: 24px; height: 24px; font-size: 12px; }
-:is(.shell, .event-editor-page) #event-form { padding-bottom: 100px; }
-:is(.shell, .event-editor-page) .event-editor-actions { border-color: #d8e2ec; background: #fffffff5; box-shadow: 0 8px 32px #17283d1f; }
+:is(.shell, .event-editor-page) .editor-jumps { top: 60px; gap: 4px; padding: 4px; margin-bottom: 16px; scrollbar-width: thin; }
+:is(.shell, .event-editor-page) .editor-jumps a { flex: none; font-size: 13px; font-weight: 600; padding: 8px 10px; color: #42556d; }
+.event-editor-page .editor-jumps { top: 10px; }
+:is(.shell, .event-editor-page) .editor-section { scroll-margin-top: 112px; }
+.event-editor-page .editor-section { scroll-margin-top: 64px; }
+:is(.shell, .event-editor-page) #event-form { padding-bottom: 74px; }
+:is(.shell, .event-editor-page) .event-editor-actions { padding: 8px; gap: 8px; border-color: #d8e2ec; background: #fff; box-shadow: 0 6px 20px #17283d1f; }
+:is(.shell, .event-editor-page) .event-editor-actions button { min-height: 40px; }
+:is(.shell, .event-editor-page) .tournament-editor-heading { align-items: start; }
+.event-editor-page .event-background-panel select { width: min(100%, 28rem); }
+:is(.shell, .event-editor-page) .roster-add { margin-top: 12px; }
+:is(.shell, .event-editor-page) .roster-entry { padding-block: 7px; }
+:is(.shell, .event-editor-page) .roster-list-heading { padding-top: 10px; }
+
+/* 两轮设置并列，抢分输入与排阵选项在各自面板内连续阅读。 */
+:is(.shell, .event-editor-page) .event-settings-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+:is(.shell, .event-editor-page) .event-settings-fields > .editor-section { grid-column: 1 / -1; margin: 0; }
+:is(.shell, .event-editor-page) .event-settings-fields > :is(#event-round1, #event-round2) { grid-column: auto; }
+:is(.shell, .event-editor-page) :is(#event-round1, #event-round2) .form-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+:is(.shell, .event-editor-page) :is(#event-round1, #event-round2) .form-grid > .help { margin: 0; }
+:is(.shell, .event-editor-page) .special-rule { margin: 12px 0; padding: 14px; }
+:is(.shell, .event-editor-page) .special-rule-head { margin-bottom: 8px; padding-bottom: 6px; }
+:is(.shell, .event-editor-page) .special-candidates { margin-top: 10px; }
+:is(.shell, .event-editor-page) .special-player-select { min-height: 130px; }
+.shell .archive-steps { scroll-margin-top: 68px; }
+.shell .archive-actions { margin-inline: 0; min-height: 52px; padding: 6px 10px; background: #fff; }
+.shell .archive-current { margin-bottom: 12px; }
+.shell .archive-current-head { margin-top: 10px; }
+.shell .lineup-slots { gap: 8px; margin-top: 14px; }
+.shell .lineup-slot { padding: 10px 12px; }
 
 /* 侧栏图标使用同一组线条，当前标签在手机横向导航中也始终可达。 */
 .shell .brand strong { display: block; font-size: 14px; }
-.shell .sidebar .brand small { display: block; font-size: 11px; }
-.shell .nav-caption { font-size: 12px; margin-top: 36px; }
-.shell .nav a { font-size: 14px; min-height: 48px; gap: 12px; }
+.shell .sidebar .brand { margin-bottom: 24px; }
+.shell .nav { gap: 4px; }
+.shell .nav a { font-size: 14px; min-height: 42px; gap: 10px; padding-block: 9px; }
 .shell .nav-icon { display: grid; place-items: center; width: 20px; height: 20px; flex: 0 0 20px; }
 .shell .nav-icon svg { width: 20px; height: 20px; }
-.shell .topbar { min-height: 74px; height: 74px; padding: 0 40px; }
+.shell .topbar { min-height: 56px; height: 56px; padding: 0 32px; }
 .shell .breadcrumb { font-size: 11px; gap: 12px; }
 .shell .breadcrumb b { font-size: 14px; }
 .shell .topbar .language-picker { min-height: 40px; font-size: 14px; padding: 7px 10px; }
 .shell .side-footer .person strong { font-size: 14px; }
 .shell .side-footer .account-role { font-size: 11px; }
-.shell .site-footer { max-width: 1496px; font-size: 11px; padding: 18px 40px 26px; }
 .shell.public-shell .topbar { padding-inline: max(40px, calc((100vw - 1416px) / 2)); }
 
 /* 列表和首页使用同一字号，行内操作保持明确的点击范围。 */
-.shell .table th, .shell .table td { font-size: 15px; padding: 18px 24px; }
+.shell .table th, .shell .table td { font-size: 14px; padding: 10px var(--panel-inset); }
 .shell .table th { font-size: 13px; letter-spacing: 0; background: #f8fafc; }
 .shell .event-name { font-size: 16px; }
 .shell .event-name small, .shell .event-date { font-size: 13px !important; }
@@ -82,35 +111,47 @@
 .shell .event-mini-score small { font-size: 12px; }
 .shell .row-view { width: 40px; height: 40px; }
 .shell .event-table { min-width: 620px; }
-.shell .filter-bar { padding: 22px 28px; }
-.shell .pagination { font-size: 14px; padding: 20px 28px; }
+.shell .home-heading { margin-bottom: 20px; }
+.shell .home-history-link { color: #285a86; font-weight: 650; }
+.shell .home-history-link:hover { text-decoration: underline; }
+.shell .home-live { margin-bottom: 20px; }
+.shell .history-panel { scroll-margin-top: 68px; }
+.shell .filter-bar { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.2fr) repeat(2, minmax(140px, 1fr)) auto; padding: 12px var(--panel-inset); }
+.shell #tournament-filter { grid-template-columns: minmax(0, 1fr) repeat(2, minmax(140px, 10.5rem)) auto; }
+.shell .history-filter-actions { display: flex; gap: 4px; }
+.shell .pagination { font-size: 13px; padding: 12px var(--panel-inset); }
 .shell .pagination button { min-height: 40px; font-size: 14px; }
-.shell .live-card h3 { font-size: 24px; }
-.shell .live-card p, .shell .live-card-footer > span { font-size: 13px; }
-.shell .live-card-footer > strong, .shell .section-title > span { font-size: 14px; }
-.shell .home-summary > span { font-size: 13px; }
-.shell .home-summary b { font-size: 32px; }
-.shell .show-deleted-control { font-size: 14px; }
+.shell .live-grid { gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); }
+.shell .live-card { padding: 14px 16px; border-radius: 10px; }
+.shell .live-card h3 { font-size: 18px; margin: 0 0 4px; }
+.shell .live-card p, .shell .live-card-footer > span { font-size: 12px; }
+.shell .live-card-score { margin: 10px 0; gap: 14px; }
+.shell .live-card-score > b { font-size: 25px; gap: 10px; }
+.shell .live-card-footer { padding-top: 8px; }
+.shell .live-card-footer > strong { font-size: 12px; gap: 8px; }
+.shell .show-deleted-control { font-size: 13px; margin: 0; }
 
 /* 账号资料保留分区，避免在宽屏上出现过长的输入行。 */
 .shell .profile-panel { max-width: 1120px; }
-.shell .profile-section legend { font-size: 18px; padding-bottom: 20px; }
-.shell .profile-section + .profile-section { padding-top: 28px; }
-.shell .profile-section .help { font-size: 14px; }
-.shell .profile-section .category-choices label { font-size: 14px; min-height: 50px; padding: 12px 16px; }
+.shell .profile-section legend { font-size: 16px; padding-bottom: 12px; }
+.shell .profile-section + .profile-section { padding-top: 16px; }
+.shell .profile-section .category-choices label { font-size: 13px; min-height: 40px; padding: 8px 12px; }
 .shell .avatar-upload > div:last-child { min-width: 0; }
 .shell .account-avatar-preview, .shell .account-avatar-empty { width: 96px; height: 96px; font-size: 13px; }
 
 /* 网站设置的保存、删除保持同一行，上传控件与其余表单等高。 */
-.shell .site-settings-page .settings-panel .panel-body { padding: 24px; }
+.shell .site-settings-page .settings-panel .panel-body { padding: 16px var(--panel-inset); }
+.shell .settings-default-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; }
+.shell .settings-default-fields > button { margin-left: auto; }
+.shell .settings-default-fields > .settings-note { flex-basis: 100%; margin: 0; }
 .shell .settings-row-actions { min-width: 134px; gap: 8px; }
 .shell .settings-row-actions > button { font-size: 14px; min-width: 62px; min-height: 44px; padding: 9px 13px; }
 .shell .settings-category-preview { width: 44px; height: 44px; }
 .shell .settings-category-fields > input[type=file] { font-size: 13px; }
-.shell .settings-list-row { padding: 18px 0; }
+.shell .settings-list-row { padding: 12px 0; }
 .shell .settings-list-row:last-child { padding-bottom: 0; }
-.shell .background-edit { grid-template-columns: 160px minmax(0, 1fr); gap: 12px 20px; padding-top: 24px; margin-top: 24px; }
-.shell .background-preview { grid-column: 1; grid-row: 1 / 3; width: 160px; height: 100px; border-radius: 9px; }
+.shell .background-edit { grid-template-columns: 144px minmax(0, 1fr); gap: 8px 16px; padding-top: 14px; margin-top: 14px; }
+.shell .background-preview { grid-column: 1; grid-row: 1 / 3; width: 144px; height: 90px; border-radius: 8px; }
 .shell .background-edit > input { grid-column: 2; }
 .shell .background-file-actions > button { padding: 9px 14px; }
 .shell .background-edit .background-file-actions { grid-column: 2; }
@@ -119,19 +160,17 @@
   .shell .page { padding: 30px 24px 40px; }
   .shell .topbar { padding: 0 24px; }
   .shell.public-shell .topbar { padding-inline: 24px; }
-  .shell .site-footer { padding-left: 24px; padding-right: 24px; }
-  .shell .filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shell :is(.filter-bar, #tournament-filter) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .shell .filter-bar .field:first-child { grid-column: 1 / -1; }
-  .shell .filter-bar > button { min-width: 0; }
+  .shell .history-filter-actions { flex-wrap: wrap; }
+  :is(.shell, .event-editor-page) .event-settings-fields > :is(#event-round1, #event-round2) { grid-column: 1 / -1; }
 }
 @media (max-width: 760px) {
   .shell .sidebar { padding: 16px; }
-  .shell .sidebar .brand small { display: none; }
+  .shell .sidebar .brand { margin-bottom: 0; }
   .shell .nav { padding: 4px 2px 8px; }
   .shell .nav a { min-height: 44px; padding: 10px 12px; }
   .shell .page { padding: 26px 16px 36px; }
-  .shell .home-heading { flex-direction: column; align-items: stretch; }
-  .shell .home-summary { flex-wrap: wrap; flex-shrink: 1; gap: 18px 24px; text-align: left; }
   .shell .topbar { height: auto; min-height: 68px; padding: 12px 16px; flex-wrap: wrap; gap: 8px 12px; }
   .shell.public-shell .topbar { padding-inline: 16px; }
   .shell .breadcrumb { font-size: 10px; gap: 8px; }
@@ -141,9 +180,10 @@
   .shell .topbar .language-picker { max-width: 114px; }
   :is(.shell, .event-editor-page) .page-head { flex-wrap: wrap; gap: 16px; margin-bottom: 22px; }
   :is(.shell, .event-editor-page) .page-head h1, .shell .home-heading h1 { font-size: 28px; }
-  :is(.shell, .event-editor-page) .panel-head, :is(.shell, .event-editor-page) .panel-body { padding: 20px; }
+  :is(.shell, .event-editor-page) { --panel-inset: 16px; }
+  .shell .editor-jumps { top: 0; }
+  .shell .editor-section { scroll-margin-top: 64px; }
   :is(.shell, .event-editor-page) .editor-jumps a { padding: 9px 10px; }
-  .shell .site-footer { padding: 18px 16px 24px; }
   .shell .site-settings-page .settings-panel .panel-body { padding: 18px; }
   .shell .settings-row-actions { min-width: 126px; }
   .shell .settings-row-actions > button { min-width: 58px; padding: 9px 11px; }
@@ -158,11 +198,6 @@
   .shell .background-file-actions > button { padding: 9px 10px; }
 }
 
-@media (max-width: 520px) {
-  .shell .ace-probability-grid { grid-template-columns: minmax(0, 1fr); gap: 6px; }
-  .shell .compact-number-field { min-height: 40px; }
-}
-
 .accounts-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 480px) auto;
@@ -174,7 +209,7 @@
 .accounts-toolbar #account-search { width: 100%; }
 .accounts-toolbar .help { grid-column: 1 / -1; margin: 0; }
 .accounts-toolbar .count-badge { align-self: center; white-space: nowrap; }
-.shell .accounts-table th, .shell .accounts-table td { padding: 18px 24px; font-size: 15px; }
+.shell .accounts-table th, .shell .accounts-table td { padding: 10px var(--panel-inset); font-size: 14px; }
 .shell .accounts-table th { font-size: 13px; background: #f8fafc; letter-spacing: 0; }
 .shell .accounts-table th:first-child { width: 38%; }
 .shell .accounts-table .person { gap: 12px; }

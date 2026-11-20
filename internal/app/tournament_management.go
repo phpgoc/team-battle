@@ -41,6 +41,7 @@ func (a *App) listTournaments(c *gin.Context) {
 		return
 	}
 	defer rows.Close()
+	filter := tournamentListFilter(c)
 	items := []map[string]any{}
 	for rows.Next() {
 		var item = map[string]any{}
@@ -50,6 +51,9 @@ func (a *App) listTournaments(c *gin.Context) {
 		if err := rows.Scan(&id, &name, &description, &startTime, &status, &round1Target, &round2Target, &managerID, &managerName, &createdAt, &deleted, &playerCount, &assignedTeams, &setupCount, &scoreA, &scoreB); err != nil {
 			fail(c, http.StatusInternalServerError, err.Error())
 			return
+		}
+		if !filter.matches(name, startTime) {
+			continue
 		}
 		ready := rosterReadiness(int(playerCount), int(assignedTeams), int(setupCount))
 		if !ready.publicReady && user.Role != roleSuperAdmin && managerID != user.ID {
@@ -81,6 +85,25 @@ func (a *App) listTournaments(c *gin.Context) {
 	ok(c, gin.H{"tournaments": items})
 }
 
+type tournamentFilter struct {
+	name, from, to string
+}
+
+func tournamentListFilter(c *gin.Context) tournamentFilter {
+	return tournamentFilter{
+		name: strings.ToLower(strings.TrimSpace(c.Query("name"))),
+		from: strings.TrimSpace(c.Query("from")),
+		to:   strings.TrimSpace(c.Query("to")),
+	}
+}
+
+// 按赛事开始日期筛选，起止两天都包含在内。
+func (f tournamentFilter) matches(name, startTime string) bool {
+	date := startTime[:min(len(startTime), len(time.DateOnly))]
+	return strings.Contains(strings.ToLower(name), f.name) &&
+		(f.from == "" || date >= f.from) && (f.to == "" || date <= f.to)
+}
+
 func (a *App) publicTournaments(c *gin.Context) {
 	items, err := a.publicTournamentSummaries(false)
 	if err != nil {
@@ -102,9 +125,7 @@ func (a *App) publicTournaments(c *gin.Context) {
 }
 
 func (a *App) publicHistory(c *gin.Context) {
-	name := strings.TrimSpace(c.Query("name"))
-	from := strings.TrimSpace(c.Query("from"))
-	to := strings.TrimSpace(c.Query("to"))
+	filter := tournamentListFilter(c)
 	playerID := int64(0)
 	if raw := strings.TrimSpace(c.Query("player_id")); raw != "" {
 		var err error
@@ -150,14 +171,7 @@ func (a *App) publicHistory(c *gin.Context) {
 		}
 		itemName, _ := item["name"].(string)
 		startTime, _ := item["start_time"].(string)
-		startTime = strings.ReplaceAll(startTime, "T", " ")
-		if name != "" && !strings.Contains(strings.ToLower(itemName), strings.ToLower(name)) {
-			continue
-		}
-		if from != "" && startTime < from {
-			continue
-		}
-		if to != "" && startTime > to+" 23:59:59" {
+		if !filter.matches(itemName, startTime) {
 			continue
 		}
 		filtered = append(filtered, item)

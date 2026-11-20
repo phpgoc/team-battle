@@ -36,7 +36,14 @@
     return `<div class="field${full ? ' full' : ''}" role="group" aria-labelledby="${id}"><span class="field-label" id="${id}">${t(label)}${required ? '<b class="required-mark" aria-hidden="true">*</b>' : ''}</span>${template.innerHTML}</div>`;
   };
   const input = (name, value = '', type = 'text', attrs = '') => `<input name="${name}" type="${type}" value="${esc(value)}" ${attrs}>`;
-  const compactNumber = (name, value, label, min, max, unit, disabled = false) => `<label class="compact-number-field${unit === '%' ? ' probability-number-field' : ''}"><span>${t(label)}</span><span class="compact-number-control"><input class="compact-number-input" name="${name}" type="number" inputmode="numeric" min="${min}" max="${max}" value="${esc(value)}" required${disabled ? ' disabled' : ''} aria-label="${t(label)}"><span>${unit}</span></span></label>`;
+  const compactNumber = (name, value, label, min, max, unit, disabled = false) => `
+    <label class="compact-number-field${unit === '%' ? ' probability-number-field' : ''}">
+      <span>${t(label)}</span>
+      <span class="compact-number-control"><input class="compact-number-input" name="${name}" type="number" inputmode="numeric" min="${min}"${max == null ? '' : ` max="${max}"`} value="${esc(value)}" required${disabled ? ' disabled' : ''} aria-label="${t(label)}"><span>${unit}</span></span>
+    </label>`;
+  const drawDurationFields = (rules, disabled = false) =>
+    compactNumber('random_draw_seconds', rules.random_draw_seconds, 'randomDrawSeconds', 0, null, t('seconds'), disabled) +
+    compactNumber('ace_draw_seconds', rules.ace_draw_seconds, 'aceDrawSeconds', 0, null, t('seconds'), disabled);
   const options = (users, chosen = 0, empty = '') => (empty ? `<option value="0">${t(empty)}</option>` : '') + users.map(u => `<option value="${u.id}"${Number(chosen) === Number(u.id) ? ' selected' : ''}>${esc(u.display_name)}</option>`).join('');
   const localTime = () => { const date = new Date(); return new Date(date - date.getTimezoneOffset() * 60000).toISOString().slice(0, 13); };
   const displayTime = value => { const text = String(value || ''); return text ? `${text.slice(0, 10)} · ${text.slice(11, 13)} ${t('hour')}` : '—'; };
@@ -151,9 +158,12 @@
     return `<div class="table-wrap"><table class="table event-table${management ? ' management-table' : ''}"><thead><tr><th>${t('name')}</th><th>${t('time')}</th><th>${t('results')}</th>${management ? `<th>${t('status')}</th>` : ''}<th><span class="sr-only">${t(management ? 'actions' : 'view')}</span></th></tr></thead><tbody>${events.map(e => `<tr data-tournament-row="${e.id}" class="${e.is_deleted ? 'is-deleted' : ''}"><td class="event-name-cell"><a class="event-name" href="/live/${e.id}" data-go="/live/${e.id}"><span class="event-emblem" aria-hidden="true">TB</span><span>${esc(e.name)}${deletedBadge(e)}<small>${t('players')} · ${e.player_count || 0}</small></span></a></td><td class="event-date">${esc(displayTime(e.start_time))}</td><td class="event-result"><span class="event-mini-score"><small>A</small><b>${e.round_wins_a || 0}</b><i>:</i><b>${e.round_wins_b || 0}</b><small>B</small></span></td>${management ? `<td class="event-status" data-label="${esc(t('status'))}">${t(e.status)}</td><td class="tournament-row-action">${terminal(e) ? `<button type="button" class="outline ${e.is_deleted ? '' : 'danger'}" data-tournament-action="${e.is_deleted ? 'restore' : 'delete'}" data-tournament-id="${e.id}">${t(e.is_deleted ? 'restore' : 'delete')}</button>` : '—'}</td>` : `<td class="event-open-cell"><a class="row-view" aria-label="${esc(t('view') + ' · ' + e.name)}" href="/live/${e.id}" data-go="/live/${e.id}">↗</a></td>`}</tr>`).join('')}</tbody></table></div>`;
   }
   async function tournamentManagementPage() {
-    const { tournaments } = await api('/api/tournaments');
-    window.TBTournamentManagement.render({ tournaments, t, shell, eventTable, action, confirmAction, api, toast, reload: tournamentManagementPage });
+    const query = new URLSearchParams(location.search);
+    const filters = Object.fromEntries(['name', 'from', 'to'].map(key => [key, query.get(key) || '']));
+    const { tournaments } = await api('/api/tournaments?' + new URLSearchParams(filters));
+    window.TBTournamentManagement.render({ tournaments, filters, t, shell, field, input, tournamentDateField, eventTable, go, action, confirmAction, api, toast, reload: tournamentManagementPage });
   }
+  const tournamentDateField = (key, value) => field(key, input(key, value, 'text', 'data-date-picker="date" autocomplete="off" placeholder="YYYY-MM-DD"'));
   function liveCards(events) {
     return '<div class="live-grid">' + events.map(e => {
       const available = e.public_ready || manages(e), tag = available ? 'a' : 'div';
@@ -167,14 +177,49 @@
     const search = new URLSearchParams({ ...state.filters, page: state.page, page_size: 10 });
     const [past, live] = await Promise.all([api('/api/public/history?' + search), api('/api/public/tournaments?include_deleted=' + state.filters.include_deleted)]);
     const playerOptions = '<option value="">' + t('allPlayers') + '</option>' + (past.players || []).map(player => '<option value="' + player.id + '"' + (String(player.id) === String(state.filters.player_id || '') ? ' selected' : '') + '>' + esc(player.display_name) + (player.category_name ? ' · ' + esc(player.category_name) : '') + '</option>').join('');
-    shell('<div class="home-heading"><div><span class="eyebrow">TEAM BATTLE / ' + t('eventCenter') + '</span><h1>' + t('home') + '</h1><p class="subtitle">' + t('homeIntro') + '</p></div><div class="home-summary"><span><b>' + live.tournaments.length + '</b>' + t('ongoing') + '</span><span><b>' + past.total + '</b>' + t('history') + '</span></div></div>' + (live.tournaments.length ? '<section class="home-live section-gap"><div class="section-title"><h2><span class="status-dot"></span>' + t('ongoing') + '</h2><span>' + t('watchPublic') + '</span></div>' + liveCards(live.tournaments) + '</section>' : '') + '<section class="panel history-panel"><div class="panel-head"><div><span class="eyebrow">ARCHIVE</span><h2>' + t('history') + '</h2></div><span class="count-badge">' + t('total') + ' ' + past.total + '</span></div><label class="show-deleted-control"><input type="checkbox" id="include-deleted"' + (state.filters.include_deleted ? ' checked' : '') + '>' + t('showDeletedTournaments') + '</label><form id="history-filter" class="filter-bar">' + field('name', input('name', state.filters.name, 'search', 'placeholder="' + t('searchEventHint') + '"')) + field('player', '<select name="player_id" data-searchable>' + playerOptions + '</select>') + field('from', input('from', state.filters.from, 'text', 'data-date-picker="date" autocomplete="off" placeholder="YYYY-MM-DD"')) + field('to', input('to', state.filters.to, 'text', 'data-date-picker="date" autocomplete="off" placeholder="YYYY-MM-DD"')) + '<button class="primary">' + t('search') + '</button><button type="button" class="ghost" data-go="/">' + t('clear') + '</button></form>' + eventTable(past.tournaments) + '<div class="pagination"><span>' + t('total') + ' ' + past.total + '</span><div><button class="outline" id="previous" ' + (state.page <= 1 ? 'disabled' : '') + '>' + t('previous') + '</button><span>' + state.page + ' <small>/ ' + Math.max(1, Math.ceil(past.total / 10)) + '</small></span><button class="outline" id="next" ' + (state.page * 10 >= past.total ? 'disabled' : '') + '>' + t('next') + '</button></div></div></section>');
+    shell(`
+      <div class="home-heading"><h1>${t('home')}</h1><a class="home-history-link" href="#history">${t('history')} <span aria-hidden="true">↓</span></a></div>
+      ${live.tournaments.length ? `<section class="home-live"><div class="section-title"><h2><span class="status-dot"></span>${t('ongoing')}</h2></div>${liveCards(live.tournaments)}</section>` : ''}
+      <section class="panel history-panel" id="history">
+        <div class="panel-head"><h2>${t('history')}</h2><label class="show-deleted-control"><input type="checkbox" id="include-deleted"${state.filters.include_deleted ? ' checked' : ''}>${t('showDeletedTournaments')}</label></div>
+        <form id="history-filter" class="filter-bar">
+          ${field('name', input('name', state.filters.name, 'search', `placeholder="${t('searchEventHint')}"`))}
+          ${field('player', `<select name="player_id" data-searchable>${playerOptions}</select>`)}
+          ${tournamentDateField('from', state.filters.from)}
+          ${tournamentDateField('to', state.filters.to)}
+          <div class="history-filter-actions"><button class="primary">${t('search')}</button><button type="button" class="ghost" id="history-clear">${t('clear')}</button></div>
+        </form>
+        ${eventTable(past.tournaments)}
+        <div class="pagination"><span>${t('total')} ${past.total}</span><div>
+          <button class="outline" id="previous"${state.page <= 1 ? ' disabled' : ''}>${t('previous')}</button>
+          <span>${state.page} <small>/ ${Math.max(1, Math.ceil(past.total / 10))}</small></span>
+          <button class="outline" id="next"${state.page * 10 >= past.total ? ' disabled' : ''}>${t('next')}</button>
+        </div></div>
+      </section>`);
+    $('.home-history-link').onclick = event => { event.preventDefault(); $('#history').scrollIntoView({ block: 'start' }); };
+    if (location.hash === '#history') $('#history').scrollIntoView({ block: 'start' });
     const filterURL = (page = 1, values = state.filters) => '/?' + new URLSearchParams({ ...values, p: page });
-    $('#history-filter').addEventListener('submit', action(async event => { event.preventDefault(); const values = { ...Object.fromEntries(new FormData(event.target)), include_deleted: $('#include-deleted').checked ? '1' : '' }; if (values.from && values.to && values.from > values.to) throw Error(t('dateRangeError')); go(filterURL(1, values)); }));
-    $('#include-deleted').onchange = () => go(filterURL(1, { ...state.filters, include_deleted: $('#include-deleted').checked ? '1' : '' }));
-    $('#previous').onclick = () => go(filterURL(state.page - 1)); $('#next').onclick = () => go(filterURL(state.page + 1));
+    const loadHistory = url => go(url + '#history');
+    $('#history-filter').addEventListener('submit', action(async event => { event.preventDefault(); const values = { ...Object.fromEntries(new FormData(event.target)), include_deleted: $('#include-deleted').checked ? '1' : '' }; if (values.from && values.to && values.from > values.to) throw Error(t('dateRangeError')); loadHistory(filterURL(1, values)); }));
+    $('#history-clear').onclick = () => loadHistory('/');
+    $('#include-deleted').onchange = () => loadHistory(filterURL(1, { ...state.filters, include_deleted: $('#include-deleted').checked ? '1' : '' }));
+    $('#previous').onclick = () => loadHistory(filterURL(state.page - 1)); $('#next').onclick = () => loadHistory(filterURL(state.page + 1));
   }
   function loginPage() {
-    app.innerHTML = '<main class="login-shell"><section class="login-story"><a class="brand" href="/" data-go="/"><span class="brand-mark">TB<span></span></span><span><strong>TEAM BATTLE</strong><small>' + t('brandCaption') + '</small></span></a><div><span class="eyebrow">1V1 / KOF / ACE</span><h2>' + t('loginHeadline') + '</h2><p>' + t('homeIntro') + '</p><div class="login-art" aria-hidden="true"><span>A</span><b>VS</b><span>B</span></div></div><small>TEAM BATTLE</small></section><section class="login-main"><div class="login-language">' + picker() + '</div><div class="login-card"><span class="eyebrow">WELCOME BACK</span><h1>' + t('login') + '</h1><p class="subtitle">' + t('loginIntro') + '</p><form id="login-form" class="login-form">' + field('username', input('username', '', 'text', 'required autocomplete="username" placeholder="' + t('username') + '"')) + field('password', input('password', '', 'password', 'required autocomplete="current-password"')) + '<button class="primary accent">' + t('login') + ' <span aria-hidden="true">→</span></button></form><p class="help">' + t('persistentLoginHint') + '</p><a class="back-link" href="/" data-go="/">← ' + t('homeLink') + '</a></div></section></main>'; bindCommon();
+    app.innerHTML = `<main class="login-shell"><section class="login-story">
+      <a class="brand" href="/" data-go="/"><span class="brand-mark" aria-hidden="true">TB<span></span></span><strong>TEAM BATTLE</strong></a>
+      <div class="login-art" aria-hidden="true"><span>A</span><b>VS</b><span>B</span></div>
+    </section><section class="login-main"><div class="login-language">${picker()}</div><div class="login-card">
+      <h1>${t('login')}</h1><p class="subtitle">${t('loginIntro')}</p>
+      <form id="login-form" class="login-form">
+        ${field('username', input('username', '', 'text', 'required autocomplete="username"'))}
+        ${field('password', input('password', '', 'password', 'required autocomplete="current-password"'))}
+        <button class="primary accent">${t('login')} <span aria-hidden="true">→</span></button>
+      </form>
+      <p class="help">${t('persistentLoginHint')}</p>
+      <a class="back-link" href="/" data-go="/">← ${t('homeLink')}</a>
+    </div></section></main>`;
+    bindCommon();
     $('#login-form').onsubmit = action(async event => { event.preventDefault(); const form = new FormData(event.target); state.user = (await post('/api/auth/login', Object.fromEntries(form))).user; go(loginTarget()); });
   }
   function profileLimit(changedAt, limited) {
@@ -269,9 +314,8 @@
       <div class="page-head"><h1>${t('siteSettings')}</h1></div>
       <section class="panel settings-panel section-gap"><div class="panel-head"><h2>${t('tournamentDefaults')}</h2></div>
         <form id="tournament-defaults-form" class="panel-body settings-default-fields">
-          ${field('randomDrawSeconds', input('random_draw_seconds', defaults.random_draw_seconds, 'number', 'min="0" step="1" required'))}
-          ${field('aceDrawSeconds', input('ace_draw_seconds', defaults.ace_draw_seconds, 'number', 'min="0" step="1" required'))}
-          <button class="primary">${t('save')}</button><p class="help full">${t('tournamentDefaultsHint')}</p>
+          ${drawDurationFields(defaults)}
+          <button class="primary">${t('save')}</button><p class="help settings-note">${t('tournamentDefaultsHint')}</p>
         </form>
       </section>
       <div class="settings-columns">
@@ -394,20 +438,26 @@
     form.addEventListener('change', refresh);
     refresh();
   }
-  function drawTimingMarkup(e, editableTiming) {
+  function drawTimingMarkup(e, editableTiming, creating) {
     const rules = { ...defaultRules(), ...e.rules };
-    return `<section class="panel section-gap draw-timing-panel editor-section" id="event-timing"><div class="panel-head"><h2>${t('drawTiming')}</h2><span>${t('drawTimingMutable')}</span></div><div class="panel-body form-grid">${field('randomDrawSeconds', input('random_draw_seconds', rules.random_draw_seconds, 'number', 'min="0" step="1" required' + (editableTiming ? '' : ' disabled')))}${field('aceDrawSeconds', input('ace_draw_seconds', rules.ace_draw_seconds, 'number', 'min="0" step="1" required' + (editableTiming ? '' : ' disabled')))}<p class="help full">${t('drawTimingHint')}</p></div></section>`;
+    return `<section class="panel section-gap editor-section" id="event-timing">
+      <div class="panel-head"><h2>${t('drawTiming')}</h2></div>
+      <div class="panel-body draw-duration-fields">${drawDurationFields(rules, !editableTiming)}</div>
+    </section>`;
   }
-  function editorJumps(correction = false) {
+  function editorJumps(settings, correction, management) {
     const sections = [['basics', 'basicInfo'], ['roster', 'players'], ['round1', 'round1'], ['round2', 'round2'], ['ace', 'ace'], ['timing', 'drawTiming']];
-    if (correction) sections.push(['correction', 'correct']);
-    return `<nav class="editor-jumps" aria-label="${t('eventSections')}">${sections.map(([id, title], index) => `<a href="#event-${id}"><span>${index + 1}</span>${t(title)}</a>`).join('')}</nav>`;
+    if (settings) sections.push(['background', 'background'], ['correction', 'correct', !correction], ['management', 'actions', !management]);
+    return `<nav class="editor-jumps" aria-label="${t('eventSections')}">${sections.map(([id, title, hidden]) => `<a href="#event-${id}"${hidden ? ' hidden' : ''}>${t(title)}</a>`).join('')}</nav>`;
   }
   function backgroundOptions(backgrounds, selected = 0) {
     return `<option value="0"${Number(selected) ? '' : ' selected'}>${t('noBackground')}</option>` + backgrounds.map(background => `<option value="${background.id}"${Number(background.id) === Number(selected) ? ' selected' : ''}>${esc(background.name)}</option>`).join('');
   }
   function eventBackgroundMarkup(e, backgrounds, editable) {
-    return `<section class="panel section-gap event-background-panel"><div class="panel-head"><h2>${t('background')}</h2><span>${esc(e.background_name || t('noBackground'))}</span></div><div class="panel-body"><div class="inline-form"><select name="background_id"${editable ? '' : ' disabled'}>${backgroundOptions(backgrounds, e.background_id)}</select></div><p class="help">${t('eventBackgroundHint')}</p></div></section>`;
+    return `<section class="panel section-gap editor-section event-background-panel" id="event-background">
+      <div class="panel-head"><h2>${t('background')}</h2></div>
+      <div class="panel-body"><select name="background_id" aria-label="${t('background')}"${editable ? '' : ' disabled'}>${backgroundOptions(backgrounds, e.background_id)}</select><p class="help settings-note">${t('eventBackgroundHint')}</p></div>
+    </section>`;
   }
   // 大将调整与结束确认只出现在赛事设置，不加入公共观赛菜单。
   function eventManagementMarkup(e) {
@@ -416,13 +466,17 @@
     let content = '';
     if (editable(e) && pending) content = `<section class="panel section-gap editor-section"><div class="panel-head"><h2>${t('overrideAce')}</h2></div><div class="panel-body form-grid"><input type="hidden" name="ace_match_id" value="${pending.id}">${field('teamA', `<select name="ace_player_a_id">${options(e.teams[0].players.filter(player => player.active !== false), pending.player_a_id)}</select>`)}${field('teamB', `<select name="ace_player_b_id">${options(e.teams[1].players.filter(player => player.active !== false), pending.player_b_id)}</select>`)}<p class="help full">${t('aceSettingsSaveHint')}</p></div></section>`;
     if (editable(e) && e.status === 'final_confirm') content = `<section class="panel section-gap editor-section"><div class="panel-head"><h2>${t('confirmEnd')}</h2></div><div class="panel-body"><p class="help">${t('confirmEndHint')}</p><button type="button" class="primary accent" id="confirm-end">${t('confirmEnd')}</button></div></section>`;
-    return `<div id="event-management" data-snapshot="${esc(snapshot)}">${content}</div>`;
+    return { markup: `<div id="event-management" class="editor-section" data-snapshot="${esc(snapshot)}">${content}</div>`, visible: Boolean(content) };
   }
   function refreshEventManagement(e) {
     const panel = $('#event-management');
     if (!panel || state.editor !== 'settings') return;
-    const template = document.createElement('template'); template.innerHTML = eventManagementMarkup(e);
-    if (panel.dataset.snapshot !== template.content.firstElementChild.dataset.snapshot) panel.replaceWith(template.content);
+    const management = eventManagementMarkup(e);
+    const template = document.createElement('template'); template.innerHTML = management.markup;
+    const replacement = template.content.firstElementChild;
+    if (panel.dataset.snapshot === replacement.dataset.snapshot) return;
+    $('.editor-jumps a[href="#event-management"]').hidden = !management.visible;
+    panel.replaceWith(replacement);
   }
   const matchOrder = (a, b) => a.round - b.round || a.seq - b.seq;
   const finishedMatches = e => e.matches.filter(match => match.status === 'finished').sort(matchOrder);
@@ -527,7 +581,8 @@
     const oldPlayers = panel ? ['a', 'b'].map(side => $('[name="correction_player_' + side + '_id"]', panel)) : [];
     const oldPicks = oldPlayers.map(field => ({ value: field.value, original: Array.from(field.options).find(option => option.defaultSelected)?.value }));
     if (panel) panel.outerHTML = markup;
-    else if (markup) { $('.event-editor-actions', form).insertAdjacentHTML('beforebegin', markup); $('.editor-jumps').outerHTML = editorJumps(true); }
+    else if (markup) $('#event-management', form).insertAdjacentHTML('beforebegin', markup);
+    $('.editor-jumps a[href="#event-correction"]').hidden = !markup;
     if (markup) {
       const container = $('[data-correction-inputs]', form);
       for (const [matchID, winnerID] of changes) {
@@ -576,14 +631,42 @@
     const managerField = state.user.role === 'superadmin' ? field('manager', '<select name="manager_id" data-searchable required><option value="">' + t('selectManager') + '</option>' + managers.map(user => '<option value="' + user.id + '"' + (Number(e.manager_id) === user.id ? ' selected' : '') + '>' + esc(user.display_name) + ' (' + esc(user.username) + ')</option>').join('') + '</select>', false, mode === 'create') : '';
     const createBackground = mode === 'create' ? field('background', `<select name="background_id">${backgroundOptions(backgrounds, e.background_id)}</select>`) : '';
     const basic = mode !== 'roster' ? '<section class="panel editor-section" id="event-basics"><div class="panel-head"><h2>' + t('basicInfo') + '</h2></div><div class="panel-body form-grid">' + field('name', '<input name="name" list="tournament-names" value="' + esc(e.name || '') + '" required><datalist id="tournament-names">' + (catalog.tournament_names || []).map(n => '<option value="' + esc(n.name) + '">').join('') + '</datalist>', true, mode === 'create') + field('time', startTimeInput(e.start_time || localTime()), false, mode === 'create') + managerField + createBackground + field('description', '<textarea name="description" rows="2">' + esc(e.description || '') + '</textarea>', true) + '</div></section>' : '';
-    const backgroundPanel = mode === 'create' || mode === 'roster' ? '' : eventBackgroundMarkup(e, backgrounds, manages(e) && !terminal(e));
-    const correctionPanel = mode === 'settings' ? resultCorrectionMarkup(e) : '';
-    const settingsHint = terminal(e) ? 'readOnly' : readonly ? 'settingsLocked' : mode === 'create' ? 'requiredHint' : roundSetupEditable ? 'settingsResetHint' : 'roundSetupLocked';
-    const content = '<div class="page-head"><div><h1>' + t(mode === 'create' ? 'createEvent' : mode === 'roster' ? 'editRoster' : 'eventSettings') + '</h1><p class="subtitle">' + t(settingsHint) + '</p></div></div>' + (mode === 'roster' ? '' : editorJumps(!!correctionPanel)) + '<form id="event-form"><fieldset class="event-settings-fields">' + basic + rosterMarkup(state.users, state.roster, roundSetupEditable) + (mode === 'roster' ? '' : rulesMarkup(e, roundSetupEditable, aceSettingsEditable)) + '</fieldset>' + (mode === 'roster' ? '' : drawTimingMarkup(e, timingEditable)) + backgroundPanel + correctionPanel + (mode === 'settings' ? eventManagementMarkup(e) : '') + '<div class="event-editor-actions">' + (mode === 'create' ? '' : '<button type="button" class="outline" id="back-board">' + t('backToMatch') + '</button>') + (!terminal(e) ? '<button type="submit" class="primary accent">' + t(mode === 'create' ? 'createEvent' : 'save') + '</button>' : '') + '</div></form>';
-    if (mode === 'create') shell(content, 'createEvent'); else {
-      app.innerHTML = '<main class="event-editor-page"><div class="editor-language">' + picker() + '</div>' + content + '</main>';
+    const creating = mode === 'create', settings = mode === 'settings', rosterOnly = mode === 'roster';
+    const backgroundPanel = settings ? eventBackgroundMarkup(e, backgrounds, !terminal(e)) : '';
+    const correctionPanel = settings ? resultCorrectionMarkup(e) : '';
+    const management = settings ? eventManagementMarkup(e) : null;
+    const settingsHint = terminal(e) ? 'readOnly' : readonly ? 'settingsLocked' : creating ? '' : roundSetupEditable ? 'settingsResetHint' : 'roundSetupLocked';
+    const title = creating ? 'createEvent' : rosterOnly ? 'editRoster' : 'eventSettings';
+    const content = `
+      <div class="page-head tournament-editor-heading">
+        <div><h1>${t(title)}</h1>${settingsHint ? `<p class="subtitle">${t(settingsHint)}</p>` : ''}</div>
+        ${creating ? '' : picker()}
+      </div>
+      ${rosterOnly ? '' : editorJumps(settings, correctionPanel, management?.visible)}
+      <form id="event-form">
+        <fieldset class="event-settings-fields">
+          ${basic}
+          ${rosterMarkup(state.users, state.roster, roundSetupEditable)}
+          ${rosterOnly ? '' : rulesMarkup(e, roundSetupEditable, aceSettingsEditable)}
+        </fieldset>
+        ${rosterOnly ? '' : drawTimingMarkup(e, timingEditable, creating)}
+        ${backgroundPanel}${correctionPanel}${management?.markup || ''}
+        <div class="event-editor-actions">
+          ${creating ? '' : `<button type="button" class="outline" id="back-board">${t('backToMatch')}</button>`}
+          ${terminal(e) ? '' : `<button type="submit" class="primary accent">${t(creating ? 'createEvent' : 'save')}</button>`}
+        </div>
+      </form>`;
+    if (creating) shell(content, 'createEvent'); else {
+      app.innerHTML = `<main class="event-editor-page">${content}</main>`;
       bindCommon(); $('#back-board').onclick = () => go(canWatch(state.event) ? '/live/' + state.event.id : '/');
     }
+    $('.editor-jumps')?.addEventListener('click', event => {
+      const link = event.target.closest('a');
+      if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      const section = $(link.getAttribute('href'));
+      section?.scrollIntoView({ block: 'start' });
+    });
     const form = $('#event-form');
     form.addEventListener('click', click => {
       if (!click.target.closest('#confirm-end') || form.dataset.busy) return;
@@ -1102,8 +1185,11 @@
       if (variantChanged && !state.editor) { boardPage(); }
       if (changed && !state.editor) applyEventBackground(data);
       if (changed && state.editor) {
-        const backgroundName = $('.event-background-panel .panel-head span');
-        if (backgroundName) backgroundName.textContent = data.background_name || t('noBackground');
+        const background = $('#event-background select');
+        if (background && Number(background.value) === Number(previous.background_id || 0)) {
+          const updated = [...background.options].find(option => Number(option.value) === Number(data.background_id || 0));
+          if (updated) background.value = updated.value;
+        }
         refreshResultCorrection(data);
         refreshEventManagement(data);
       }

@@ -96,6 +96,16 @@ input,select,textarea{min-width:0}input:not([type=checkbox]):not([type=radio]):n
 /* 登录：展示真实赛事产品的操作语境。 */
 .login-shell{min-height:100dvh;display:grid;grid-template-columns:44% 56%;background:#fff}.login-story{background:#142b45;color:white;display:flex;flex-direction:column;justify-content:space-between;padding:40px 50px;position:relative;overflow:hidden;isolation:isolate}.login-story:after{content:'';z-index:-1;position:absolute;width:650px;height:650px;border:90px solid #ffffff03;border-radius:50%;left:-280px;top:250px}.login-story>div{padding:65px 0}.login-story .eyebrow{color:#d2a084}.login-story h2{font-size:clamp(32px,3.5vw,56px);max-width:380px;line-height:1.4;font-weight:650;margin:22px 0}.login-story p{font-size:13px;color:#b0c2d5;line-height:1.9;max-width:300px}.login-story>small{font-size:9px;color:#9aafc4;letter-spacing:.17em}.login-art{margin-top:50px;display:flex;align-items:center;gap:22px}.login-art>span{display:grid;place-items:center;width:65px;height:75px;border:1px solid #e0b29894;border-radius:14px 14px 14px 2px;color:#edb18d;font-size:25px;font-weight:700;transform:rotate(-8deg)}.login-art>span:last-child{transform:rotate(8deg);border-color:#85a9caad;color:#abd0ee}.login-art>b{font-size:10px;letter-spacing:.15em;color:#94aec7}.login-main{display:flex;align-items:center;justify-content:center;position:relative;padding:90px 40px}.login-language{position:absolute;right:35px;top:28px}.login-card{width:min(380px,100%)}.login-card>h1{font-size:30px;margin:16px 0 8px}.login-card>.subtitle{margin:0 0 30px}.login-form{display:grid;gap:21px}.login-form>.primary{margin-top:6px;justify-content:space-between}.login-card>.help{font-size:11px;margin:17px 0 28px}.back-link{font-size:12px;color:#8493a6}.back-link:hover{color:var(--blue)}
 
+/* 登录页只保留品牌、对战图形和登录表单。 */
+.login-story{justify-content:flex-start}
+.login-story>.login-art{margin:auto;justify-content:center;padding:0 0 38px;gap:24px}
+.login-art>span{width:100px;height:110px;font-size:38px}
+.login-card{padding:0;box-shadow:none;background:none}
+.login-card>h1{margin-top:0}
+.login-card>.subtitle{margin-bottom:20px}
+.login-form{gap:14px}
+.login-card>.help{font-size:12px;margin:14px 0}
+
 /* 公开看板保留原布局；工作台和登录页适配窄屏。 */
 .operations-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px}
 .operations-heading h2{margin:5px 0 0}

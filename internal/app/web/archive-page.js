@@ -19,6 +19,11 @@
   function render(ctx) {
     const { draft: d, users, t, esc, field, input, compactNumber, startTimeInput, startTimeValue, backgroundOptions, backgrounds, shell, action, toast, person } = ctx;
     const redraw = () => render(ctx);
+    const changeStep = step => {
+      d.step = step;
+      redraw();
+      document.querySelector('.archive-steps').scrollIntoView({ block: 'start' });
+    };
     const label = side => t(side === 'a' ? 'teamA' : 'teamB');
     const name = id => users.find(user => user.id === id)?.display_name || String(id);
     const player = id => users.find(user => user.id === id);
@@ -30,7 +35,7 @@
     const stageSummary = stage => `<div class="archive-stage-summary"><span>${roundName(stage)}</span><strong>A ${score(d.matches[stage]).join(' : ')} B</strong><span>${label(winner(d.matches[stage]))} ${t('win')}</span></div>`;
     let body;
     if (d.step === 0) {
-      body = `<section class="panel"><div class="panel-body form-grid">${field('name', input('name', d.name, 'text', 'required'), true, true)}${field('time', startTimeInput(d.start_time), false, true)}${field('manager', `<select name="manager_id" data-searchable required><option value="">${t('selectManager')}</option>${ctx.managers.map(user => `<option value="${user.id}"${d.manager_id === user.id ? ' selected' : ''}>${esc(user.display_name)} (${esc(user.username)})</option>`).join('')}</select>`, false, true)}${field('background', `<select name="background_id">${backgroundOptions(backgrounds, d.background_id)}</select>`)}${compactNumber('round1_target', d.round1_target, 'round1Target', 1, 99, t('targetUnit'))}${compactNumber('round2_target', d.round2_target, 'round2Target', 1, 99, t('targetUnit'))}<div class="full" data-kof-revival-rule><label class="check"><input name="kof_revival_no_repeat" type="checkbox"${d.kof_revival_no_repeat ? ' checked' : ''}>${t('kofRevivalNoRepeat')}</label><p class="help">${t('kofRevivalNoRepeatHint')}</p></div></div></section>` + window.TBRosterEditor.markup({ users, entries: d.entries, editable: true, allowRandom: false, t, esc, person });
+      body = `<section class="panel"><div class="panel-body form-grid">${field('name', input('name', d.name, 'text', 'required'), true, true)}${field('time', startTimeInput(d.start_time), false, true)}${field('manager', `<select name="manager_id" data-searchable required><option value="">${t('selectManager')}</option>${ctx.managers.map(user => `<option value="${user.id}"${d.manager_id === user.id ? ' selected' : ''}>${esc(user.display_name)} (${esc(user.username)})</option>`).join('')}</select>`, false, true)}${field('background', `<select name="background_id">${backgroundOptions(backgrounds, d.background_id)}</select>`)}<div class="archive-targets full">${compactNumber('round1_target', d.round1_target, 'round1Target', 1, 99, t('targetUnit'))}${compactNumber('round2_target', d.round2_target, 'round2Target', 1, 99, t('targetUnit'))}</div><div class="full" data-kof-revival-rule><label class="check"><input name="kof_revival_no_repeat" type="checkbox"${d.kof_revival_no_repeat ? ' checked' : ''}>${t('kofRevivalNoRepeat')}</label><p class="help">${t('kofRevivalNoRepeatHint')}</p></div></div></section>` + window.TBRosterEditor.markup({ users, entries: d.entries, editable: true, allowRandom: false, t, esc, person });
     } else if (d.step === 4) {
       const stages = [1, 2, ...(needsAce(d) ? [3] : [])];
       const wins = stages.filter(stage => winner(d.matches[stage]) === 'a').length;
@@ -80,11 +85,10 @@
       }));
       $('#archive-next', form).onclick = () => {
         if (!finished(d, round)) return;
-        d.step = round === 1 ? 2 : round === 2 && needsAce(d) ? 3 : 4;
-        redraw();
+        changeStep(round === 1 ? 2 : round === 2 && needsAce(d) ? 3 : 4);
       };
     }
-    $('#archive-back', form)?.addEventListener('click', () => { d.step = d.step === 4 ? needsAce(d) ? 3 : 2 : d.step - 1; redraw(); });
+    $('#archive-back', form)?.addEventListener('click', () => changeStep(d.step === 4 ? needsAce(d) ? 3 : 2 : d.step - 1));
     form.onsubmit = action(async event => {
       event.preventDefault();
       if (d.step === 0) {
@@ -97,7 +101,8 @@
           if (!(await window.TBConfirm.ask(t('archiveRosterReset')))) return;
           d.matches = { 1: [], 2: [], 3: [] }; d.picks = {};
         }
-        d.signature = signature; d.step = 1; redraw();
+        d.signature = signature;
+        changeStep(1);
       } else if (d.step === 4) {
         if (![1, 2, ...(needsAce(d) ? [3] : [])].every(stage => finished(d, stage))) throw Error(t('archiveIncomplete'));
         if (!(await window.TBConfirm.ask(t('confirmEndHint')))) return;

@@ -1,5 +1,30 @@
 const { test, expect, login, json, players, assignments, createTournament, image } = require('./helpers.cjs');
 
+test('赛事管理按赛事名和开始日期筛选，后台页面不显示重复页脚', async ({ page }) => {
+  await login(page, '/tournaments');
+  const before = (await json(page.request, 'GET', '/api/tournaments')).tournaments.length;
+  const roster = await players(page.request, '赛事筛选');
+  await createTournament(page.request, '日期筛选甲', roster, { start_time: '2026-11-19T19' });
+  await createTournament(page.request, '日期筛选乙', roster, { start_time: '2026-11-18T19' });
+  await page.goto('/tournaments');
+  await expect(page.locator('.site-footer')).toHaveCount(0);
+  await page.locator('#tournament-filter [name=name]').fill('日期筛选甲');
+  await page.locator('#tournament-filter [name=from]').fill('2026-11-19');
+  await page.locator('#tournament-filter [name=to]').fill('2026-11-19');
+  await page.locator('#tournament-filter button.primary').click();
+  await expect(page.locator('.event-table tbody tr')).toHaveCount(1);
+  await expect(page.locator('.event-table')).toContainText('日期筛选甲');
+  expect(new URL(page.url()).searchParams.get('from')).toBe('2026-11-19');
+  await page.locator('#tournament-filter [data-go="/tournaments"]').click();
+  await expect(page.locator('.event-table tbody tr')).toHaveCount(before + 2);
+  await page.goto('/site-settings');
+  await expect(page.locator('.site-footer')).toHaveCount(0);
+  await page.goto('/tournaments/new');
+  await expect(page.locator('.site-footer')).toHaveCount(0);
+  await page.goto('/tournaments/archive');
+  await expect(page.locator('.site-footer')).toHaveCount(0);
+});
+
 test('登录校验、单设备会话替换与自动退出', async ({ page, browser }) => {
   await page.goto('/accounts');
   await expect(page).toHaveURL(/\/login\?return=/);
@@ -261,7 +286,7 @@ test('直播点击确认和公开SSE更新、历史筛选与软删除恢复', as
     await publicPage.locator('#history-filter [name=name]').fill('端到端历史');
     const playerSelect = publicPage.locator('.search-select').filter({ has: publicPage.locator('[name=player_id]') });
     await playerSelect.locator('input').fill(roster[0].display_name);
-    // 无分类后缀时精确姓名会直接选中账号，菜单也会随之关闭。
+    await playerSelect.getByRole('option').first().click();
     await expect(playerSelect.locator('select')).toHaveValue(String(roster[0].id));
     await publicPage.locator('#history-filter button.primary').click();
     await expect(publicPage.locator('.event-table tbody tr')).toHaveCount(1);
