@@ -307,6 +307,7 @@
     const data = await api('/api/site-settings');
     const defaults = data.tournament_defaults;
     const actions = contents => `<div class="settings-row-actions">${contents}</div>`;
+    const extraInfoPreview = info => `<span class="settings-extra-info-preview">${info.icon_url ? `<img src="${esc(info.icon_url)}" alt="${esc(info.name)}">` : `<span>${esc(info.name || t('extraInfo'))}</span>`}</span>`;
     const nameInput = value => input('name', value, 'text', `required aria-label="${t('names')}" placeholder="${t('names')}"`);
     const categoryFields = (category = {}) => `<div class="settings-category-fields">${input('name', category.name || '', 'text', `required aria-label="${t('categoryName')}" placeholder="${t('categoryName')}"`)}<input type="file" name="icon" accept="image/jpeg,image/png,image/gif,image/webp" aria-label="${esc(t('icon') + (category.name ? ' · ' + category.name : ''))}"${category.id ? '' : ' required'}></div>`;
     const preview = category => `<span class="settings-category-preview">${category.icon_url ? `<img src="${esc(category.icon_url)}" alt="${esc(category.name)}">` : '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="9" cy="9" r="2"/><path d="m4 18 5-5 4 3 3-5 5 7"/></svg>'}</span>`;
@@ -329,6 +330,11 @@
           ${data.categories.map(c => `<form class="settings-category-row settings-list-row" data-category="${c.id}">${preview(c)}${categoryFields(c)}${actions(`<button class="outline">${t('save')}</button><button type="button" class="outline danger" data-delete-category="${c.id}">${t('delete')}</button>`)}</form>`).join('')}
         </div></section>
       </div>
+      <section class="panel settings-panel section-gap"><div class="panel-head"><h2>${t('extraInfoSettings')}</h2><span class="count-badge">${data.extra_infos.length}</span></div><div class="panel-body">
+        <form id="extra-info-form" class="settings-extra-info-row settings-create-row">${extraInfoPreview({})}<label>${t('extraInfoName')}${input('name', '', 'text', `required maxlength="80" aria-label="${t('extraInfoName')}"`)}</label><label>${t('extraInfoOptions')}<textarea name="options" rows="3" required aria-label="${t('extraInfoOptions')}" placeholder="${esc(t('extraInfoOptionsHint'))}"></textarea></label><label>${t('extraInfoIcon')}<input type="file" name="icon" accept="image/jpeg,image/png,image/gif,image/webp" aria-label="${t('extraInfoIcon')}"></label>${actions(`<button class="primary">${t('add')}</button>`)}</form>
+        <p class="help settings-upload-hint">${t('extraInfoSettingsHint')}</p>
+        ${data.extra_infos.map(info => `<form class="settings-extra-info-row settings-list-row" data-extra-info="${info.id}">${extraInfoPreview(info)}<label>${t('extraInfoName')}${input('name', info.name, 'text', `required maxlength="80" aria-label="${t('extraInfoName')}"`)}</label><label>${t('extraInfoOptions')}<textarea name="options" rows="3" required aria-label="${esc(t('extraInfoOptions') + ' · ' + info.name)}">${esc(info.options.join('\n'))}</textarea></label><label>${t('extraInfoIcon')}<input type="file" name="icon" accept="image/jpeg,image/png,image/gif,image/webp" aria-label="${esc(t('extraInfoIcon') + ' · ' + info.name)}"></label>${info.icon_url ? `<label class="check extra-info-remove-icon"><input type="checkbox" name="remove_icon">${t('removeIcon')}</label>` : ''}${actions(`<button class="outline">${t('save')}</button><button type="button" class="outline danger" data-delete-extra-info="${info.id}">${t('delete')}</button>`)}</form>`).join('')}
+      </div></section>
     </div>`, 'siteSettings');
     $('#tournament-defaults-form').onsubmit = action(async event => {
       event.preventDefault();
@@ -338,8 +344,23 @@
     });
     $('#name-form').onsubmit = action(async event => { event.preventDefault(); await post('/api/site-settings/tournament-names', Object.fromEntries(new FormData(event.target))); await siteSettingsPage(); toast(t('saved')); });
     $('#category-form').onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/categories', { method: 'POST', body: new FormData(event.target) }); await siteSettingsPage(); toast(t('saved')); });
+    $('#extra-info-form').onsubmit = action(async event => {
+      event.preventDefault();
+      await api('/api/site-settings/extra-infos', { method: 'POST', body: new FormData(event.target) });
+      await siteSettingsPage(); toast(t('saved'));
+    });
     $$('[data-name]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); await post('/api/site-settings/tournament-names/' + form.dataset.name, Object.fromEntries(new FormData(form)), 'PATCH'); await siteSettingsPage(); toast(t('saved')); }));
     $$('[data-category]').forEach(form => form.onsubmit = action(async event => { event.preventDefault(); await api('/api/site-settings/categories/' + form.dataset.category, { method: 'PATCH', body: new FormData(form) }); await siteSettingsPage(); toast(t('saved')); }));
+    $$('[data-extra-info]').forEach(form => form.onsubmit = action(async event => {
+      event.preventDefault();
+      await api('/api/site-settings/extra-infos/' + form.dataset.extraInfo, { method: 'PATCH', body: new FormData(form) });
+      await siteSettingsPage(); toast(t('saved'));
+    }));
+    $$('[data-delete-extra-info]').forEach(button => button.onclick = action(async () => {
+      if (!(await confirmAction(t('deleteConfirm')))) return;
+      await api('/api/site-settings/extra-infos/' + button.dataset.deleteExtraInfo, { method: 'DELETE' });
+      await siteSettingsPage(); toast(t('saved'));
+    }));
     for (const kind of ['name', 'category']) $$(`[data-delete-${kind}]`).forEach(button => button.onclick = action(async () => { if (!(await confirmAction(t('deleteConfirm')))) return; const id = button.getAttribute('data-delete-' + kind); const path = kind === 'name' ? 'tournament-names' : 'categories'; await api('/api/site-settings/' + path + '/' + id, { method: 'DELETE' }); await siteSettingsPage(); toast(t('saved')); }));
   }
 
@@ -399,12 +420,29 @@
       $$('[data-special-side]', row).forEach(select => select.setAttribute('aria-label', `${t('specialMatchGroup')}${index + 1} · ${t(select.dataset.specialSide === 'a' ? 'teamA' : 'teamB')} · ${t('specialCandidates')}`));
     });
   }
-  function rulesMarkup(e = {}, roundEditable = true, aceEditable = true) {
+  function rulesMarkup(e = {}, roundEditable = true, aceEditable = true, extraInfoDefinitions = []) {
     const rules = { ...defaultRules(), ...e.rules };
     const roundDisabled = roundEditable ? '' : ' disabled';
     const aceDisabled = aceEditable ? '' : ' disabled';
     const hiddenRound = roundEditable ? '' : input('round1_target', e.round1_target || 4, 'hidden') + input('round2_target', e.round2_target || 5, 'hidden') + input('round1_mode', rules.round1_mode, 'hidden') + (rules.no_repeat ? input('no_repeat', 'on', 'hidden') : '') + input('kof_starter', rules.kof_starter, 'hidden') + (rules.kof_revival_no_repeat ? input('kof_revival_no_repeat', 'on', 'hidden') : '');
-    return `<section class="panel section-gap editor-section" id="event-round1"><div class="panel-head"><h2>${t('round1')}</h2></div><div class="panel-body form-grid">${compactNumber('round1_target', e.round1_target || 4, 'round1Target', 1, 99, t('targetUnit'), !roundEditable)}${field('round1Mode', `<select name="round1_mode"${roundDisabled}><option value="manual"${rules.round1_mode === 'manual' ? ' selected' : ''}>${t('manual')}</option><option value="random"${rules.round1_mode === 'random' ? ' selected' : ''}>${t('random')}</option></select>`)}<label class="check"><input name="no_repeat" type="checkbox"${rules.no_repeat ? ' checked' : ''}${roundDisabled}>${t('noRepeat')}</label>${hiddenRound}</div></section><section class="panel section-gap editor-section" id="event-round2"><div class="panel-head"><h2>${t('round2')}</h2></div><div class="panel-body form-grid">${compactNumber('round2_target', e.round2_target || 5, 'round2Target', 1, 99, t('targetUnit'), !roundEditable)}${field('kofStarter', `<div class="mode-choices">${['random', 'captain'].map(mode => `<label><input type="radio" name="kof_starter" value="${mode}"${rules.kof_starter === mode ? ' checked' : ''}${roundDisabled}><span>${t(mode === 'random' ? 'randomStarter' : 'captainStarter')}</span></label>`).join('')}</div>`)}${kofManualRevivalMarkup(rules, roundDisabled)}<div class="full" data-kof-revival-rule><label class="check"><input name="kof_revival_no_repeat" type="checkbox"${rules.kof_revival_no_repeat ? ' checked' : ''}${roundDisabled}>${t('kofRevivalNoRepeat')}</label><p class="help">${t('kofRevivalNoRepeatHint')}</p></div><p class="help full">${t('kofHint')}</p></div></section><section class="panel section-gap editor-section" id="event-ace"><div class="panel-head"><div class="ace-editor-heading"><h2>${t('aceRules')}</h2><span class="ace-edit-hint">${t('aceEditableUntilFirstResult')}</span></div><span id="fallback-probability"></span></div><div class="panel-body"><div class="ace-probability-grid">${compactNumber('ace_most_wins', rules.ace_most_wins, 'mostWins', 0, 100, '%', !aceEditable)}${compactNumber('ace_most_losses', rules.ace_most_losses, 'mostLosses', 0, 100, '%', !aceEditable)}</div><p class="help">${t('aceHint')}</p><div id="special-rules">${rules.ace_specials.map(specialMarkup).join('')}</div><button type="button" class="outline" id="add-special"${aceDisabled}>${t('addSpecial')}</button></div></section>`;
+    return `<section class="panel section-gap editor-section" id="event-round1"><div class="panel-head"><h2>${t('round1')}</h2></div><div class="panel-body form-grid">${compactNumber('round1_target', e.round1_target || 4, 'round1Target', 1, 99, t('targetUnit'), !roundEditable)}${field('round1Mode', `<select name="round1_mode"${roundDisabled}><option value="manual"${rules.round1_mode === 'manual' ? ' selected' : ''}>${t('manual')}</option><option value="random"${rules.round1_mode === 'random' ? ' selected' : ''}>${t('random')}</option></select>`)}<label class="check"><input name="no_repeat" type="checkbox"${rules.no_repeat ? ' checked' : ''}${roundDisabled}>${t('noRepeat')}</label>${extraInfoStageMarkup('round1', extraInfoDefinitions, rules, roundEditable)}${hiddenRound}</div></section><section class="panel section-gap editor-section" id="event-round2"><div class="panel-head"><h2>${t('round2')}</h2></div><div class="panel-body form-grid">${compactNumber('round2_target', e.round2_target || 5, 'round2Target', 1, 99, t('targetUnit'), !roundEditable)}${field('kofStarter', `<div class="mode-choices">${['random', 'captain'].map(mode => `<label><input type="radio" name="kof_starter" value="${mode}"${rules.kof_starter === mode ? ' checked' : ''}${roundDisabled}><span>${t(mode === 'random' ? 'randomStarter' : 'captainStarter')}</span></label>`).join('')}</div>`)}${kofManualRevivalMarkup(rules, roundDisabled)}<div class="full" data-kof-revival-rule><label class="check"><input name="kof_revival_no_repeat" type="checkbox"${rules.kof_revival_no_repeat ? ' checked' : ''}${roundDisabled}>${t('kofRevivalNoRepeat')}</label><p class="help">${t('kofRevivalNoRepeatHint')}</p></div><p class="help full">${t('kofHint')}</p>${extraInfoStageMarkup('round2', extraInfoDefinitions, rules, roundEditable)}</div></section><section class="panel section-gap editor-section" id="event-ace"><div class="panel-head"><div class="ace-editor-heading"><h2>${t('aceRules')}</h2><span class="ace-edit-hint">${t('aceEditableUntilFirstResult')}</span></div><span id="fallback-probability"></span></div><div class="panel-body"><div class="ace-probability-grid">${compactNumber('ace_most_wins', rules.ace_most_wins, 'mostWins', 0, 100, '%', !aceEditable)}${compactNumber('ace_most_losses', rules.ace_most_losses, 'mostLosses', 0, 100, '%', !aceEditable)}</div><p class="help">${t('aceHint')}</p><div id="special-rules">${rules.ace_specials.map(specialMarkup).join('')}</div><button type="button" class="outline" id="add-special"${aceDisabled}>${t('addSpecial')}</button>${extraInfoStageMarkup('ace', extraInfoDefinitions, rules, aceEditable)}</div></section>`;
+  }
+
+  function extraInfoStageMarkup(stage, definitions, rules, editable) {
+    const selected = rules.extra_info?.[stage] || [];
+    const currentByID = new Map(selected.map(item => [Number(item.definition_id), item]));
+    const available = [...definitions];
+    for (const item of selected) if (!available.some(definition => Number(definition.id) === Number(item.definition_id))) {
+      available.push({ id: item.definition_id, name: item.name, options: item.options });
+    }
+    if (!available.length) return '';
+    const rows = available.map(definition => {
+      const saved = currentByID.get(Number(definition.id));
+      const options = saved?.options || definition.options || [];
+      const selectedValues = saved?.selected || [];
+      return `<div class="extra-info-config" data-extra-info-config data-extra-stage="${stage}" data-extra-id="${definition.id}" data-extra-name="${esc(saved?.name || definition.name)}" data-extra-options="${esc(JSON.stringify(options))}"><label class="check extra-info-enable"><input type="checkbox" data-extra-enabled${saved ? ' checked' : ''}${editable ? '' : ' disabled'}>${esc(saved?.name || definition.name)}</label><fieldset data-extra-options${saved && editable ? '' : ' disabled'}><legend>${t('extraInfoPool')}</legend><div class="extra-info-options">${options.map(option => `<label class="extra-info-choice"><input type="checkbox" data-extra-option value="${esc(option)}"${selectedValues.includes(option) ? ' checked' : ''}>${esc(option)}</label>`).join('')}</div><p class="help">${t('extraInfoNoneMeansAll')}</p></fieldset></div>`;
+    }).join('');
+    return `<div class="full tournament-extra-info"><h3>${t('extraInfo')}</h3><div class="extra-info-stage-list">${rows}</div></div>`;
   }
   function kofManualRevivalMarkup(rules, disabled) {
     return `<div class="full" data-kof-manual-revival hidden><label class="check"><input name="kof_manual_revival" type="checkbox"${rules.kof_manual_revival ? ' checked' : ''}${disabled}>${t('kofManualRevival')}</label></div>`;
@@ -414,7 +452,21 @@
     const value = name => $(`[name="${name}"]:checked`, form)?.value ?? $(`[name="${name}"]`, form)?.value;
     const checked = name => !!$(`[name="${name}"]:checked`, form);
     const manualRevival = checked('kof_manual_revival');
-    return { round1_mode: value('round1_mode'), kof_starter: value('kof_starter'), no_repeat: checked('no_repeat'), kof_manual_revival: manualRevival, kof_revival_no_repeat: manualRevival || checked('kof_revival_no_repeat'), random_draw_seconds: Number(value('random_draw_seconds')), ace_draw_seconds: Number(value('ace_draw_seconds')), ace_most_wins: Number(value('ace_most_wins')), ace_most_losses: Number(value('ace_most_losses')), ace_specials: $$('.special-rule', form).map(row => ({ probability: Number($('[name="special_probability"]', row).value), ...specialCandidatesValue(row), player_ids: specialCandidateIDs(row) })) };
+    return { round1_mode: value('round1_mode'), kof_starter: value('kof_starter'), no_repeat: checked('no_repeat'), kof_manual_revival: manualRevival, kof_revival_no_repeat: manualRevival || checked('kof_revival_no_repeat'), random_draw_seconds: Number(value('random_draw_seconds')), ace_draw_seconds: Number(value('ace_draw_seconds')), ace_most_wins: Number(value('ace_most_wins')), ace_most_losses: Number(value('ace_most_losses')), ace_specials: $$('.special-rule', form).map(row => ({ probability: Number($('[name="special_probability"]', row).value), ...specialCandidatesValue(row), player_ids: specialCandidateIDs(row) })), extra_info: readExtraInfoDraft(form) };
+  }
+
+  function readExtraInfoDraft(form) {
+    const result = {};
+    for (const stage of ['round1', 'round2', 'ace']) {
+      const selected = $$(`[data-extra-info-config][data-extra-stage="${stage}"]`, form).filter(row => $('[data-extra-enabled]', row).checked).map(row => ({
+        definition_id: Number(row.dataset.extraId),
+        name: row.dataset.extraName,
+        options: JSON.parse(row.dataset.extraOptions),
+        selected: $$('[data-extra-option]:checked', row).map(option => option.value)
+      }));
+      if (selected.length) result[stage] = selected;
+    }
+    return Object.keys(result).length ? result : undefined;
   }
   function rulesValue(form) {
     const rules = readRulesDraft(form);
@@ -440,6 +492,10 @@
       uniqueRevival.disabled = manualRevival.disabled || manualRevival.checked;
       if (manualRevival.checked) uniqueRevival.checked = true;
     };
+    form.addEventListener('change', event => {
+      const toggle = event.target.closest('[data-extra-enabled]');
+      if (toggle) toggle.closest('[data-extra-info-config]').querySelector('[data-extra-options]').disabled = !toggle.checked || toggle.disabled;
+    });
     $('#add-special').onclick = () => { $('#special-rules').insertAdjacentHTML('beforeend', specialMarkup()); refresh(); };
     $('#special-rules').addEventListener('click', event => { const remove = event.target.closest('[data-remove-special]'); if (remove) { remove.closest('.special-rule').remove(); refresh(); } });
     form.addEventListener('rosterchange', refresh);
@@ -685,7 +741,7 @@
         <fieldset class="event-settings-fields">
           ${basic}
           ${rosterMarkup(state.users, state.roster, roundSetupEditable)}
-          ${rosterOnly ? '' : rulesMarkup(e, roundSetupEditable, aceSettingsEditable)}
+          ${rosterOnly ? '' : rulesMarkup(e, roundSetupEditable, aceSettingsEditable, catalog.extra_infos || [])}
         </fieldset>
         ${rosterOnly ? '' : drawTimingMarkup(e, timingEditable, creating)}
         ${backgroundPanel}${correctionPanel}${management?.markup || ''}
@@ -826,7 +882,32 @@
     const last = e.matches.filter(m => m.stage === 'round2').at(-1);
     return { stage: 'round2', status: 'waiting', seq: (last?.seq || 0) + 1, who_win: '0', player_a_id: last?.who_win === 'a' ? last.player_a_id : 0, player_b_id: last?.who_win === 'b' ? last.player_b_id : 0, player_a_name: last?.who_win === 'a' ? last.player_a_name : t('toConfirm'), player_b_name: last?.who_win === 'b' ? last.player_b_name : t('toConfirm') };
   }
-  function matchMarkup(m, people) { const a = people.find(p => p.id === m.player_a_id) || { id: m.player_a_id, display_name: m.player_a_name }, b = people.find(p => p.id === m.player_b_id) || { id: m.player_b_id, display_name: m.player_b_name }; const decided = m.who_win === 'a' || m.who_win === 'b'; const resultLabel = !decided ? 'VS' : t(m.who_win === 'a' ? 'win' : 'lose'); const resultClass = !decided ? 'board-result-muted' : m.who_win === 'a' ? 'board-result-win' : 'board-result-lose'; return `<div class="board-match ${m.status === 'pending' ? 'is-pending' : ''}"><span class="board-match-no">#${m.seq}</span><div class="board-player ${m.who_win === 'a' ? 'is-winner' : m.who_win === 'b' ? 'is-loser' : ''}">${boardIdentity(a)}</div><span class="board-match-result" aria-label="${t('teamA')} · ${resultLabel}" title="${t('teamA')} · ${resultLabel}"><b class="${resultClass}">${resultLabel}</b></span><div class="board-player board-player-right ${m.who_win === 'b' ? 'is-winner' : m.who_win === 'a' ? 'is-loser' : ''}">${boardIdentity(b)}</div></div>`; }
+  function matchMarkup(m, people, e) {
+    const a = people.find(player => player.id === m.player_a_id) || { id: m.player_a_id, display_name: m.player_a_name };
+    const b = people.find(player => player.id === m.player_b_id) || { id: m.player_b_id, display_name: m.player_b_name };
+    const decided = m.who_win === 'a' || m.who_win === 'b';
+    const resultLabel = !decided ? 'VS' : t(m.who_win === 'a' ? 'win' : 'lose');
+    const resultClass = !decided ? 'board-result-muted' : m.who_win === 'a' ? 'board-result-win' : 'board-result-lose';
+    return `<div class="board-match ${m.status === 'pending' ? 'is-pending' : ''}"><span class="board-match-no">#${m.seq}</span><div class="board-player ${m.who_win === 'a' ? 'is-winner' : m.who_win === 'b' ? 'is-loser' : ''}">${boardIdentity(a)}</div><span class="board-match-result" aria-label="${t('teamA')} · ${resultLabel}" title="${t('teamA')} · ${resultLabel}"><b class="${resultClass}">${resultLabel}</b></span><div class="board-player board-player-right ${m.who_win === 'b' ? 'is-winner' : m.who_win === 'a' ? 'is-loser' : ''}">${boardIdentity(b)}</div>${extraInfoDetailsMarkup(m.extra_info, e.rules.extra_info?.[m.stage], m.id)}</div>`;
+  }
+
+  function extraInfoRowsMarkup(extraInfo, selections = [], className = 'board-extra-info-rows') {
+    const entries = Object.entries(extraInfo || {}).filter(([name, value]) => name && value);
+    if (!entries.length) return '';
+    const configured = new Map((selections || []).map(selection => [selection.name, selection]));
+    return `<dl class="${className}">${entries.map(([name, value]) => {
+      const iconURL = configured.get(name)?.icon_url;
+      const label = iconURL ? `<img src="${esc(iconURL)}" alt="">` : `<strong>${esc(name)}</strong>`;
+      return `<div><dt>${label}</dt><dd>${esc(value)}</dd></div>`;
+    }).join('')}</dl>`;
+  }
+
+  function extraInfoDetailsMarkup(extraInfo, selections, matchID) {
+    const rows = extraInfoRowsMarkup(extraInfo, selections);
+    if (!rows) return '';
+    const popoverID = `board-extra-info-${Number(matchID)}`;
+    return `<button type="button" class="board-extra-info-trigger" popovertarget="${popoverID}" title="${t('extraInfoDetails')}" aria-label="${t('extraInfoDetails')}">ⓘ</button><div id="${popoverID}" popover class="board-extra-info-popover"><h2>${t('extraInfoDetails')}</h2>${rows}</div>`;
+  }
   // 姓名和种族作为同一个整体，所有位置均按姓名、种族的顺序显示。
   const boardIdentity = player => `<span class="board-identity">${recordName(player)}${categoryIcon(player)}</span>`;
   function currentPlayerMarkup(e, player, stage, side) { const hasWin = playerHasWin(e, player.id); const hasLoss = stage === 'round2' && kofPlayerEliminated(e, player.id); const stateClass = hasWin ? 'is-record-winner' : 'is-record-new'; return `<div class="current-player ${side === 'b' ? 'current-player-right' : ''} ${stateClass} ${hasLoss ? 'is-lost' : ''}">${avatar(player)}<div><strong>${boardIdentity(player)}</strong></div></div>`; }
@@ -835,12 +916,12 @@
     const a = people.find(p => p.id === match.player_a_id) || { display_name: match.player_a_name }, b = people.find(p => p.id === match.player_b_id) || { display_name: match.player_b_name };
     const canRecord = editable(e) && !state.setupDraw && match.player_a_id && match.player_b_id && (match.status === 'pending' || (preMatch(e) && match.status === 'planned'));
     const result = side => canRecord ? `<button type="button" class="board-current-win" data-current-winner="${e.teams[side].id}" data-current-match="${match.id || 0}" data-player-a="${match.player_a_id}" data-player-b="${match.player_b_id}"${state.recordingResult || state.draw?.endAt > Date.now() ? ' disabled' : ''}>${t('recordWin')}</button>` : '';
-    return `<section class="board-current-match" aria-label="${t('currentMatch')}"><div class="board-draw-roll" id="draw-roll" aria-live="polite" hidden><span>${t('drawing')}</span><div><strong id="draw-roll-a">${esc(a.display_name)}</strong><b>VS</b><strong id="draw-roll-b">${esc(b.display_name)}</strong></div></div><div class="board-current-fighters"><div class="board-current-side">${currentPlayerMarkup(e, a, match.stage, 'a')}${result(0)}</div><div class="board-current-vs">VS</div><div class="board-current-side">${currentPlayerMarkup(e, b, match.stage, 'b')}${result(1)}</div></div></section>`;
+    return `<section class="board-current-match" aria-label="${t('currentMatch')}"><div class="board-draw-roll" id="draw-roll" aria-live="polite" hidden><span>${t('drawing')}</span><div><strong id="draw-roll-a">${esc(a.display_name)}</strong><b>VS</b><strong id="draw-roll-b">${esc(b.display_name)}</strong></div></div><div class="board-current-fighters"><div class="board-current-side">${currentPlayerMarkup(e, a, match.stage, 'a')}${result(0)}</div><div class="board-current-vs"><span>VS</span>${extraInfoRowsMarkup(match.extra_info, e.rules.extra_info?.[match.stage], 'board-current-extra-info-rows')}</div><div class="board-current-side">${currentPlayerMarkup(e, b, match.stage, 'b')}${result(1)}</div></div></section>`;
   }
   function aceSourceLabel(e) { return window.TBMatchDraw.sourceLabel(e.ace_draw_source || 'random', e.ace_draw_special, t); }
   function roundMarkup(round, matches, people, e) {
     const draw = round.stage === 'ace' && e ? window.TBMatchDraw.record(e, { t, esc, recordName }) : '';
-    return `<section class="board-round" data-stage="${round.stage}"><div class="board-round-head"><div><span class="board-round-no">${t(round.stage)}</span><h2>${round.score_a} : ${round.score_b}</h2></div></div>${draw}<div class="board-matches">${matches.map(m => matchMarkup(m, people)).join('') || `<div class="board-empty">${t('noMatches')}</div>`}</div></section>`;
+    return `<section class="board-round" data-stage="${round.stage}"><div class="board-round-head"><div><span class="board-round-no">${t(round.stage)}</span><h2>${round.score_a} : ${round.score_b}</h2></div></div>${draw}<div class="board-matches">${matches.map(m => matchMarkup(m, people, e)).join('') || `<div class="board-empty">${t('noMatches')}</div>`}</div></section>`;
   }
   function aceRulesSummary(e, rules) {
     const players = new Map(e.teams.flatMap(team => team.players).concat(e.setup_roster || []).map(player => [player.id, player]));
@@ -855,7 +936,16 @@
     }).join('');
     const configured = Number(rules.ace_most_wins) + Number(rules.ace_most_losses) + (rules.ace_specials || []).reduce((sum, group) => sum + Number(group.probability || 0), 0);
     const odds = [['sourceMostWins', Number(rules.ace_most_wins) || 0], ['sourceMostLosses', Number(rules.ace_most_losses) || 0], ['fallback', Math.max(0, 100 - configured)]];
-    return `<div class="board-rule-block ace-rule-block"><div class="ace-rule-heading"><h3>${t('ace')}</h3><div class="ace-rule-odds">${odds.map(([label, probability]) => `<dl><dt>${t(label)}</dt><dd>${probability}%</dd></dl>`).join('')}</div></div>${specials ? `<dl class="ace-special-list">${specials}</dl>` : ''}</div>`;
+    const extraInfo = extraInfoRuleMarkup(rules, 'ace');
+    return `<div class="board-rule-block ace-rule-block"><div class="ace-rule-heading"><h3>${t('ace')}</h3><div class="ace-rule-odds">${odds.map(([label, probability]) => `<dl><dt>${t(label)}</dt><dd>${probability}%</dd></dl>`).join('')}</div></div>${extraInfo ? `<dl class="extra-info-rule-list">${extraInfo}</dl>` : ''}${specials ? `<dl class="ace-special-list">${specials}</dl>` : ''}</div>`;
+  }
+
+  function extraInfoRuleMarkup(rules, stage) {
+    return (rules.extra_info?.[stage] || []).map(selection => {
+      const values = selection.selected?.length ? selection.selected : selection.options || [];
+      const label = selection.icon_url ? `<img src="${esc(selection.icon_url)}" alt="">` : `<strong>${esc(selection.name)}</strong>`;
+      return `<div class="extra-info-rule"><dt>${label}</dt><dd>${values.map(esc).join(' · ')}</dd></div>`;
+    }).join('');
   }
   function kofRevivalSummary(e, rules) {
     const sizes = hasGrouping(e) ? e.teams.map(team => team.players.filter(player => player.active !== false).length)
@@ -866,12 +956,15 @@
       + (window.TBKOF.needsRevivalRule(sizes, e.round2_target) ? item('kofRevivalNoRepeat', rules.kof_revival_no_repeat) : '');
   }
   function rulesSummary(e) {
+    const rules = { ...defaultRules(), ...e.rules };
     let content;
     if (e.is_imported) {
-      content = `<div class="board-rule-block board-imported-rule">${t('importedTournament')}</div>`;
+      content = `<div class="board-rule-block board-imported-rule">${t('importedTournament')}</div>${['round1', 'round2', 'ace'].map(stage => {
+        const extraInfo = extraInfoRuleMarkup(rules, stage);
+        return extraInfo ? `<div class="board-rule-block"><h3>${t(stage)}</h3><dl class="extra-info-rule-list">${extraInfo}</dl></div>` : '';
+      }).join('')}`;
     } else {
-      const rules = { ...defaultRules(), ...e.rules };
-      content = `<div class="board-rule-block"><h3>${t('round1')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round1_target}</dd></div><div><dt>${t('round1Mode')}</dt><dd>${t(rules.round1_mode === 'random' ? 'random' : 'manual')}</dd></div><div><dt>${t('noRepeat')}</dt><dd>${t(rules.no_repeat ? 'enabled' : 'disabled')}</dd></div></dl></div><div class="board-rule-block"><h3>${t('round2')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round2_target}</dd></div><div><dt>${t('kofStarter')}</dt><dd>${t(rules.kof_starter === 'captain' ? 'captainStarter' : 'randomStarter')}</dd></div>${kofRevivalSummary(e, rules)}</dl></div>${aceRulesSummary(e, rules)}`;
+      content = `<div class="board-rule-block"><h3>${t('round1')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round1_target}</dd></div><div><dt>${t('round1Mode')}</dt><dd>${t(rules.round1_mode === 'random' ? 'random' : 'manual')}</dd></div><div><dt>${t('noRepeat')}</dt><dd>${t(rules.no_repeat ? 'enabled' : 'disabled')}</dd></div>${extraInfoRuleMarkup(rules, 'round1')}</dl></div><div class="board-rule-block"><h3>${t('round2')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round2_target}</dd></div><div><dt>${t('kofStarter')}</dt><dd>${t(rules.kof_starter === 'captain' ? 'captainStarter' : 'randomStarter')}</dd></div>${kofRevivalSummary(e, rules)}${extraInfoRuleMarkup(rules, 'round2')}</dl></div>${aceRulesSummary(e, rules)}`;
     }
     return `<details class="board-rules"${state.rulesExpanded ? ' open' : ''}><summary class="board-roster-head">${t('eventRules')}</summary><div class="board-rules-content">${content}</div></details>`;
   }

@@ -448,3 +448,29 @@ tr[hidden]{display:none}
 .background-file-actions button{flex-shrink:0;width:auto}
 .background-edit .background-file-actions{grid-column:2/-1}
 @media(max-width:760px){.background-edit{grid-template-columns:48px minmax(0,1fr)}.background-edit .background-file-actions{grid-column:1/-1}.background-file-actions{gap:8px}}
+
+/* 额外信息沿用看板的文本对比度，仅图标按钮和详情弹层使用独立边框。 */
+.broadcast-board .board-match{position:relative;padding-right:44px}
+.broadcast-board .board-extra-info-trigger{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:30px;height:30px;display:grid;place-items:center;padding:0;border:1px solid #71829b;border-radius:50%;background:#172338;color:#d8e4f4;font-size:18px;line-height:1;cursor:pointer}
+.broadcast-board .board-extra-info-trigger:hover,.broadcast-board .board-extra-info-trigger:focus-visible{border-color:#f0b194;color:#fff;outline:2px solid #f0b194;outline-offset:2px}
+.broadcast-board .board-extra-info-popover{width:min(380px,calc(100vw - 32px));max-height:min(70vh,520px);overflow:auto;padding:18px;border:1px solid #52617a;border-radius:7px;background:#101b2df5;color:#f4f7fb;box-shadow:0 12px 36px #0008}
+.broadcast-board .board-extra-info-popover::backdrop{background:#070d1988}
+.broadcast-board .board-extra-info-popover h2{margin:0 0 12px;font-size:16px}
+.broadcast-board .board-extra-info-rows{display:grid;gap:5px;margin:0;color:#f4f7fb;font-size:13px;letter-spacing:0}
+.broadcast-board .board-extra-info-rows>div{display:grid;grid-template-columns:minmax(80px,.7fr) minmax(0,1.3fr);align-items:center;gap:12px;padding:5px 0;border-bottom:1px solid #ffffff18}
+.broadcast-board .board-extra-info-rows>div:last-child{border-bottom:0}
+.broadcast-board .board-extra-info-rows dt{display:flex;align-items:center;gap:7px;color:#b7c3d5}
+.broadcast-board .board-extra-info-rows dt img{width:22px;height:22px;flex:none;object-fit:contain}
+.broadcast-board .board-extra-info-rows dt strong{font-size:12px}
+.broadcast-board .board-extra-info-rows dd{margin:0;color:#fff;text-align:right;font-weight:700;overflow-wrap:anywhere}
+.broadcast-board .board-current-fighters:has(.board-current-extra-info-rows){grid-template-columns:minmax(0,1fr) minmax(180px,220px) minmax(0,1fr)}
+.broadcast-board .board-current-extra-info-rows{margin:8px 0 0;font-size:12px;letter-spacing:0}
+.broadcast-board .board-current-extra-info-rows>div{grid-template-columns:32px minmax(0,1fr);gap:9px;padding:2px 0;border:0}
+.broadcast-board .board-current-extra-info-rows dt{justify-content:flex-end}
+.broadcast-board .board-current-extra-info-rows dt img{width:30px;height:30px;flex:none;object-fit:contain}
+.broadcast-board .board-current-extra-info-rows dd{justify-content:flex-start;text-align:left;font-size:16px}
+.broadcast-board .extra-info-rule-list{margin-top:6px!important}
+.broadcast-board .extra-info-rule{align-items:center!important}
+.broadcast-board .extra-info-rule dt{display:flex;align-items:center;gap:7px;min-width:0}
+.broadcast-board .extra-info-rule dt img{width:22px;height:22px;flex:none;object-fit:contain}
+.broadcast-board .extra-info-rule dd{max-width:70%;white-space:normal}

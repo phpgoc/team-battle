@@ -41,7 +41,7 @@ func TestFreshDatabaseAndRepeatedStartup(t *testing.T) {
 	if err := Up(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
-	if got := scalar(t, db, `SELECT MAX(version_id) FROM goose_db_version`); got != 1 {
+	if got := scalar(t, db, `SELECT MAX(version_id) FROM goose_db_version`); got != 2 {
 		t.Fatalf("全新库版本为 %d", got)
 	}
 	if got := scalar(t, db, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('users','tournaments','matches','rounds','categories','backgrounds','config')`); got != 7 {
@@ -68,7 +68,7 @@ func TestFreshDatabaseAndRepeatedStartup(t *testing.T) {
 	if got := scalar(t, db, `SELECT CAST(value AS INTEGER) FROM config WHERE key='random_draw_seconds'`); got != 9 {
 		t.Fatal("重启覆盖了已有网站设置")
 	}
-	if got := scalar(t, db, `SELECT COUNT(*) FROM goose_db_version`); got != 2 {
+	if got := scalar(t, db, `SELECT COUNT(*) FROM goose_db_version`); got != 3 {
 		t.Fatal("重复启动重复记录了版本")
 	}
 }
@@ -83,8 +83,9 @@ func TestIncrementalMigrationRollbackRetryAndRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	baseline := goose.NewGoMigration(1, &goose.GoFunc{RunTx: upBaseline}, nil)
-	second := func(fail bool) *goose.Migration {
-		return goose.NewGoMigration(2, &goose.GoFunc{RunTx: func(_ context.Context, tx *sql.Tx) error {
+	mapInfo := goose.NewGoMigration(2, &goose.GoFunc{RunTx: upExtraInfo}, nil)
+	third := func(fail bool) *goose.Migration {
+		return goose.NewGoMigration(3, &goose.GoFunc{RunTx: func(_ context.Context, tx *sql.Tx) error {
 			if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN new_value TEXT NOT NULL DEFAULT ''; UPDATE users SET display_name='升级后',new_value='新值'`); err != nil {
 				return err
 			}
@@ -94,10 +95,10 @@ func TestIncrementalMigrationRollbackRetryAndRestart(t *testing.T) {
 			return nil
 		}}, nil)
 	}
-	if err := up(context.Background(), db, baseline, second(true)); err == nil || !strings.Contains(err.Error(), "模拟升级中断") {
+	if err := up(context.Background(), db, baseline, mapInfo, third(true)); err == nil || !strings.Contains(err.Error(), "模拟升级中断") {
 		t.Fatalf("迁移故障未报告: %v", err)
 	}
-	if scalar(t, db, `SELECT COUNT(*) FROM pragma_table_info('users') WHERE name='new_value'`) != 0 || scalar(t, db, `SELECT COUNT(*) FROM users WHERE display_name='原显示名'`) != 1 || scalar(t, db, `SELECT MAX(version_id) FROM goose_db_version`) != 1 {
+	if scalar(t, db, `SELECT COUNT(*) FROM pragma_table_info('users') WHERE name='new_value'`) != 0 || scalar(t, db, `SELECT COUNT(*) FROM users WHERE display_name='原显示名'`) != 1 || scalar(t, db, `SELECT MAX(version_id) FROM goose_db_version`) != 2 {
 		t.Fatal("失败迁移未同时回滚表结构、业务数据和版本记录")
 	}
 	if err := db.Close(); err != nil {
@@ -105,18 +106,18 @@ func TestIncrementalMigrationRollbackRetryAndRestart(t *testing.T) {
 	}
 	db = testDatabase(t, path)
 	for i := 0; i < 2; i++ {
-		if err := up(context.Background(), db, baseline, second(false)); err != nil {
+		if err := up(context.Background(), db, baseline, mapInfo, third(false)); err != nil {
 			t.Fatalf("修复后无法重试或重复启动: %v", err)
 		}
 	}
-	if scalar(t, db, `SELECT COUNT(*) FROM users WHERE username='keep' AND display_name='升级后' AND password_hash='保留密码' AND new_value='新值'`) != 1 || scalar(t, db, `SELECT COUNT(*) FROM goose_db_version WHERE version_id=2`) != 1 {
+	if scalar(t, db, `SELECT COUNT(*) FROM users WHERE username='keep' AND display_name='升级后' AND password_hash='保留密码' AND new_value='新值'`) != 1 || scalar(t, db, `SELECT COUNT(*) FROM goose_db_version WHERE version_id=3`) != 1 {
 		t.Fatal("增量升级结果或版本记录不正确")
 	}
 	// 用旧程序打开已经升级的库必须直接拒绝，不能悄悄降级。
 	if err := Up(context.Background(), db); err == nil || !strings.Contains(err.Error(), "高于") {
 		t.Fatalf("旧程序未拒绝新库: %v", err)
 	}
-	if scalar(t, db, `SELECT MAX(version_id) FROM goose_db_version`) != 2 {
+	if scalar(t, db, `SELECT MAX(version_id) FROM goose_db_version`) != 3 {
 		t.Fatal("旧程序改变了数据库版本")
 	}
 }

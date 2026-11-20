@@ -162,7 +162,76 @@ func seedTestData(db *sql.DB) error {
 	if err := seedUngroupedSpectatorDemo(tx, managerID, adminID, playerIDs[:6]); err != nil {
 		return err
 	}
+	if err := seedMapDemoData(tx); err != nil {
+		return err
+	}
 	return tx.Commit()
+}
+
+var demoMapOptions = []string{"Circuit Breaker", "Destination", "Fighting Spirit", "Python", "Tau Cross"}
+
+func seedMapDemoData(tx *sql.Tx) error {
+	iconData, err := demoFS.ReadFile("testdata/demo/map.png")
+	if err != nil {
+		return err
+	}
+	optionsJSON, err := json.Marshal(demoMapOptions)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`INSERT INTO site_extra_infos(name,options_json,icon_data,icon_mime,sort_order) VALUES('地图',?,?, 'image/png',0)`, string(optionsJSON), iconData); err != nil {
+		return err
+	}
+	var definitionID int64
+	if err := tx.QueryRow(`SELECT id FROM site_extra_infos WHERE name='地图'`).Scan(&definitionID); err != nil {
+		return err
+	}
+	iconURL := fmt.Sprintf("/api/extra-infos/%d/icon", definitionID)
+	selection := TournamentExtraInfo{
+		DefinitionID: definitionID,
+		Name:         "地图",
+		IconURL:      iconURL,
+		Options:      append([]string(nil), demoMapOptions...),
+		Selected:     append([]string(nil), demoMapOptions...),
+	}
+	for _, example := range []struct {
+		name  string
+		stage string
+	}{
+		{name: "KOF 阶段示例", stage: stageRound2},
+	} {
+		var tournamentID int64
+		var rulesJSON string
+		if err := tx.QueryRow(`SELECT id,rules_json FROM tournaments WHERE name=?`, example.name).Scan(&tournamentID, &rulesJSON); err != nil {
+			return err
+		}
+		rules, err := decodeRules(rulesJSON)
+		if err != nil {
+			return err
+		}
+		rules.ExtraInfo = map[string][]TournamentExtraInfo{example.stage: {selection}}
+		rulesData, err := json.Marshal(rules)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`UPDATE tournaments SET rules_json=? WHERE id=?`, string(rulesData), tournamentID); err != nil {
+			return err
+		}
+		var matchID int64
+		var sequence int
+		if err := tx.QueryRow(`SELECT id,seq FROM matches WHERE tournament_id=? AND round_no=2 AND status='pending' ORDER BY seq LIMIT 1`, tournamentID).Scan(&matchID, &sequence); err != nil {
+			return fmt.Errorf("KOF 地图示例缺少待打对局: %w", err)
+		}
+		mapValue := map[string]string{"地图": demoMapOptions[(sequence-1)%len(demoMapOptions)]}
+		matchData, err := json.Marshal(mapValue)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`UPDATE matches SET extra_info_json=? WHERE id=?`, string(matchData), matchID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func readDemoBackground(name string) ([]byte, error) {

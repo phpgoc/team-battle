@@ -16,6 +16,14 @@ type AceSpecial struct {
 	Probability int     `json:"probability"`
 }
 
+type TournamentExtraInfo struct {
+	DefinitionID int64    `json:"definition_id"`
+	Name         string   `json:"name"`
+	IconURL      string   `json:"icon_url,omitempty"`
+	Options      []string `json:"options"`
+	Selected     []string `json:"selected"`
+}
+
 // 新规则按两侧分别保存；旧规则仍将同一候选名单与实际队伍取交集。
 func (s AceSpecial) candidateIDs(side int) []int64 {
 	if s.TeamAIDs != nil || s.TeamBIDs != nil {
@@ -55,6 +63,7 @@ type TournamentRules struct {
 	AceMostWins        int          `json:"ace_most_wins"`
 	AceMostLosses      int          `json:"ace_most_losses"`
 	AceSpecials        []AceSpecial `json:"ace_specials"`
+	ExtraInfo          map[string][]TournamentExtraInfo `json:"extra_info,omitempty"`
 }
 
 func defaultRules() TournamentRules {
@@ -126,6 +135,33 @@ func (r TournamentRules) validateStored() error {
 			}
 		}
 		total += special.Probability
+	}
+	for stage, selections := range r.ExtraInfo {
+		if stage != stageRound1 && stage != stageRound2 && stage != stageAce {
+			return errors.New("额外信息阶段无效")
+		}
+		seenDefinitions := map[int64]bool{}
+		for _, selection := range selections {
+			if selection.DefinitionID <= 0 || strings.TrimSpace(selection.Name) == "" || len(selection.Options) == 0 || seenDefinitions[selection.DefinitionID] {
+				return errors.New("额外信息设置无效")
+			}
+			seenDefinitions[selection.DefinitionID] = true
+			options := make(map[string]bool, len(selection.Options))
+			for _, option := range selection.Options {
+				option = strings.TrimSpace(option)
+				if option == "" || options[option] {
+					return errors.New("额外信息选项为空或重复")
+				}
+				options[option] = true
+			}
+			selected := map[string]bool{}
+			for _, option := range selection.Selected {
+				if !options[option] || selected[option] {
+					return errors.New("额外信息随机池包含无效或重复选项")
+				}
+				selected[option] = true
+			}
+		}
 	}
 	if total > 100 {
 		return errors.New("大将战概率总和不能超过100%")

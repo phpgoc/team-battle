@@ -39,6 +39,14 @@ func TestDemoImagesAreValidLocalAssets(t *testing.T) {
 			t.Fatalf("账号 %s 的演示头像不完整: %dx%d, %d 字节, %v", username, config.Width, config.Height, len(data), err)
 		}
 	}
+	mapIcon, err := demoFS.ReadFile("testdata/demo/map.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mapConfig, _, err := image.DecodeConfig(bytes.NewReader(mapIcon))
+	if err != nil || mapConfig.Width != 96 || mapConfig.Height != 96 || len(mapIcon) < 512 {
+		t.Fatalf("地图演示图标无效: %dx%d, %d 字节, %v", mapConfig.Width, mapConfig.Height, len(mapIcon), err)
+	}
 }
 
 func TestDemoDataHasConsistentCompleteMatches(t *testing.T) {
@@ -79,6 +87,20 @@ func TestDemoDataHasConsistentCompleteMatches(t *testing.T) {
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE name='大将战示例' AND status='ace'`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE name='结束确认示例' AND status='final_confirm'`)
 	f.assertCount(t, 4, `SELECT COUNT(*) FROM matches WHERE round_no=3 AND status='finished'`)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM site_extra_infos WHERE name='地图' AND icon_mime='image/png' AND length(icon_data)>=512 AND json_array_length(options_json)=5`)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM site_extra_infos`)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE extra_info_json<>'{}'`)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE json_extract(rules_json,'$.extra_info') IS NOT NULL`)
+	for _, example := range []struct {
+		name  string
+		stage string
+		round int
+	}{
+		{name: "KOF 阶段示例", stage: "round2", round: 2},
+	} {
+		f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE name=? AND json_extract(rules_json, '$.extra_info.`+example.stage+`[0].name')='地图'`, example.name)
+		f.assertCount(t, 1, `SELECT CASE WHEN COUNT(*)>0 AND COUNT(*)=SUM(CASE WHEN json_extract(m.extra_info_json, '$."地图"')<>'' THEN 1 ELSE 0 END) THEN 1 ELSE 0 END FROM matches m JOIN tournaments t ON t.id=m.tournament_id WHERE t.name=? AND m.round_no=?`, example.name, example.round)
+	}
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM matches m WHERE NOT EXISTS (SELECT 1 FROM tournament_players p WHERE p.tournament_id=m.tournament_id AND p.user_id=m.player_a_id AND p.team_id=m.team_a_id) OR NOT EXISTS (SELECT 1 FROM tournament_players p WHERE p.tournament_id=m.tournament_id AND p.user_id=m.player_b_id AND p.team_id=m.team_b_id)`)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM rounds r WHERE score_a<>(SELECT COUNT(*) FROM matches m WHERE m.round_id=r.id AND m.status='finished' AND m.winner_team_id=m.team_a_id) OR score_b<>(SELECT COUNT(*) FROM matches m WHERE m.round_id=r.id AND m.status='finished' AND m.winner_team_id=m.team_b_id)`)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM matches current JOIN matches previous ON previous.round_id=current.round_id AND previous.seq=current.seq-1 JOIN tournaments e ON e.id=current.tournament_id WHERE e.name NOT LIKE '特殊对战%' AND current.round_no=2 AND ((previous.winner_team_id=previous.team_a_id AND previous.player_a_id<>current.player_a_id) OR (previous.winner_team_id=previous.team_b_id AND previous.player_b_id<>current.player_b_id))`)

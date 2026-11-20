@@ -26,7 +26,12 @@ func (a *App) settingsCatalog(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "读取背景失败")
 		return
 	}
-	ok(c, gin.H{"categories": categories, "backgrounds": backgrounds})
+	extraInfos, err := loadExtraInfoDefinitions(a.db)
+	if err != nil {
+		fail(c, http.StatusInternalServerError, "读取额外信息失败")
+		return
+	}
+	ok(c, gin.H{"categories": categories, "backgrounds": backgrounds, "extra_infos": extraInfos})
 }
 
 func (a *App) siteSettings(c *gin.Context) {
@@ -53,7 +58,12 @@ func (a *App) siteSettings(c *gin.Context) {
 		fail(c, 500, "读取默认赛事设置失败")
 		return
 	}
-	ok(c, gin.H{"tournament_names": names, "categories": categories, "backgrounds": backgrounds, "tournament_defaults": defaults})
+	extraInfos, err := loadExtraInfoDefinitions(a.db)
+	if err != nil {
+		fail(c, http.StatusInternalServerError, "读取额外信息失败")
+		return
+	}
+	ok(c, gin.H{"tournament_names": names, "categories": categories, "backgrounds": backgrounds, "tournament_defaults": defaults, "extra_infos": extraInfos})
 }
 
 func (a *App) createTournamentName(c *gin.Context) {

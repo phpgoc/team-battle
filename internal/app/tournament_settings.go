@@ -3,6 +3,7 @@ package app
 import (
 	"database/sql"
 	"errors"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -37,7 +38,9 @@ func roundSetupChanged(before, after TournamentRules) bool {
 		before.KOFStarter != after.KOFStarter ||
 		before.NoRepeat != after.NoRepeat ||
 		before.KOFManualRevival != after.KOFManualRevival ||
-		before.KOFRevivalNoRepeat != after.KOFRevivalNoRepeat
+		before.KOFRevivalNoRepeat != after.KOFRevivalNoRepeat ||
+		!reflect.DeepEqual(before.ExtraInfo[stageRound1], after.ExtraInfo[stageRound1]) ||
+		!reflect.DeepEqual(before.ExtraInfo[stageRound2], after.ExtraInfo[stageRound2])
 }
 
 func (a *App) updateTournamentSettings(c *gin.Context) {
@@ -147,6 +150,9 @@ func (a *App) updateTournamentSettings(c *gin.Context) {
 		}
 		if req.AceDrawSeconds != nil {
 			rules.AceDrawSeconds = *req.AceDrawSeconds
+		}
+		if err := normalizeTournamentExtraInfo(tx, &rules, &beforeRules); err != nil {
+			return err
 		}
 		if err := rules.validate(); err != nil {
 			return err

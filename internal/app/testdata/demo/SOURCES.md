@@ -4,6 +4,8 @@
 
 三族标识使用《星际争霸1 / 母巢之战》的原版兵种指令栏图标：神族狂热者、人族机枪兵、虫族刺蛇。图片从 [BWAPI 文档的原版指令图集](https://bwapi.github.io/cmdbtns.png) 按其 [CSS 坐标](https://bwapi.github.io/doxygen.css) 裁取，保留 32×32 原始像素和颜色，无重绘、调色或放大。它们是游戏兵种图标，用来代表种族。
 
+`map.png` 是项目绘制的像素风俯视地图缩略图，仅用于演示“地图”额外信息类型。
+
 角色立绘（头像）来自 [星际争霸 II 官网](https://starcraft2.blizzard.com/en-us/)，经过裁剪、缩放并略微提亮。
 
 | 文件 | 来源原图 |

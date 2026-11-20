@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -97,7 +98,7 @@ func TestUnversionedBaselineFailureRollsBackAndCanRetry(t *testing.T) {
 	if err := migrate(f.app.db); err != nil {
 		t.Fatal(err)
 	}
-	f.assertCount(t, 1, `SELECT MAX(version_id) FROM goose_db_version`)
+	f.assertCount(t, 2, `SELECT MAX(version_id) FROM goose_db_version`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM users WHERE id=2 AND role='user' AND session_token='legacy-session-token'`)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('events','teams','sessions')`)
 	assertMigrationConnections(t, f.app.db)
@@ -128,13 +129,10 @@ func TestTrackedDemoDatabaseSurvivesMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	var versioned int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='goose_db_version'`).Scan(&versioned); err != nil {
+	if err := migrate(db); err != nil {
 		t.Fatal(err)
 	}
-	if versioned != 0 {
-		simulateUnversionedDatabase(t, db)
-	}
+	assertTrackedDemoMapData(t, db)
 	before := migrationBusinessSnapshot(t, db)
 	for i := 0; i < 2; i++ {
 		if err := migrate(db); err != nil {
@@ -150,4 +148,63 @@ func TestTrackedDemoDatabaseSurvivesMigration(t *testing.T) {
 		}
 	}
 	assertMigrationConnections(t, db)
+}
+
+func assertTrackedDemoMapData(t *testing.T, db *sql.DB) {
+	t.Helper()
+	var integrity string
+	if err := db.QueryRow(`PRAGMA integrity_check`).Scan(&integrity); err != nil || integrity != "ok" {
+		t.Fatalf("仓库演示库完整性检查失败: %s, %v", integrity, err)
+	}
+	var optionsJSON, mimeType string
+	var iconData []byte
+	if err := db.QueryRow(`SELECT options_json,icon_data,icon_mime FROM site_extra_infos WHERE name='地图'`).Scan(&optionsJSON, &iconData, &mimeType); err != nil {
+		t.Fatal(err)
+	}
+	var options []string
+	if err := json.Unmarshal([]byte(optionsJSON), &options); err != nil {
+		t.Fatal(err)
+	}
+	expectedIcon, err := demoFS.ReadFile("testdata/demo/map.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mimeType != "image/png" || !bytes.Equal(iconData, expectedIcon) || !reflect.DeepEqual(options, demoMapOptions) {
+		t.Fatalf("仓库演示库的地图图标或选项与测试素材不一致")
+	}
+	for _, check := range []struct {
+		query string
+		want  int
+		label string
+	}{
+		{query: `SELECT COUNT(*) FROM site_extra_infos`, want: 1, label: "额外信息类型"},
+		{query: `SELECT COUNT(*) FROM matches WHERE extra_info_json<>'{}'`, want: 1, label: "地图示例对局"},
+		{query: `SELECT COUNT(*) FROM tournaments WHERE json_extract(rules_json,'$.extra_info') IS NOT NULL`, want: 1, label: "额外信息赛事"},
+	} {
+		var got int
+		if err := db.QueryRow(check.query).Scan(&got); err != nil {
+			t.Fatal(err)
+		}
+		if got != check.want {
+			t.Fatalf("仓库演示库包含 %d 个%s，期望 %d 个", got, check.label, check.want)
+		}
+	}
+	for _, example := range []struct {
+		name  string
+		stage string
+		round int
+	}{
+		{name: "KOF 阶段示例", stage: "round2", round: 2},
+	} {
+		var rulesCount, matchesCount int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM tournaments WHERE name=? AND json_extract(rules_json, '$.extra_info.`+example.stage+`[0].name')='地图'`, example.name).Scan(&rulesCount); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.QueryRow(`SELECT CASE WHEN COUNT(*)>0 AND COUNT(*)=SUM(CASE WHEN json_extract(m.extra_info_json, '$."地图"')<>'' THEN 1 ELSE 0 END) THEN 1 ELSE 0 END FROM matches m JOIN tournaments t ON t.id=m.tournament_id WHERE t.name=? AND m.round_no=?`, example.name, example.round).Scan(&matchesCount); err != nil {
+			t.Fatal(err)
+		}
+		if rulesCount != 1 || matchesCount != 1 {
+			t.Fatalf("演示赛事 %s 的 %s 地图设置或对局数据缺失，规则=%d，对局=%d", example.name, example.stage, rulesCount, matchesCount)
+		}
+	}
 }

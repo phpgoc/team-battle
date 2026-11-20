@@ -152,6 +152,19 @@
 :is(.shell, .event-editor-page) .editor-jumps a { flex: 0 0 auto; padding: 7px 10px; border-radius: 4px; color: #596663; font-size: 12px; font-weight: 550; }
 :is(.shell, .event-editor-page) .editor-jumps a:hover, :is(.shell, .event-editor-page) .editor-jumps a:focus-visible { background: #e8eeeb; color: #2c5d50; }
 .event-editor-page .event-background-panel select { width: min(100%, 28rem); }
+.event-editor-page .tournament-extra-info { display: grid; gap: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.event-editor-page .tournament-extra-info > h3 { margin: 0; color: #52615d; font-size: 12px; font-weight: 650; }
+.event-editor-page .extra-info-stage-list { display: grid; gap: 7px; }
+.event-editor-page .extra-info-config { display: grid; grid-template-columns: minmax(120px, .65fr) minmax(0, 2fr); align-items: start; gap: 12px; padding: 8px 0; border-bottom: 1px solid #e9edeb; }
+.event-editor-page .extra-info-enable { padding-top: 5px; color: #465550; font-size: 12px; }
+.event-editor-page .extra-info-config fieldset { min-width: 0; margin: 0; padding: 8px 10px; border: 1px solid #dfe6e2; border-radius: 5px; }
+.event-editor-page .extra-info-config fieldset:disabled { opacity: .58; }
+.event-editor-page .extra-info-config legend { padding: 0 5px; color: #66736e; font-size: 11px; }
+.event-editor-page .extra-info-options { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.event-editor-page .extra-info-choice { display: inline-flex; align-items: center; gap: 5px; color: #465550; font-size: 12px; }
+.event-editor-page .extra-info-choice input { margin: 0; accent-color: #527c6f; }
+.event-editor-page .extra-info-config .help { margin: 6px 0 0; font-size: 11px; }
+@media (max-width: 760px) { .event-editor-page .extra-info-config { grid-template-columns: 1fr; gap: 5px; } }
 .draw-timing-section { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: 14px; margin-top: 14px; padding: 10px 14px; border-left: 3px solid #6f9a87; border-radius: 4px; background: #edf2ef; }
 .draw-timing-section h2 { margin: 0; color: #394743; font-size: 13px; font-weight: 650; }
 .draw-timing-section .draw-duration-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 22px; }
@@ -246,6 +259,19 @@
 .shell .settings-name-row { gap: 8px; }
 .shell .settings-name-row > input { min-height: 36px; }
 .shell .settings-name-row .settings-row-actions > button { min-height: 34px; }
+.shell .settings-extra-info-row { display: grid; grid-template-columns: 42px minmax(130px, .8fr) minmax(220px, 1.2fr) minmax(180px, .9fr) auto auto; align-items: center; gap: 12px; }
+.shell .settings-extra-info-preview { width: 42px; height: 42px; display: grid; place-items: center; overflow: hidden; border: 1px solid #e2e9f1; border-radius: 6px; background: #f7fafc; color: #53647a; text-align: center; font-size: 10px; line-height: 1.2; }
+.shell .settings-extra-info-preview > img { width: 100%; height: 100%; object-fit: contain; padding: 4px; }
+.shell .settings-extra-info-row > label:not(.check) { display: grid; gap: 5px; min-width: 0; color: var(--muted); font-size: 11px; }
+.shell .settings-extra-info-row textarea { width: 100%; min-height: 66px; resize: vertical; font-size: 12px; }
+.shell .settings-extra-info-row input[type=file] { width: 100%; min-width: 0; padding: 5px; border: 1px solid var(--line); border-radius: 5px; background: #fff; font-size: 10px; }
+.shell .settings-extra-info-row input[type=file]::file-selector-button { padding: 4px 6px; font-size: 10px; }
+.shell .settings-extra-info-row .extra-info-remove-icon { display: flex; align-items: center; gap: 6px; min-width: 90px; color: var(--muted); font-size: 11px; }
+.shell .settings-extra-info-row .extra-info-remove-icon input { margin: 0; }
+.shell .settings-extra-info-row .settings-row-actions { min-width: 116px; }
+.shell .settings-extra-info-row .settings-row-actions > button { min-height: 34px; padding: 6px 9px; font-size: 11px; }
+.shell .settings-extra-info-row.settings-create-row { padding-bottom: 14px; }
+.shell .settings-extra-info-row.settings-list-row { padding: 12px 0; }
 
 /* 背景管理预览使用缩略图，操作按钮随名称和文件输入排列。 */
 .shell .backgrounds-panel > .panel-body { padding: 14px var(--panel-inset); }
@@ -312,6 +338,10 @@
   .shell .settings-category-row { grid-template-columns: 34px minmax(0, 1fr); }
   .shell .settings-category-preview { width: 34px; height: 34px; }
   .shell .settings-category-row > .settings-row-actions { grid-column: 2; justify-self: end; }
+  .shell .settings-extra-info-row { grid-template-columns: 36px minmax(0, 1fr) auto; align-items: start; gap: 10px; }
+  .shell .settings-extra-info-preview { width: 36px; height: 36px; grid-row: 1 / span 2; }
+  .shell .settings-extra-info-row > label:not(.check), .shell .settings-extra-info-row > .extra-info-remove-icon { grid-column: 2 / -1; }
+  .shell .settings-extra-info-row > .settings-row-actions { grid-column: 2 / -1; justify-self: end; }
   .shell .background-edit { grid-template-columns: 88px minmax(0, 1fr); }
   .shell .background-preview { width: 88px; height: 56px; }
   .shell .background-edit .background-file-actions { grid-column: 1 / -1; }

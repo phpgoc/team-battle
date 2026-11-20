@@ -302,6 +302,10 @@ func (a *App) createTournament(c *gin.Context) {
 		}
 	}
 	rules.enforceRevivalRule()
+	if err := normalizeTournamentExtraInfo(a.db, &rules, nil); err != nil {
+		fail(c, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err := rules.validate(); err != nil {
 		fail(c, http.StatusBadRequest, err.Error())
 		return

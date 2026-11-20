@@ -2,6 +2,7 @@ package app
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -313,7 +314,7 @@ func (a *App) loadMatches(tournamentID int64) ([]map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	rows, err := a.db.Query(`SELECT m.id,m.round_id,r.stage,m.seq,m.team_a_id,'A 队',m.team_b_id,'B 队',m.player_a_id,m.player_b_id,m.winner_team_id,m.next_player_id,m.status,m.note,m.created_at,m.finished_at FROM matches m JOIN rounds r ON r.id=m.round_id WHERE m.tournament_id=? ORDER BY m.round_id,m.seq`, tournamentID)
+	rows, err := a.db.Query(`SELECT m.id,m.round_id,r.stage,m.seq,m.team_a_id,'A 队',m.team_b_id,'B 队',m.player_a_id,m.player_b_id,m.winner_team_id,m.next_player_id,m.status,m.note,m.created_at,m.finished_at,m.extra_info_json FROM matches m JOIN rounds r ON r.id=m.round_id WHERE m.tournament_id=? ORDER BY m.round_id,m.seq`, tournamentID)
 	if err != nil {
 		return nil, err
 	}
@@ -323,9 +324,14 @@ func (a *App) loadMatches(tournamentID int64) ([]map[string]any, error) {
 		var id, roundID, seq, teamA, teamB, playerA, playerB int64
 		var winner, next sql.NullInt64
 		var stage, teamAName, teamBName, playerAName, playerBName, status, note, created string
+		var extraInfoJSON string
 		var finished sql.NullString
-		if err := rows.Scan(&id, &roundID, &stage, &seq, &teamA, &teamAName, &teamB, &teamBName, &playerA, &playerB, &winner, &next, &status, &note, &created, &finished); err != nil {
+		if err := rows.Scan(&id, &roundID, &stage, &seq, &teamA, &teamAName, &teamB, &teamBName, &playerA, &playerB, &winner, &next, &status, &note, &created, &finished, &extraInfoJSON); err != nil {
 			return nil, err
+		}
+		extraInfo := map[string]string{}
+		if err := json.Unmarshal([]byte(extraInfoJSON), &extraInfo); err != nil {
+			return nil, errors.New("对局额外信息格式错误")
 		}
 		pa, okA := users[playerA]
 		pb, okB := users[playerB]
@@ -351,7 +357,7 @@ func (a *App) loadMatches(tournamentID int64) ([]map[string]any, error) {
 				whoWin = "b"
 			}
 		}
-		item := gin.H{"id": id, "match_id": id, "round_id": roundID, "round": roundNo, "stage": stage, "seq": seq, "match_no": seq, "team_a_id": teamA, "team_a_name": teamAName, "team_b_id": teamB, "team_b_name": teamBName, "player_a_id": playerA, "player_a_name": playerAName, "player_b_id": playerB, "player_b_name": playerBName, "a_id": playerA, "b_id": playerB, "who_win": whoWin, "status": status, "note": note, "created_at": created, "finished_at": finished.String}
+		item := gin.H{"id": id, "match_id": id, "round_id": roundID, "round": roundNo, "stage": stage, "seq": seq, "match_no": seq, "team_a_id": teamA, "team_a_name": teamAName, "team_b_id": teamB, "team_b_name": teamBName, "player_a_id": playerA, "player_a_name": playerAName, "player_b_id": playerB, "player_b_name": playerBName, "a_id": playerA, "b_id": playerB, "who_win": whoWin, "status": status, "note": note, "created_at": created, "finished_at": finished.String, "extra_info": extraInfo}
 		if winner.Valid {
 			item["winner_team_id"] = winner.Int64
 		}

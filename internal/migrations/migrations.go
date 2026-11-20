@@ -15,11 +15,13 @@ import (
 func Up(ctx context.Context, db *sql.DB, languages ...string) error {
 	baseline := goose.NewGoMigration(1, &goose.GoFunc{RunTx: upBaseline}, nil)
 	baseline.Source = "00001_baseline.go"
+	extraInfo := goose.NewGoMigration(2, &goose.GoFunc{RunTx: upExtraInfo}, nil)
+	extraInfo.Source = "00002_extra_info.go"
 	language := "zh"
 	if len(languages) > 0 && (languages[0] == "zh" || languages[0] == "en" || languages[0] == "ko") {
 		language = languages[0]
 	}
-	return upWithLanguage(ctx, db, language, baseline)
+	return upWithLanguage(ctx, db, language, baseline, extraInfo)
 }
 
 func up(ctx context.Context, db *sql.DB, migrations ...*goose.Migration) error {
@@ -63,9 +65,9 @@ func upWithLanguage(ctx context.Context, db *sql.DB, language string, migrations
 	}
 	if len(results) != 0 {
 		messages := map[string]string{
-			"zh": fmt.Sprintf("数据库升级完成：%d → %d，共 %d 项迁移", current, target, len(results)),
-			"en": fmt.Sprintf("Database migration complete: %d to %d, %d migration(s)", current, target, len(results)),
-			"ko": fmt.Sprintf("데이터베이스 마이그레이션 완료: %d → %d, %d개", current, target, len(results)),
+			"zh": fmt.Sprintf("数据库迁移完成，共应用 %d 项", len(results)),
+			"en": fmt.Sprintf("Database migration complete: %d migration(s) applied", len(results)),
+			"ko": fmt.Sprintf("데이터베이스 마이그레이션 완료: %d개 적용", len(results)),
 		}
 		log.Print(messages[language])
 	}
