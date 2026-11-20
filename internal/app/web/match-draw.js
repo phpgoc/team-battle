@@ -29,9 +29,32 @@
     playerFrames.set(slot, { key, markup, animations });
   }
 
+  function extraInfoItems(event, match) {
+    const values = match.extra_info || {};
+    const selections = event.rules.extra_info?.[match.stage] || [];
+    const items = [];
+    const seen = new Set();
+    for (const selection of selections) {
+      const name = selection.name;
+      if (!name || !Object.prototype.hasOwnProperty.call(values, name) || !values[name]) continue;
+      items.push({ name, value: values[name] });
+      seen.add(name);
+    }
+    for (const [name, value] of Object.entries(values)) {
+      if (name && value && !seen.has(name)) items.push({ name, value });
+    }
+    return items;
+  }
+
+  function extraInfoVisibleCount(plan, elapsed) {
+    if (!plan.extraInfo.length || elapsed < plan.duration + 1000) return 0;
+    return Math.min(plan.extraInfo.length, Math.floor((elapsed - plan.duration) / 1000));
+  }
+
   window.TBMatchDraw = {
     sourceLabel,
     swapPlayer,
+    extraInfoVisibleCount,
     record(event, { t, esc, recordName }) {
       const draw = event.ace_draw;
       if (!event.ace_draw_source) return '';
@@ -45,6 +68,7 @@
     },
     plan(event, match, candidates) {
       const duration = Math.max(0, Number(match.stage === 'ace' ? event.rules.ace_draw_seconds : event.rules.random_draw_seconds) || 0) * 1000;
+      const extraInfo = extraInfoItems(event, match);
       const phases = [];
       if (match.stage === 'ace') {
         const rules = event.rules, choices = [];
@@ -56,7 +80,9 @@
         phases.push({ kind: 'rule', duration, choices: choices.length ? choices : ['random'] });
       }
       if (candidates.some(list => list.length > 1)) phases.push({ kind: 'players', duration });
-      return { phases, duration: phases.reduce((sum, phase) => sum + phase.duration, 0) };
+      const drawDuration = phases.reduce((sum, phase) => sum + phase.duration, 0);
+      const extraInfoDuration = extraInfo.length ? (extraInfo.length + 1) * 1000 : 0;
+      return { phases, duration: drawDuration, extraInfo, totalDuration: drawDuration + extraInfoDuration };
     },
     // 每段按绝对开始时间推进；SSE重绘不会重启，真实结果始终取自服务端。
     frame(plan, elapsed) {

@@ -1214,7 +1214,7 @@
     if (!match || match.status !== 'pending' || !['round1', 'round2', 'ace'].includes(match.stage)) return;
     // 开赛及进入KOF时沿用赛前已公开的抽签，不把同一组人选再滚动一次。
     const announced = plannedMatches(previous, match.stage).find(item => item.seq === match.seq);
-    if (announced?.player_a_id === match.player_a_id && announced?.player_b_id === match.player_b_id) return;
+    const announcedPlayers = announced?.player_a_id === match.player_a_id && announced?.player_b_id === match.player_b_id;
     const key = `${next.id}:${match.id}:${match.stage}:${match.seq}:${match.player_a_id}:${match.player_b_id}`;
     const continuing = state.draw?.key === key && state.draw.endAt > Date.now();
     // 提交响应和SSE可能先后返回，同一对局只播放一次，重绘沿用剩余时间。
@@ -1228,10 +1228,11 @@
     state.drawToken += 1;
     const token = state.drawToken, people = next.teams.flatMap(team => team.players);
     const finals = [match.player_a_id, match.player_b_id].map(id => people.find(player => player.id === id));
-    const candidates = continuing ? state.draw.candidates : [drawCandidates(next, 0, previous, match), drawCandidates(next, 1, previous, match)];
+    const candidates = continuing ? state.draw.candidates : announcedPlayers ? [[match.player_a_id], [match.player_b_id]] : [drawCandidates(next, 0, previous, match), drawCandidates(next, 1, previous, match)];
     const plan = continuing ? state.draw.plan : window.TBMatchDraw.plan(next, match, candidates);
+    if (!continuing && announcedPlayers && plan.totalDuration === 0) return;
     const startedAt = continuing ? state.draw.startedAt : Date.now();
-    const endAt = startedAt + plan.duration;
+    const endAt = startedAt + plan.totalDuration;
     state.draw = { key, candidates, plan, startedAt, endAt };
     const board = $('.broadcast-board');
     const slots = $$('.board-current-side > .current-player');
@@ -1252,6 +1253,28 @@
       roll.innerHTML = html;
       roll.animate([{ opacity: .3, transform: 'translateY(4px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 160, easing: 'ease-out' });
     };
+    let renderedExtraInfoCount = -1;
+    const paintExtraInfo = count => {
+      if (count === renderedExtraInfoCount) return;
+      const center = $('.board-current-vs');
+      const existing = center?.querySelector('.board-current-extra-info-rows');
+      const partial = Object.fromEntries(plan.extraInfo.slice(0, count).map(item => [item.name, item.value]));
+      const markup = extraInfoRowsMarkup(partial, next.rules.extra_info?.[match.stage], 'board-current-extra-info-rows');
+      if (!markup) {
+        existing?.remove();
+        renderedExtraInfoCount = count;
+        return;
+      }
+      const template = document.createElement('template');
+      template.innerHTML = markup;
+      const replacement = template.content.firstElementChild;
+      if (existing) existing.replaceWith(replacement);
+      else center?.append(replacement);
+      [...replacement.children].slice(renderedExtraInfoCount < 0 ? 0 : renderedExtraInfoCount).forEach(row => {
+        row.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 220, easing: 'ease-out' });
+      });
+      renderedExtraInfoCount = count;
+    };
     const update = () => {
       // 导航、纠错或人选被覆盖后，旧动画不能继续占住新对战区。
       const current = currentPending(state.event);
@@ -1260,31 +1283,39 @@
         board?.classList.remove('is-drawing', 'is-drawing-rule');
         return;
       }
-      const frame = window.TBMatchDraw.frame(plan, Date.now() - startedAt);
-      board.classList.toggle('is-drawing', !!frame);
+      const elapsed = Date.now() - startedAt;
+      const frame = window.TBMatchDraw.frame(plan, elapsed);
+      const drawing = elapsed < plan.totalDuration;
+      board.classList.toggle('is-drawing', drawing);
       board.classList.toggle('is-drawing-rule', frame?.kind === 'rule');
-      $$('[data-current-winner]').forEach(button => button.disabled = !!frame || state.recordingResult);
+      $$('[data-current-winner]').forEach(button => button.disabled = drawing || state.recordingResult);
+      paintExtraInfo(window.TBMatchDraw.extraInfoVisibleCount(plan, elapsed));
       if (!frame) {
         if (plan.duration) paintPlayers(finals);
-        clearInterval(state.drawTimer); state.drawTimer = null; roll.hidden = true;
-        return;
-      }
-      roll.hidden = false;
-      const step = `${frame.index + 1}/${plan.phases.length}`;
-      roll.dataset.phase = frame.kind;
-      if (frame.kind === 'rule') {
-        const source = frame.choices[frame.tick % frame.choices.length];
-        paintPlayers([null, null]);
-        const label = frame.settling ? aceSourceLabel(next) : window.TBMatchDraw.sourceLabel(source, 0, t);
-        caption(`<span>${t('aceRuleStep')} · ${step}</span><div class="draw-rule-name">${esc(label)}</div>`);
+        roll.hidden = true;
+        if (!drawing) {
+          clearInterval(state.drawTimer); state.drawTimer = null; state.draw.endAt = 0;
+          board?.classList.remove('is-drawing', 'is-drawing-rule');
+          return;
+        }
       } else {
-        paintPlayers(candidates.map((list, side) => frame.settling || list.length <= 1 ? finals[side] : list[frame.tick % list.length]));
-        const title = match.stage === 'ace' ? `${t('aceCandidateStep')} · ${step} · ${aceSourceLabel(next)}` : t('drawing');
-        caption(`<span>${esc(title)}</span>`);
+        roll.hidden = false;
+        const step = `${frame.index + 1}/${plan.phases.length}`;
+        roll.dataset.phase = frame.kind;
+        if (frame.kind === 'rule') {
+          const source = frame.choices[frame.tick % frame.choices.length];
+          paintPlayers([null, null]);
+          const label = frame.settling ? aceSourceLabel(next) : window.TBMatchDraw.sourceLabel(source, 0, t);
+          caption(`<span>${t('aceRuleStep')} · ${step}</span><div class="draw-rule-name">${esc(label)}</div>`);
+        } else {
+          paintPlayers(candidates.map((list, side) => frame.settling || list.length <= 1 ? finals[side] : list[frame.tick % list.length]));
+          const title = match.stage === 'ace' ? `${t('aceCandidateStep')} · ${step} · ${aceSourceLabel(next)}` : t('drawing');
+          caption(`<span>${esc(title)}</span>`);
+        }
       }
     };
     update();
-    if (Date.now() < endAt && !roll.hidden) state.drawTimer = setInterval(() => { if (token === state.drawToken) update(); }, 250);
+    if (Date.now() < endAt) state.drawTimer = setInterval(() => { if (token === state.drawToken) update(); }, 250);
   }
   async function refreshEvent() { const previous = state.event; state.event = await api('/api/public/tournaments/' + state.event.id); if (!state.editor) { boardPage(); startDrawAnimation(previous, state.event); } }
   async function eventAction(path, body = {}, method = 'POST') { await post('/api/tournaments/' + state.event.id + path, body, method); await refreshEvent(); }

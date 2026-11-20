@@ -1,5 +1,68 @@
 const { test, expect, login, json, players, assignments, createTournament, image } = require('./helpers.cjs');
 
+test('额外信息在选手抽签后逐秒揭晓并留出展示时间', async ({ page }) => {
+  await page.goto('/login');
+  const timeline = await page.evaluate(() => {
+    const event = { rules: { random_draw_seconds: 4, ace_draw_seconds: 5, extra_info: { round1: [{ name: '地图' }, { name: '赛事模式' }] } } };
+    const match = { stage: 'round1', extra_info: { '地图': 'Circuit Breaker', '赛事模式': '昼间' } };
+    const plan = window.TBMatchDraw.plan(event, match, [[1, 2], [3, 4]]);
+    const times = [3999, 4000, 4999, 5000, 5999, 6000, 6999, 7000];
+    return { total: plan.totalDuration, visible: times.map(time => window.TBMatchDraw.extraInfoVisibleCount(plan, time)) };
+  });
+  expect(timeline).toEqual({ total: 7000, visible: [0, 0, 0, 1, 1, 2, 2, 2] });
+});
+
+test('管理员KOF抽签先揭晓选手，再逐项揭晓额外信息', async ({ page }) => {
+  await json(page.request, 'POST', '/api/auth/login', { username: 'admin', password: 'test1234' });
+  for (const [name, option] of [['地图演示', '地图甲'], ['比赛模式', '昼间']]) {
+    const response = await page.request.post('/api/site-settings/extra-infos', { multipart: { name, options: option } });
+    expect(response.ok(), await response.text()).toBeTruthy();
+  }
+  const definitions = (await json(page.request, 'GET', '/api/site-settings')).extra_infos;
+  const roster = await players(page.request, '逐项揭晓');
+  const extraInfo = { round2: definitions.map(definition => ({ definition_id: definition.id, selected: [] })) };
+  const created = await createTournament(page.request, '逐项揭晓赛事', roster, {
+    round1_target: 1, round2_target: 4,
+    rules: {
+      round1_mode: 'random', kof_starter: 'random', no_repeat: true,
+      random_draw_seconds: 4, ace_draw_seconds: 0, ace_most_wins: 20, ace_most_losses: 20, ace_specials: [],
+      extra_info: extraInfo
+    }
+  });
+  await json(page.request, 'POST', `/api/tournaments/${created.id}/setup-draw`, {});
+  await json(page.request, 'POST', `/api/tournaments/${created.id}/captains/confirm`, { team_a_player_id: roster[0].id, team_b_player_id: roster[3].id });
+  await json(page.request, 'POST', `/api/tournaments/${created.id}/start`, {});
+  let before = await json(page.request, 'GET', `/api/public/tournaments/${created.id}`);
+  const firstRoundMatch = before.matches.find(match => match.status === 'pending');
+  await json(page.request, 'POST', `/api/tournaments/${created.id}/matches/${firstRoundMatch.id}/result`, { winner_team_id: before.teams[0].id });
+  before = await json(page.request, 'GET', `/api/public/tournaments/${created.id}`);
+  const firstKOFMatch = before.matches.find(match => match.stage === 'round2' && match.status === 'pending');
+  expect(firstKOFMatch).toBeTruthy();
+  await login(page, `/live/${created.id}`);
+  await expect(page.locator('.board-current-extra-info-rows dd')).toHaveCount(2);
+  const recordAWin = async () => {
+    await page.locator(`[data-current-winner="${before.teams[0].id}"]`).click();
+    await page.locator('[data-confirm-accept]').click();
+  };
+  const sendNextKOFPlayer = async () => {
+    const nextPlayer = page.locator('.board-roster-player[data-kof-player]').first();
+    await expect(nextPlayer).toBeVisible();
+    await nextPlayer.locator('.roster-action-area').click();
+    await page.locator('#roster-actions [data-send-kof]').click();
+    await expect(page.locator('[data-current-winner]').first()).toBeEnabled();
+  };
+  await recordAWin();
+  await sendNextKOFPlayer();
+  await recordAWin();
+  await sendNextKOFPlayer();
+  await recordAWin();
+  const values = () => page.locator('.board-current-extra-info-rows dd').allTextContents();
+  await expect.poll(values).toEqual([]);
+  await expect.poll(values, { timeout: 10000 }).toEqual(['地图甲']);
+  await expect.poll(values, { timeout: 10000 }).toEqual(['地图甲', '昼间']);
+  await expect(page.locator('[data-current-winner]').first()).toBeEnabled();
+});
+
 test('赛事管理按赛事名和开始日期筛选，后台页面不显示重复页脚', async ({ page }) => {
   await login(page, '/tournaments');
   const before = (await json(page.request, 'GET', '/api/tournaments')).tournaments.length;
