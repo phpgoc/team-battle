@@ -19,7 +19,7 @@
       const lost = event.status === 'round2' && row.classList.contains('is-lost');
       const vote = usable && !lost && user && ownTeam?.id === team.id && !captain && id !== user.id && player.active !== false;
       const appoint = usable && manager && player.active !== false && (!captain || captain.id === id);
-      const send = usable && !lost && choice && choice.candidate_ids.includes(id) && (manager || captain?.id === user?.id || (!captain && id === user?.id)) && (!occupied || (manager && choice.player_id !== id));
+      const send = usable && choice?.candidate_ids.includes(id) && (manager || captain?.id === user?.id || (!captain && id === user?.id)) && (!occupied || (manager && choice.player_id !== id));
       row.querySelector('.roster-action-area')?.remove();
       row.querySelector('.kof-player-action')?.remove();
       delete row.dataset.kofSelected; delete row.dataset.rosterVote; delete row.dataset.kofPlayer; delete row.dataset.captainPlayer;

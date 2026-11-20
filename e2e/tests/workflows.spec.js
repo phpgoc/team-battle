@@ -199,6 +199,50 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
   await expect(page.locator('[name=random_draw_seconds]')).toHaveValue('2');
 });
 
+test('无队长的选手可以报名KOF复活并直接上场', async ({ page, browser }) => {
+  await login(page);
+  const roster = await players(page.request, '复活');
+  const [a, , , returning, second, third] = roster;
+  const { id } = await createTournament(page.request, '3 打 3 抢 5', roster, {
+    round1_target: 1, round2_target: 5,
+    rules: { round1_mode: 'random', kof_starter: 'captain', no_repeat: true, kof_revival_no_repeat: true, random_draw_seconds: 4 }
+  });
+  const path = '/api/tournaments/' + id, live = '/live/' + id;
+  await json(page.request, 'POST', path + '/setup-draw');
+  await json(page.request, 'POST', path + '/start');
+  const detail = () => json(page.request, 'GET', '/api/public/tournaments/' + id);
+  const finish = (match, next = 0) => json(page.request, 'POST', path + '/matches/' + match.id + '/result', {
+    winner_team_id: match.team_a_id, next_player_id: next
+  });
+  const first = (await detail()).matches.find(match => match.stage === 'round1' && match.status === 'pending');
+  await finish(first);
+  await json(page.request, 'POST', path + '/kof/starter', { team_id: first.team_a_id, player_id: a.id });
+  await json(page.request, 'POST', path + '/kof/starter', { team_id: first.team_b_id, player_id: returning.id });
+  for (const next of [second.id, third.id, 0]) {
+    const match = (await detail()).matches.find(match => match.stage === 'round2' && match.status === 'pending');
+    await finish(match, next);
+  }
+
+  await page.goto(live);
+  const context = await browser.newContext();
+  try {
+    const member = await context.newPage();
+    await login(member, live, returning.username);
+    const row = member.locator(`[data-roster-player="${returning.id}"]`);
+    await expect(row).toHaveClass(/is-lost/);
+    await row.locator('.roster-action-area').click();
+    await member.locator('#roster-actions [data-send-kof]').click();
+    const current = '.board-current-fighters .current-player-right';
+    await expect(member.locator(current)).toContainText(returning.display_name);
+    await expect(row).not.toHaveClass(/is-lost/);
+    await expect(page.locator(current)).toContainText(returning.display_name);
+    await expect(page.locator('#draw-roll')).toBeHidden();
+    await expect(page.locator('[data-current-winner]').first()).toBeEnabled();
+  } finally {
+    await context.close();
+  }
+});
+
 test('历史补录紧凑设置并按场录入结果', async ({ page }) => {
   await login(page, '/tournaments/archive');
   const roster = await players(page.request, '历史录入');

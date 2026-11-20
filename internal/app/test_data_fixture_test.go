@@ -154,8 +154,10 @@ func seedTestData(db *sql.DB) error {
 	if err := seedWorkflowDemoTournaments(tx, managerID, adminID, ids); err != nil {
 		return err
 	}
-	if err := seedKOFRevivalDemo(tx, managerID, adminID, playerIDs[:6]); err != nil {
-		return err
+	for _, manual := range []bool{false, true} {
+		if err := seedKOFRevivalDemo(tx, managerID, adminID, playerIDs[:6], manual); err != nil {
+			return err
+		}
 	}
 	if err := seedUngroupedSpectatorDemo(tx, managerID, adminID, playerIDs[:6]); err != nil {
 		return err
@@ -347,17 +349,15 @@ func seedCompletedTestTournament(tx *sql.Tx, managerID, creatorID int64, players
 			if err != nil {
 				return err
 			}
-			for _, player := range ids {
-				lost, err := engine.lost(previous.roundID, loser, player)
-				if err != nil {
-					return err
-				}
-				if !lost {
-					if err := engine.chooseKOF(previous, player); err != nil {
-						return err
-					}
-					break
-				}
+			candidates, _, err := engine.kofNextCandidates(previous, loser, ids)
+			if err != nil {
+				return err
+			}
+			if len(candidates) == 0 {
+				return fmt.Errorf("演示赛事 %d 的KOF没有可换上的选手", tournamentID)
+			}
+			if err := engine.chooseKOF(previous, candidates[0]); err != nil {
+				return err
 			}
 			continue
 		}

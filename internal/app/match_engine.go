@@ -367,29 +367,19 @@ func (e *matchEngine) afterResult(m engineMatch) error {
 	}
 	if m.stage == stageRound2 {
 		_, team := m.loser()
-		if reserved != 0 {
-			lost, err := e.lost(m.roundID, team, reserved)
-			if err != nil {
-				return err
-			}
-			ids, err := e.players(team)
-			if err != nil {
-				return err
-			}
-			if !lost && containsID(ids, reserved) {
-				return e.chooseKOF(m, reserved)
-			}
-		}
-		random, err := e.kofRandom(m.roundID, team)
+		ids, err := e.players(team)
 		if err != nil {
 			return err
 		}
-		if random {
-			ids, err := e.kofRevivalCandidates(m.roundID, team)
-			if err != nil {
-				return err
-			}
-			return e.chooseKOF(m, ids[e.rng.Intn(len(ids))])
+		candidates, randomRevival, err := e.kofNextCandidates(m, team, ids)
+		if err != nil {
+			return err
+		}
+		if randomRevival && len(candidates) > 0 {
+			return e.chooseKOF(m, candidates[e.rng.Intn(len(candidates))])
+		}
+		if reserved != 0 && containsID(candidates, reserved) {
+			return e.chooseKOF(m, reserved)
 		}
 	}
 	return nil
@@ -399,34 +389,6 @@ func (m engineMatch) loser() (int64, int64) {
 		return m.playerB, m.teamB
 	}
 	return m.playerA, m.teamA
-}
-func (e *matchEngine) lost(round, team, player int64) (bool, error) {
-	var n int
-	err := e.db.QueryRow(`SELECT COUNT(*) FROM matches WHERE round_id=? AND status='finished' AND winner_team_id<>? AND ((team_a_id=? AND player_a_id=?) OR (team_b_id=? AND player_b_id=?))`, round, team, team, player, team, player).Scan(&n)
-	return n > 0, err
-}
-func (e *matchEngine) kofRandom(round, team int64) (bool, error) {
-	ids, err := e.players(team)
-	if err != nil {
-		return false, err
-	}
-	var target int
-	if err := e.db.QueryRow(`SELECT target_score FROM rounds WHERE id=?`, round).Scan(&target); err != nil {
-		return false, err
-	}
-	if target <= len(ids) || len(ids) == 0 {
-		return false, nil
-	}
-	for _, id := range ids {
-		lost, err := e.lost(round, team, id)
-		if err != nil {
-			return false, err
-		}
-		if !lost {
-			return false, nil
-		}
-	}
-	return true, nil
 }
 func (e *matchEngine) chooseKOF(m engineMatch, player int64) error {
 	_, team := m.loser()

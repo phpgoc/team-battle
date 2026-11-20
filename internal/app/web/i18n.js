@@ -23,7 +23,7 @@ window.TB_I18N = {
     "selectManager": "请选择赛事管理员",
     "profileTournamentLocked": "参加的赛事尚未关闭，暂不能修改个人资料，密码仍可修改。",
     "kofRevivalNoRepeat": "KOF复活不重复",
-    "kofRevivalNoRepeatHint": "每人复活一次后，再从全队开始下一轮随机复活。",
+    "kofRevivalNoRepeatHint": "全队每人复活一次后，才开始下一轮复活。",
     "aceRuleStep": "抽中规则",
     "aceCandidateStep": "候选人抽签",
     "aceFinalStep": "抽中对阵",
@@ -215,7 +215,7 @@ window.TB_I18N = {
     "random": "全随机",
     "noRepeat": "随机排阵避免连续出场",
     "randomStarter": "随机首发",
-    "kofHint": "胜者留场。全队都输过且抢分目标高于队伍人数时，随机复活。",
+    "kofHint": "胜者留场。全队都输过且仍需换人时，按所选方式派人或随机复活。避免连续出场的设置也适用于复活。",
     "aceRules": "大将战抽选规则",
     "mostWins": "多胜概率",
     "mostLosses": "多败概率",
@@ -366,6 +366,8 @@ window.TB_I18N = {
     "categoryIconFormat": "分类图标只支持 JPG、PNG、GIF 或 WebP"
   },
   "en": {
+    "kofRevivalNoRepeat": "No repeat KOF revivals",
+    "kofRevivalNoRepeatHint": "Each teammate revives once before a new cycle begins.",
     "tournamentManagement": "Tournament management",
     "tournamentManagementHint": "Open a tournament to view it. Only closed tournaments can be deleted or restored.",
     "showDeletedTournaments": "Show deleted tournaments",
@@ -557,7 +559,7 @@ window.TB_I18N = {
     "random": "Fully random",
     "noRepeat": "Avoid consecutive random appearances",
     "randomStarter": "Random starter",
-    "kofHint": "Winners stay. Random revival begins after the whole team has lost if the target exceeds its size.",
+    "kofHint": "Winners stay. When everyone on a team has lost and a replacement is needed, the selected mode determines how players return. The setting to avoid consecutive appearances also applies.",
     "aceRules": "Ace draw rules",
     "mostWins": "Most wins probability",
     "mostLosses": "Most losses probability",
@@ -705,6 +707,8 @@ window.TB_I18N = {
     "categoryIconFormat": "Category icons must be JPG, PNG, GIF or WebP."
   },
   "ko": {
+    "kofRevivalNoRepeat": "KOF 부활 중복 방지",
+    "kofRevivalNoRepeatHint": "팀원 전원이 한 번씩 부활하면 다음 순환이 시작됩니다.",
     "tournamentManagement": "대회 관리",
     "tournamentManagementHint": "대회를 클릭해 상세 내용을 확인하세요. 종료된 대회만 삭제하거나 복원할 수 있습니다.",
     "showDeletedTournaments": "삭제된 대회 표시",
@@ -896,7 +900,7 @@ window.TB_I18N = {
     "random": "전체 무작위",
     "noRepeat": "무작위 연속 출전 방지",
     "randomStarter": "무작위 선발",
-    "kofHint": "승자는 잔류합니다. 목표 점수가 팀 인원보다 높고 전원이 패배하면 무작위로 부활합니다.",
+    "kofHint": "승자는 잔류합니다. 팀원 전원이 패배한 뒤 교체가 필요하면 선택한 방식에 따라 지명하거나 무작위로 부활합니다. 연속 출전 방지 설정도 적용됩니다.",
     "aceRules": "대장전 추첨 규칙",
     "mostWins": "최다승 확률",
     "mostLosses": "최다패 확률",

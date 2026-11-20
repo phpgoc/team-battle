@@ -9,11 +9,12 @@ import (
 func prepareRevivalKOF(t *testing.T, noRepeat bool) (*workflowFixture, int64, []int64) {
 	t.Helper()
 	f := newWorkflowFixture(t)
-	id := f.create(t, "captain")
+	id := f.create(t, "random")
 	rules := mustTournamentRules(f.app.db, id)
 	rules.KOFRevivalNoRepeat = noRepeat
+	rules.NoRepeat = noRepeat
 	raw, _ := json.Marshal(rules)
-	if _, err := f.app.db.Exec(`UPDATE tournaments SET rules_json=?,round2_target=12 WHERE id=?`, string(raw), id); err != nil {
+	if _, err := f.app.db.Exec(`UPDATE tournaments SET rules_json=?,round2_target=12,kof_initial_a=3,kof_initial_b=6 WHERE id=?`, string(raw), id); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.app.db.Exec(`UPDATE rounds SET target_score=12 WHERE tournament_id=? AND stage='round2'`, id); err != nil {
@@ -21,9 +22,6 @@ func prepareRevivalKOF(t *testing.T, noRepeat bool) (*workflowFixture, int64, []
 	}
 	f.enterKOF(t, id)
 	teams := f.teams(t, id)
-	for side, player := range []int64{3, 6} {
-		f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/kof/starter", id), map[string]any{"team_id": teams[side], "player_id": player}, 200)
-	}
 	return f, id, teams
 }
 
@@ -34,6 +32,9 @@ func TestKOFRevivalCyclesAndCorrection(t *testing.T) {
 		match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2 AND seq=?`, id, seq)
 		player := f.scalar(t, `SELECT player_b_id FROM matches WHERE id=?`, match)
 		if seq >= 4 {
+			if previous := f.scalar(t, `SELECT player_b_id FROM matches WHERE tournament_id=? AND round_no=2 AND seq=?`, id, seq-1); previous == player {
+				t.Fatalf("第%d局连续复活了上一局败者%d", seq, player)
+			}
 			if (seq-4)%3 == 0 {
 				seen = map[int64]bool{}
 			}
@@ -68,12 +69,20 @@ func TestKOFRevivalCyclesAndCorrection(t *testing.T) {
 func TestKOFRevivalDisabledKeepsFullPool(t *testing.T) {
 	f, id, teams := prepareRevivalKOF(t, false)
 	engine := &matchEngine{db: f.app.db, tournamentID: id}
-	round, err := engine.round(stageRound2)
+	for seq := 1; seq <= 3; seq++ {
+		match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2 AND seq=?`, id, seq)
+		if seq < 3 {
+			f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/kof/next-player", id), map[string]any{"match_id": match, "team_id": teams[1], "player_id": 6 + seq}, 200)
+		}
+		f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[0]}, 200)
+	}
+	lastID := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2 AND seq=3`, id)
+	last, err := engine.match(lastID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ids, err := engine.kofRevivalCandidates(round.id, teams[1])
-	if err != nil || len(ids) != 3 {
+	ids, random, err := engine.kofNextCandidates(last, teams[1], []int64{6, 7, 8})
+	if err != nil || !random || len(ids) != 3 {
 		t.Fatalf("关闭规则应保留全队: %v %v", ids, err)
 	}
 }

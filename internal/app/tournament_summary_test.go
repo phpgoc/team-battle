@@ -32,7 +32,7 @@ func TestHomeSummariesAndCachedHistoryFilters(t *testing.T) {
 	}
 	// 尚未确认结束的赛事均属于正在进行，包含分队、选队长和排阵阶段。
 	live := read("/api/public/tournaments")
-	if len(live.Tournaments) != 8 {
+	if len(live.Tournaments) != 9 {
 		t.Fatalf("实时赛事摘要有误: %+v", live)
 	}
 	var foundLive bool

@@ -70,6 +70,11 @@ func TestDemoDataHasConsistentCompleteMatches(t *testing.T) {
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE name='第一轮排阵示例' AND status='lineup_confirm'`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE name='KOF 阶段示例' AND status='round2'`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE name='KOF 不重复复活示例' AND status='round2' AND json_extract(rules_json,'$.kof_revival_no_repeat')=1`)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments t JOIN rounds r ON r.tournament_id=t.id
+		WHERE t.name='KOF 手动复活示例' AND t.status='round2' AND json_extract(t.rules_json,'$.kof_starter')='captain'
+		AND r.stage='round2' AND r.score_a=3 AND r.target_score=5
+		AND NOT EXISTS (SELECT 1 FROM matches WHERE round_id=r.id AND status='pending')
+		AND NOT EXISTS (SELECT 1 FROM tournament_players WHERE tournament_id=t.id AND team_id=t.id*2 AND is_captain=1)`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments t WHERE name='未分队观赛示例' AND (SELECT COUNT(*) FROM tournament_setup_roster s WHERE s.tournament_id=t.id)=6 AND NOT EXISTS(SELECT 1 FROM tournament_players p WHERE p.tournament_id=t.id)`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE name='大将战示例' AND status='ace'`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE name='结束确认示例' AND status='final_confirm'`)

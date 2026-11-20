@@ -143,15 +143,7 @@ func (a *App) submitResult(c *gin.Context) {
 				return err
 			}
 			if r.status != statusFinished && m.next == 0 {
-				_, team := m.loser()
-				lost, err := e.lost(m.roundID, team, req.NextPlayerID)
-				if err != nil {
-					return err
-				}
-				if lost {
-					return errors.New("请选择本队尚未输过的选手")
-				}
-				return e.chooseKOF(m, req.NextPlayerID)
+				return e.reserveKOF(m.id, 0, req.NextPlayerID, true)
 			}
 		}
 		return nil

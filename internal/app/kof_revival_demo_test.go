@@ -6,13 +6,17 @@ import (
 	"time"
 )
 
-// 3v3抢5停在首次复活，录入A获胜后可继续观察第二次复活排除首位选手。
-func seedKOFRevivalDemo(tx *sql.Tx, managerID, creatorID int64, players []int64) error {
+// 3打3抢5，随机示例已抽出第一名复活选手，手动示例等待队长或队员报名。
+func seedKOFRevivalDemo(tx *sql.Tx, managerID, creatorID int64, players []int64, manual bool) error {
+	name := "KOF 不重复复活示例"
+	if manual {
+		name = "KOF 手动复活示例"
+	}
 	var count int
-	if err := tx.QueryRow(`SELECT COUNT(*) FROM tournaments WHERE name='KOF 不重复复活示例'`).Scan(&count); err != nil || count > 0 {
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM tournaments WHERE name=?`, name).Scan(&count); err != nil || count > 0 {
 		return err
 	}
-	id, teamA, teamB, err := seedTournamentShell(tx, managerID, creatorID, "KOF 不重复复活示例", time.Now().Format("2006-01-02T15"), statusRound2)
+	id, teamA, teamB, err := seedTournamentShell(tx, managerID, creatorID, name, time.Now().Format("2006-01-02T15:00:00"), statusRound2)
 	if err != nil {
 		return err
 	}
@@ -32,10 +36,15 @@ func seedKOFRevivalDemo(tx *sql.Tx, managerID, creatorID int64, players []int64)
 	}
 	rules := defaultRules()
 	rules.KOFRevivalNoRepeat = true
+	captainB := players[1]
+	if manual {
+		rules.KOFStarter = "captain"
+		captainB = 0 // B队没有队长，队员可直接报名复活。
+	}
 	if err := saveRules(tx, id, rules); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`UPDATE tournament_players SET is_captain=1 WHERE tournament_id=? AND user_id IN (?,?)`, id, players[0], players[1]); err != nil {
+	if _, err := tx.Exec(`UPDATE tournament_players SET is_captain=1 WHERE tournament_id=? AND user_id IN (?,?)`, id, players[0], captainB); err != nil {
 		return err
 	}
 	for index, stage := range []string{stageRound1, stageRound2, stageAce} {
@@ -56,6 +65,9 @@ func seedKOFRevivalDemo(tx *sql.Tx, managerID, creatorID int64, players []int64)
 			if index == 1 {
 				a = players[0]
 				if seq == 4 {
+					if manual {
+						break
+					}
 					resultWinner, state = 0, statusPending
 				}
 			}

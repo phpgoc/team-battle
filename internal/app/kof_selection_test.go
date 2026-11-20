@@ -151,9 +151,12 @@ func TestKOFWinningQueueSurvivesWhileWaiting(t *testing.T) {
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM kof_reservations WHERE tournament_id=?`, id)
 }
 
-func TestCaptainSelectionAndAutomaticRevival(t *testing.T) {
+func TestCaptainSelectionAndManualRevival(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "captain")
+	if _, err := f.app.db.Exec(`UPDATE tournaments SET rules_json=json_set(rules_json,'$.kof_revival_no_repeat',json('true')),round2_target=5 WHERE id=?`, id); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := f.app.db.Exec(`UPDATE rounds SET target_score=5 WHERE tournament_id=? AND stage='round2'`, id); err != nil {
 		t.Fatal(err)
 	}
@@ -163,20 +166,35 @@ func TestCaptainSelectionAndAutomaticRevival(t *testing.T) {
 		f.request(t, int(player), "POST", fmt.Sprintf("/api/tournaments/%d/kof/starter", id), map[string]any{"team_id": teams[i], "player_id": player}, 200)
 	}
 	path := fmt.Sprintf("/api/tournaments/%d/kof/next-player", id)
+	choose := func(actor int, match, player int64, want int) {
+		f.request(t, actor, "POST", path, map[string]any{"match_id": match, "team_id": teams[1], "player_id": player}, want)
+	}
 	for seq := int64(1); seq <= 5; seq++ {
 		match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2 AND seq=?`, id, seq)
 		if seq < 3 {
-			body := map[string]any{"match_id": match, "team_id": teams[1], "player_id": 6 + seq}
-			f.request(t, int(6+seq), "POST", path, body, 400)
-			f.request(t, 6, "POST", path, body, 200)
+			choose(int(6+seq), match, 6+seq, 400)
+			choose(6, match, 6+seq, 200)
+		}
+		if seq == 3 {
+			choose(6, match, 7, 400) // 全队尚未实际输过一次。
 		}
 		f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/matches/%d/result", id, match), map[string]any{"winner_team_id": teams[0]}, 200)
+		if seq == 3 {
+			f.assertCount(t, 0, `SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=2 AND status='pending'`, id)
+			choose(7, match, 7, 400)
+			choose(2, match, 8, 400) // 开启避免连续出场时，刚输的选手不能立刻复活。
+			choose(6, match, 7, 200)
+		}
+		if seq == 4 {
+			choose(1, match, 7, 400) // 本轮已复活的选手不能再次出场。
+			choose(1, match, 8, 200)
+		}
 		if seq < 5 {
 			f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=2 AND seq=? AND status='pending'`, id, seq+1)
 		}
 	}
-	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=2 AND seq=4 AND player_b_id IN (6,7,8)`, id)
-	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=2 AND seq=5 AND player_b_id IN (6,7,8)`, id)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=2 AND seq=4 AND player_a_id=3 AND player_b_id=7`, id)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=2 AND seq=5 AND player_a_id=3 AND player_b_id=8`, id)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/confirm", id), nil, 200)
 	last := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2 AND seq=5`, id)
 	f.request(t, 1, "POST", path, map[string]any{"match_id": last, "team_id": teams[1], "player_id": 8}, 400)

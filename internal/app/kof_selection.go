@@ -78,12 +78,16 @@ func (e *matchEngine) reserveKOF(matchID, team, player int64, manager bool) erro
 	if m.status == statusPending && (player == m.playerA || player == m.playerB) {
 		return errors.New("正在参赛的选手不能报名下一位置")
 	}
-	lost, err := e.lost(m.roundID, team, player)
+	ids, err := e.players(team)
 	if err != nil {
 		return err
 	}
-	if lost {
-		return errors.New("已在KOF输过的选手不能报名")
+	candidates, randomRevival, err := e.kofNextCandidates(m, team, ids)
+	if err != nil {
+		return err
+	}
+	if randomRevival || !containsID(candidates, player) {
+		return errors.New("该选手当前不符合KOF出场条件")
 	}
 	if m.status == statusFinished {
 		if err := e.chooseKOF(m, player); err != nil {
@@ -183,28 +187,17 @@ func (a *App) kofOptions(c *gin.Context) {
 			fail(c, 500, "读取报名失败")
 			return
 		}
-		candidates := []int64{}
-		for _, player := range ids {
-			if current.status == statusFinished {
-				_, loser := current.loser()
-				if team != loser {
-					break
-				}
+		candidates := ids
+		if matchID != 0 {
+			var randomRevival bool
+			candidates, randomRevival, err = engine.kofNextCandidates(current, team, ids)
+			if err != nil {
+				fail(c, 500, "读取选手战绩失败")
+				return
 			}
-			if current.status == statusPending && (player == current.playerA || player == current.playerB) {
-				continue
+			if randomRevival || candidates == nil {
+				candidates = []int64{}
 			}
-			if matchID != 0 {
-				lost, err := engine.lost(current.roundID, team, player)
-				if err != nil {
-					fail(c, 500, "读取选手战绩失败")
-					return
-				}
-				if lost {
-					continue
-				}
-			}
-			candidates = append(candidates, player)
 		}
 		occupied := selected != 0
 		if selected != actor.ID {
