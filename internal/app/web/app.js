@@ -896,18 +896,22 @@
       return roundMarkup(rounds.find(round => round.stage === stage), matches, people, e);
     };
     const pending = setup?.step ? { stage: setup.step.kind === 'group' ? 'setupGrouping' : setup.step.kind, player_a_id: setup.step.a, player_b_id: setup.step.b, player_a_name: t('toConfirm'), player_b_name: t('toConfirm') } : !terminal(e) ? (e.matches.find(match => match.status === 'pending' && match.stage === e.status) || waitingKOFMatch(e) || (e.status === 'ace' && !e.matches.some(match => match.stage === 'ace') ? { stage: 'ace', status: 'waiting' } : null) || (preMatch(e) ? plannedMatches(e, 'round1').find(match => match.player_a_id && match.player_b_id) : null)) : null;
-    // 累计胜局颜色与KOF淘汰线独立：历史保留颜色，淘汰线只用于实时KOF。
-    const roster = (team, side, unassigned = false) => `<aside class="board-roster board-roster-${side}"><div class="board-roster-head"><span>${unassigned ? t('unassignedPlayers') : esc(teamName(e, team))}</span><b>${team.players.filter(player => !setup || setup.visible.has(player.id)).length}</b></div><div class="board-roster-list" style="--roster-count:${Math.max(1, Math.ceil(team.players.filter(player => !setup || setup.visible.has(player.id)).length / (unassigned ? 2 : 1)))}">${team.players.filter(player => !setup || setup.visible.has(player.id)).map(player => {
-      const lost = kofPlayerEliminated(e, player.id);
-      const recordClass = playerHasWin(e, player.id) ? 'is-record-winner' : 'is-record-new';
-      return `<div data-roster-player="${player.id}" class="board-roster-player ${lost ? 'is-lost' : ''} ${recordClass}"><div class="board-roster-profile">${avatar(player)}<span class="board-roster-name">${boardIdentity(player)}${player.is_captain ? `<small class="board-captain">${t('captain')}</small>` : ''}</span></div></div>`;
-    }).join('')}</div></aside>`;
+    const rosterRows = ungrouped ? Math.ceil((e.setup_roster || []).length / 2) : Math.max(...teams.map(team => team.players.length));
+    // 共用较长名单的行数，抽签逐个揭示时也保留最终行高。
+    const roster = (team, side, unassigned = false) => {
+      const visible = team.players.filter(player => !setup || setup.visible.has(player.id));
+      return `<aside class="board-roster board-roster-${side}"><div class="board-roster-head"><span>${unassigned ? t('unassignedPlayers') : esc(teamName(e, team))}</span><b>${visible.length}</b></div><div class="board-roster-list">${visible.map(player => {
+        const lost = kofPlayerEliminated(e, player.id);
+        const recordClass = playerHasWin(e, player.id) ? 'is-record-winner' : 'is-record-new';
+        return `<div data-roster-player="${player.id}" class="board-roster-player ${lost ? 'is-lost' : ''} ${recordClass}"><div class="board-roster-profile">${avatar(player)}<span class="board-roster-name">${boardIdentity(player)}${player.is_captain ? `<small class="board-captain">${t('captain')}</small>` : ''}</span></div></div>`;
+      }).join('')}</div></aside>`;
+    };
     const score = `<div class="board-score"><div><span>${t('teamA')}</span><strong>${rounds.filter(round => round.winner_team_id === teams[0].id).length}</strong></div><b>VS</b><div><span>${t('teamB')}</span><strong>${rounds.filter(round => round.winner_team_id === teams[1].id).length}</strong></div></div>`;
     return `<header class="board-top${pending ? ' has-current' : ''}">
       <div class="board-overview"><div class="board-title"><h1>${esc(e.name)}${deletedBadge(e)}</h1>${e.description?.trim() ? `<p class="board-subtitle">${esc(e.description)}</p>` : ''}<p><time>${esc(displayTime(e.start_time))}</time><span class="board-manager">${t('manager')}: <b>${esc(e.manager_name || '')}</b></span></p></div>
         <div class="board-overview-bottom">${score}${['final_confirm', 'completed', 'cancelled'].includes(e.status) ? `<span class="board-status">${t(e.status)}</span>` : ''}</div>
       </div>${pending ? currentMatchMarkup(e, pending, people) : ''}
-    </header><div class="board-arena"><div class="board-center"><div class="board-records"><div class="board-columns"><div class="board-left">${panel('round1')}${panel('round2')}</div><div class="board-right">${panel('ace')}<div class="board-rosters${ungrouped ? ' is-ungrouped' : ''}">${ungrouped ? roster({ players: e.setup_roster || [] }, 'unassigned', true) : roster(teams[0], 'a') + roster(teams[1], 'b')}</div></div></div>${rulesSummary(e)}</div></div></div>`;
+    </header><div class="board-arena"><div class="board-center"><div class="board-records"><div class="board-columns"><div class="board-left">${panel('round1')}${panel('round2')}</div><div class="board-right">${panel('ace')}<div class="board-rosters${ungrouped ? ' is-ungrouped' : ''}" style="--roster-count:${Math.max(1, rosterRows)}">${ungrouped ? roster({ players: e.setup_roster || [] }, 'unassigned', true) : roster(teams[0], 'a') + roster(teams[1], 'b')}</div></div></div>${rulesSummary(e)}</div></div></div>`;
   }
   async function renderLineupPage(preserve = false) {
     const e = state.event;
