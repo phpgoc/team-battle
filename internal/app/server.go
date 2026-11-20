@@ -47,7 +47,10 @@ func (a *App) serveHTTPHandler(ctx context.Context, listener net.Listener, handl
 		serveFinished = true
 	}
 	a.shutdownStarted.Store(true)
-	log.Print("停止接受请求，等待活动请求结束")
+	log.Print(operationLogText(a.logLanguage,
+		"停止接受请求，等待活动请求结束",
+		"Stopped accepting requests, waiting for active requests",
+		"새 요청 수신을 중단하고 진행 중인 요청을 기다립니다"))
 	// 已接收的请求继续使用自己的上下文，允许数据库操作提交或回滚。
 	shutdownErr := server.Shutdown(context.Background())
 	<-streamsDone

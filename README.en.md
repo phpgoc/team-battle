@@ -50,6 +50,8 @@ go build -o team-battle.exe .
 .\team-battle.exe
 ```
 
+Tournament and account operation logs are written to standard output. Redirect them with your shell or process manager. Use `--language zh|en|ko` to select the log language. Chinese is the default. The application has no log query page.
+
 ### Cross-compile for Linux
 
 From Windows PowerShell, build for Linux x86-64.

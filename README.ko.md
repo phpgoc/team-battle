@@ -50,6 +50,8 @@ go build -o team-battle.exe .
 .\team-battle.exe
 ```
 
+대회 및 계정 작업 로그는 표준 출력으로 기록됩니다. 셸이나 프로세스 관리자로 리디렉션하세요. `--language zh|en|ko`로 로그 언어를 선택할 수 있으며 기본값은 중국어입니다. 애플리케이션에는 로그 조회 페이지가 없습니다.
+
 ### Linux용 교차 컴파일
 
 Windows PowerShell에서 Linux x86-64용으로 빌드합니다.

@@ -3,7 +3,7 @@
 ## 工程与交付
 
 - Go 1.22+、Gin、纯 Go SQLite，支持 CGO_ENABLED=0。前端 HTML/CSS/JS 通过 go:embed 打包，不依赖 Redis、外部 CDN 或 Node 服务。
-- 单可执行文件部署，只提供 HTTP，TLS 由 Nginx 处理。参数 --db（./runtime/team-battle.sqlite）、--host（localhost）、--port（9527）、--sse-max-connections（500，正整数）。启动自动创建目录、表结构及默认管理员 admin/test1234，无 init/test 子命令。
+- 单可执行文件部署，只提供 HTTP，TLS 由 Nginx 处理。参数 --db（./runtime/team-battle.sqlite）、--host（localhost）、--port（9527）、--sse-max-connections（500，正整数）、--language（zh/en/ko，默认 zh）。启动自动创建目录、表结构及默认管理员 admin/test1234，无 init/test 子命令。
 - 收到 Ctrl+C、SIGTERM、SIGHUP 或 SIGQUIT 后先关闭监听并拒绝新请求，再关闭 SSE，等待全部 HTTP 请求结束后关闭数据库；不强制超时截断请求。
 - 业务与测试在 internal/app，版本迁移在 internal/migrations，正式入口在 cmd/team-battle，前端在 internal/app/web。根目录保留启动器、文档、模块文件和 test.sqlite；按职责拆文件。
 - 赛事使用 Tournament/tournament，单局使用 Match/match，event 仅表示事件。events.go 专用于 SSE，stream_broadcast.go 管理内存订阅。旧数据库名仅保留在迁移及其测试中。
@@ -20,7 +20,7 @@
 - 发布后的迁移及 legacy_* 辅助函数不可修改或依赖可变业务逻辑。后续升级新增递增编号的 Go 迁移文件，在 Up 中通过 goose.NewGoMigration/WithGoMigrations 注册 RunTx；函数只使用传入事务，不嵌套事务、不直接访问连接池。迁移随程序编译，无需随部署复制源文件；不允许只标记版本而跳过旧库校验。
 - 背景文件外移涉及文件系统，继续在版本升级后幂等执行；写文件成功后才清空库内原图，失败可在下次启动重试。WAL，每条连接通过 DSN 启用外键与5秒锁等待，写事务 immediate。
 - 不设 teams 表，固定 A/B 队 ID 为 tournamentID*2-1、tournamentID*2，通过统一函数计算；排阵提交状态存赛事表。rounds 是轮次，matches 是单局，历史与实时共用；round_no=1/2/3，a_id、b_id、who_win 与规范字段同步，胜负为0/a/b。
-- 状态修改原子提交，成功后写审计、失效缓存并广播；不得持锁等待动画。审计包含操作者、时间、动作和数据。
+- 状态修改原子提交，成功后写审计、失效缓存并广播；不得持锁等待动画。事务提交后向标准输出写操作者、赛事和动作摘要，语言由 --language 选择，默认中文；过滤密码、说明和图片内容，不记录只读请求，也不提供日志查询接口。赛事详情不返回审计记录。审计表继续保存大将抽签等内部业务数据。
 - 赛事软删除存 tournaments.is_deleted，仅超管可删除/恢复已关闭（completed/cancelled）赛事，进行中禁止操作；原阶段及关联数据保留，不计战绩，恢复后重新纳入。首页默认隐藏，include_deleted=1后可查看，人数可见性仍适用；超管赛事管理列表包含已删除项。
 - 历史列表用 Go 内存缓存，按赛事名、开始日期和参赛者组合筛选后分页。账号 ID、姓名、头像与分类映射驻内存，变更整体替换，避免频繁 JOIN。
 - test.sqlite 是唯一入库的演示数据库，保留已有数据并补各功能示例；admin 与选手密码均 test1234，选手登录名等于显示名，会话清空。临时数据库、脚本和产物放 ignored runtime。

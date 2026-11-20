@@ -50,6 +50,8 @@ go build -o team-battle.exe .
 .\team-battle.exe
 ```
 
+赛事与账号操作记录写入标准输出，可由 shell 或进程管理器重定向。`--language zh|en|ko` 选择日志语言，默认中文；程序不提供日志查询页面。
+
 ### 交叉编译到 Linux
 
 Windows PowerShell（Linux x86-64）：

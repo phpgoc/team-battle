@@ -8,6 +8,6 @@ import (
 )
 
 // 服务监听端口前完成版本升级；失败时禁止继续启动。
-func migrate(db *sql.DB) error {
-	return migrations.Up(context.Background(), db)
+func migrate(db *sql.DB, language ...string) error {
+	return migrations.Up(context.Background(), db, language...)
 }

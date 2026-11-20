@@ -23,7 +23,13 @@ func (a *App) runMatchMutation(tournamentID, actorID int64, work func(*matchEngi
 	if err := work(engine); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	for _, operation := range engine.operations {
+		a.logTournamentOperation(operation)
+	}
+	return nil
 }
 func (a *App) startTournament(c *gin.Context) {
 	actor, id, access := a.managerTournament(c)

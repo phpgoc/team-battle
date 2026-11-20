@@ -228,10 +228,6 @@ func (a *App) buildTournament(tournamentID int64, includePrivate bool) (map[stri
 			tournament["ace_draw_special"] = draw.Special
 		}
 	}
-	if includePrivate {
-		actions, _ := a.loadActions(tournamentID)
-		tournament["actions"] = actions
-	}
 	return tournament, nil
 }
 
@@ -363,24 +359,6 @@ func (a *App) loadMatches(tournamentID int64) ([]map[string]any, error) {
 			item["next_player_id"] = next.Int64
 		}
 		items = append(items, item)
-	}
-	return items, nil
-}
-
-func (a *App) loadActions(tournamentID int64) ([]map[string]any, error) {
-	rows, err := a.db.Query(`SELECT ea.id,ea.action,ea.payload,ea.created_at,COALESCE(u.display_name,'系统') FROM tournament_actions ea LEFT JOIN users u ON u.id=ea.actor_id WHERE ea.tournament_id=? ORDER BY ea.id DESC LIMIT 30`, tournamentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []map[string]any{}
-	for rows.Next() {
-		var id int64
-		var action, payload, created, actor string
-		if err := rows.Scan(&id, &action, &payload, &created, &actor); err != nil {
-			return nil, err
-		}
-		items = append(items, gin.H{"id": id, "action": action, "payload": payload, "created_at": created, "actor": actor})
 	}
 	return items, nil
 }

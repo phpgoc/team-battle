@@ -63,5 +63,6 @@ func (a *App) updateTournamentBackground(c *gin.Context) {
 		fail(c, 500, "保存赛事背景失败")
 		return
 	}
+	a.logTournamentOperation(tournamentOperation{TournamentID: tournamentID, ActorID: actor.ID, Action: "tournament_background_updated", Payload: string(payload)})
 	ok(c, gin.H{"ok": true})
 }

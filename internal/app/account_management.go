@@ -272,6 +272,32 @@ func (a *App) saveAccountChange(c *gin.Context, actor, target User, req profileR
 		fail(c, 500, "保存账号失败")
 		return
 	}
+	if profileChanged || len(hash) > 0 {
+		fields := []string{}
+		if username != target.Username {
+			fields = append(fields, "username")
+		}
+		if displayName != target.DisplayName {
+			fields = append(fields, "display_name")
+		}
+		if role != target.Role {
+			fields = append(fields, "role")
+		}
+		if category != target.CategoryID {
+			fields = append(fields, "category")
+		}
+		if avatar != nil {
+			fields = append(fields, "avatar")
+		}
+		if len(hash) > 0 {
+			fields = append(fields, "password")
+		}
+		action := "修改账号资料"
+		if len(fields) == 1 && fields[0] == "password" {
+			action = "修改账号密码"
+		}
+		a.logAccountOperation(actor, target.ID, displayName, action, fields)
+	}
 	a.invalidateCategoryDirectory()
 	updated, err := a.userByID(target.ID)
 	if err != nil {
@@ -340,6 +366,11 @@ func (a *App) createAccount(c *gin.Context) {
 		return
 	}
 	id, _ := result.LastInsertId()
+	fields := []string{"role", "category", "password"}
+	if avatar != nil {
+		fields = append(fields, "avatar")
+	}
+	a.logAccountOperation(actor, id, displayName, "创建账号", fields)
 	a.invalidateCategoryDirectory()
 	ok(c, gin.H{"id": id})
 }
@@ -377,6 +408,7 @@ func (a *App) deleteUser(c *gin.Context) {
 		fail(c, 500, "删除账号失败")
 		return
 	}
+	a.logAccountOperation(actor, target.ID, target.DisplayName, "删除账号", nil)
 	a.invalidateCategoryDirectory()
 	ok(c, gin.H{"ok": true})
 }

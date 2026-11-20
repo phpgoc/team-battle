@@ -55,7 +55,11 @@ func TestTournamentViewOmitsLoginNames(t *testing.T) {
 				t.Fatalf("身份%d的公开名单缺少选手显示名，已分队=%t", actor, isGrouped)
 			}
 		}
-		assertNoLoginNames(t, f.request(t, 2, "GET", path, nil, 200))
+		managerView := f.request(t, 2, "GET", path, nil, 200)
+		assertNoLoginNames(t, managerView)
+		if bytes.Contains(managerView, []byte(`"actions"`)) {
+			t.Fatal("赛事详情不提供操作日志查询")
+		}
 	}
 	assertView(false)
 	f.request(t, 2, "POST", path+"/setup-draw", nil, 200)

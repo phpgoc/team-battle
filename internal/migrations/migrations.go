@@ -12,13 +12,21 @@ import (
 )
 
 // Up 自动执行尚未应用的迁移；不提供降级，恢复旧版本须使用升级前的备份。
-func Up(ctx context.Context, db *sql.DB) error {
+func Up(ctx context.Context, db *sql.DB, languages ...string) error {
 	baseline := goose.NewGoMigration(1, &goose.GoFunc{RunTx: upBaseline}, nil)
 	baseline.Source = "00001_baseline.go"
-	return up(ctx, db, baseline)
+	language := "zh"
+	if len(languages) > 0 && (languages[0] == "zh" || languages[0] == "en" || languages[0] == "ko") {
+		language = languages[0]
+	}
+	return upWithLanguage(ctx, db, language, baseline)
 }
 
-func up(ctx context.Context, db *sql.DB, migrations ...*goose.Migration) (retErr error) {
+func up(ctx context.Context, db *sql.DB, migrations ...*goose.Migration) error {
+	return upWithLanguage(ctx, db, "zh", migrations...)
+}
+
+func upWithLanguage(ctx context.Context, db *sql.DB, language string, migrations ...*goose.Migration) (retErr error) {
 	provider, err := goose.NewProvider(goose.DialectSQLite3, db, nil,
 		goose.WithDisableGlobalRegistry(true), goose.WithGoMigrations(migrations...),
 		goose.WithLogger(goose.NopLogger()))
@@ -54,7 +62,12 @@ func up(ctx context.Context, db *sql.DB, migrations ...*goose.Migration) (retErr
 		return fmt.Errorf("数据库升级失败（当前版本 %d，目标版本 %d）: %w", current, target, err)
 	}
 	if len(results) != 0 {
-		log.Printf("数据库升级完成：%d → %d，共 %d 项迁移", current, target, len(results))
+		messages := map[string]string{
+			"zh": fmt.Sprintf("数据库升级完成：%d → %d，共 %d 项迁移", current, target, len(results)),
+			"en": fmt.Sprintf("Database migration complete: %d to %d, %d migration(s)", current, target, len(results)),
+			"ko": fmt.Sprintf("데이터베이스 마이그레이션 완료: %d → %d, %d개", current, target, len(results)),
+		}
+		log.Print(messages[language])
 	}
 	return nil
 }

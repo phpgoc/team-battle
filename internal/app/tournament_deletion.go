@@ -46,6 +46,7 @@ func (a *App) setTournamentDeleted(c *gin.Context, deleted bool) {
 		fail(c, http.StatusBadRequest, "仅已关闭赛事可以删除或恢复")
 		return
 	}
+	var operations []tournamentOperation
 	// 重复请求不追加审计，也不改动原赛事数据。
 	if previous != deleted {
 		if _, err := tx.Exec(`UPDATE tournaments SET is_deleted=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, deleted, id); err != nil {
@@ -61,10 +62,14 @@ func (a *App) setTournamentDeleted(c *gin.Context, deleted bool) {
 			fail(c, http.StatusInternalServerError, "保存失败")
 			return
 		}
+		operations = engine.operations
 	}
 	if err := tx.Commit(); err != nil {
 		fail(c, http.StatusInternalServerError, "保存失败")
 		return
+	}
+	for _, operation := range operations {
+		a.logTournamentOperation(operation)
 	}
 	a.invalidateHistoryCache()
 	c.Header("Cache-Control", "no-store")

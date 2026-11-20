@@ -64,6 +64,7 @@ type App struct {
 	broadcast         streamHub
 	logins            loginLimiter
 	sseMaxConnections int
+	logLanguage       string
 	shutdownStarted   atomic.Bool
 	streamsDone       <-chan struct{}
 }
@@ -237,14 +238,19 @@ type aceRequest struct {
 
 // Main 启动正式服务，根目录和 cmd/team-battle 都通过它保持相同的启动行为。
 func Main() {
+	log.SetOutput(os.Stdout)
 	host := flag.String("host", "localhost", "HTTP listen host")
 	port := flag.Int("port", 9527, "HTTP listen port")
 	dbPath := flag.String("db", "", "SQLite database path")
 	sqlPath := flag.String("sql", "", "SQLite database path alias")
 	sseMaxConnections := flag.Int("sse-max-connections", defaultSSEMaxConnections, "Maximum simultaneous SSE subscriptions")
+	logLanguage := flag.String("language", "zh", "Operation log language: zh, en, ko")
 	flag.Parse()
 	if *sseMaxConnections < 1 {
 		log.Fatal("--sse-max-connections 必须大于 0")
+	}
+	if *logLanguage != "zh" && *logLanguage != "en" && *logLanguage != "ko" {
+		log.Fatal("--language 只支持 zh、en、ko")
 	}
 
 	if *dbPath == "" {
@@ -255,17 +261,20 @@ func Main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT)
 	addr := net.JoinHostPort(*host, strconv.Itoa(*port))
-	err := run(ctx, addr, *dbPath, *sseMaxConnections)
+	err := run(ctx, addr, *dbPath, *sseMaxConnections, *logLanguage)
 	stop()
 	if err != nil {
 		log.Fatal(err)
 	}
 	if ctx.Err() != nil {
-		log.Print("服务已停止，数据库已关闭")
+		log.Print(operationLogText(*logLanguage,
+			"服务已停止，数据库已关闭",
+			"Service stopped and database closed",
+			"서비스가 중지되고 데이터베이스가 닫혔습니다"))
 	}
 }
 
-func run(ctx context.Context, addr, dbPath string, sseMaxConnections int) (err error) {
+func run(ctx context.Context, addr, dbPath string, sseMaxConnections int, logLanguage string) (err error) {
 	storageDir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(storageDir, 0755); err != nil {
 		return err
@@ -275,7 +284,7 @@ func run(ctx context.Context, addr, dbPath string, sseMaxConnections int) (err e
 		return err
 	}
 	defer func() { err = errors.Join(err, db.Close()) }()
-	if err := migrate(db); err != nil {
+	if err := migrate(db, logLanguage); err != nil {
 		return err
 	}
 	if err := ensureDefaultAdmin(db); err != nil {
@@ -296,7 +305,11 @@ func run(ctx context.Context, addr, dbPath string, sseMaxConnections int) (err e
 		rng:               mathrand.New(mathrand.NewSource(time.Now().UnixNano())),
 		storageDir:        storageDir,
 		sseMaxConnections: sseMaxConnections,
+		logLanguage:       logLanguage,
 	}
-	log.Printf("team-battle listening on http://%s, db=%s", listener.Addr(), dbPath)
+	log.Printf(operationLogText(logLanguage,
+		"服务已监听 http://%s，数据库=%s",
+		"Listening on http://%s, database=%s",
+		"http://%s에서 수신 중, 데이터베이스=%s"), listener.Addr(), dbPath)
 	return app.serveHTTP(ctx, listener)
 }

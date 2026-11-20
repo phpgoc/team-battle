@@ -198,6 +198,9 @@ func (a *App) archiveTournament(c *gin.Context) {
 		fail(c, 500, err.Error())
 		return
 	}
+	for _, operation := range engine.operations {
+		a.logTournamentOperation(operation)
+	}
 	a.invalidateHistoryCache()
 	ok(c, gin.H{"id": id})
 }

@@ -205,8 +205,8 @@ func (a *App) resetUserPassword(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "账号编号无效")
 		return
 	}
-	var role string
-	if err := a.db.QueryRow(`SELECT role FROM users WHERE id=? AND is_deleted=0`, userID).Scan(&role); err != nil {
+	var role, targetName string
+	if err := a.db.QueryRow(`SELECT role,display_name FROM users WHERE id=? AND is_deleted=0`, userID).Scan(&role, &targetName); err != nil {
 		fail(c, http.StatusNotFound, "账号不存在")
 		return
 	}
@@ -224,6 +224,7 @@ func (a *App) resetUserPassword(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "保存密码失败")
 		return
 	}
+	a.logAccountOperation(actor, userID, targetName, "重置账号密码", nil)
 	ok(c, gin.H{"ok": true})
 }
 
@@ -318,4 +319,5 @@ func (a *App) logAction(tournamentID, actorID int64, action string, payload any)
 		}
 	}
 	_, _ = a.db.Exec(`INSERT INTO tournament_actions(tournament_id,actor_id,action,payload) VALUES(?,?,?,?)`, tournamentID, actorID, action, data)
+	a.logTournamentOperation(tournamentOperation{TournamentID: tournamentID, ActorID: actorID, Action: action, Payload: data})
 }

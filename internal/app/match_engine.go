@@ -19,6 +19,7 @@ type matchEngine struct {
 	db                    sqlRunner
 	tournamentID, actorID int64
 	rng                   *rand.Rand
+	operations            []tournamentOperation
 }
 
 type engineRound struct {
@@ -90,6 +91,9 @@ func (e *matchEngine) log(action string, payload any) error {
 		return err
 	}
 	_, err = e.db.Exec(`INSERT INTO tournament_actions(tournament_id,actor_id,action,payload) VALUES(?,?,?,?)`, e.tournamentID, e.actorID, action, string(raw))
+	if err == nil {
+		e.operations = append(e.operations, tournamentOperation{TournamentID: e.tournamentID, ActorID: e.actorID, Action: action, Payload: string(raw)})
+	}
 	return err
 }
 func (e *matchEngine) insertMatch(stage string, a, b int64) error {
