@@ -125,6 +125,15 @@ func (a *App) updateTournamentSettings(c *gin.Context) {
 		if err != nil {
 			return err
 		}
+		if req.ManagerID != nil {
+			manager := *req.ManagerID
+			if err := validateTournamentManager(tx, manager); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(`UPDATE tournaments SET manager_id=? WHERE id=?`, manager, tournamentID); err != nil {
+				return err
+			}
+		}
 		rules := beforeRules
 		if req.Rules != nil {
 			rules = *req.Rules
@@ -162,13 +171,13 @@ func (a *App) updateTournamentSettings(c *gin.Context) {
 				return errors.New("分组抽签后不能修改参赛阵容")
 			}
 			if changed {
+				if err := saveSetupRoster(tx, tournamentID, *req.PlayerIDs, req.FixedAssignments); err != nil {
+					return err
+				}
 				for _, table := range []string{"captain_votes", "tournament_players"} {
 					if _, err := tx.Exec(`DELETE FROM `+table+` WHERE tournament_id=?`, tournamentID); err != nil {
 						return err
 					}
-				}
-				if err := saveSetupRoster(tx, tournamentID, *req.PlayerIDs, req.FixedAssignments); err != nil {
-					return err
 				}
 			}
 		}
@@ -181,15 +190,6 @@ func (a *App) updateTournamentSettings(c *gin.Context) {
 				if exists == 0 {
 					return errors.New("特殊候选必须是参赛选手")
 				}
-			}
-		}
-		if req.ManagerID != nil {
-			manager := *req.ManagerID
-			if err := validateTournamentManager(tx, manager); err != nil {
-				return err
-			}
-			if _, err := tx.Exec(`UPDATE tournaments SET manager_id=? WHERE id=?`, manager, tournamentID); err != nil {
-				return err
 			}
 		}
 		if req.Name != "" || req.StartTime != "" {

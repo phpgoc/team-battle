@@ -1,8 +1,9 @@
 package app
 
 import (
-	"github.com/gin-gonic/gin"
 	"sort"
+
+	"github.com/gin-gonic/gin"
 )
 
 // 分组抽签前可以补充选手并调整固定队伍，保存不执行抽签。
@@ -37,6 +38,10 @@ func (a *App) addTournamentPlayers(c *gin.Context) {
 		fail(c, 400, "分组抽签后不能修改参赛阵容")
 		return
 	}
+	if err := saveSetupRoster(tx, tournamentID, req.PlayerIDs, req.FixedAssignments); err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
 	for _, table := range []string{"kof_reservations", "matches", "captain_votes", "lineup_entries", "player_selections", "tournament_players"} {
 		if _, err := tx.Exec(`DELETE FROM `+table+` WHERE tournament_id=?`, tournamentID); err != nil {
 			fail(c, 500, err.Error())
@@ -45,10 +50,6 @@ func (a *App) addTournamentPlayers(c *gin.Context) {
 	}
 	if _, err := tx.Exec(`UPDATE tournaments SET lineup_a_submitted=0,lineup_b_submitted=0 WHERE id=?`, tournamentID); err != nil {
 		fail(c, 500, err.Error())
-		return
-	}
-	if err := saveSetupRoster(tx, tournamentID, req.PlayerIDs, req.FixedAssignments); err != nil {
-		fail(c, 400, err.Error())
 		return
 	}
 	if _, err := tx.Exec(`UPDATE tournaments SET status='draft',kof_initial_a=NULL,kof_initial_b=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`, tournamentID); err != nil {
@@ -110,16 +111,32 @@ func (a *App) addTournamentPlayers(c *gin.Context) {
 }
 
 func (a *App) eligibleTournamentUsers(c *gin.Context) {
-	_, _, access := a.managerTournament(c)
+	_, tournamentID, access := a.managerTournament(c)
 	if !access {
 		return
 	}
-	users, err := a.activePlayers()
+	users, err := a.activeTournamentPlayers(tournamentID)
 	if err != nil {
 		fail(c, 500, err.Error())
 		return
 	}
 	ok(c, gin.H{"users": users})
+}
+
+func (a *App) activeTournamentPlayers(tournamentID int64) ([]User, error) {
+	users, err := a.activePlayers()
+	if err != nil {
+		return nil, err
+	}
+	var managerID int64
+	if err := a.db.QueryRow(`SELECT manager_id FROM tournaments WHERE id=?`, tournamentID).Scan(&managerID); err != nil {
+		return nil, err
+	}
+	if manager, err := a.cachedUser(managerID); err == nil && isNonSuperAdmin(manager.Role) && manager.Status == "active" && !manager.IsDeleted && manager.CategoryID == 0 {
+		users = append(users, manager)
+		sort.Slice(users, func(i, j int) bool { return users[i].ID < users[j].ID })
+	}
+	return users, nil
 }
 
 func (a *App) activePlayers() ([]User, error) {
@@ -129,7 +146,7 @@ func (a *App) activePlayers() ([]User, error) {
 	}
 	users := []User{}
 	for _, u := range directory {
-		if isNonSuperAdmin(u.Role) && u.Status == "active" && !u.IsDeleted {
+		if isNonSuperAdmin(u.Role) && u.Status == "active" && !u.IsDeleted && u.CategoryID > 0 {
 			users = append(users, u)
 		}
 	}

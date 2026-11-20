@@ -28,6 +28,11 @@ func (f *workflowFixture) records(t *testing.T, user, player int) playerRecordsR
 
 func TestPlayerRecordsIncludeBothSidesAndOpponentCategories(t *testing.T) {
 	f := newWorkflowFixture(t)
+	for _, id := range []int{3, 4, 5, 6, 7, 8} {
+		if _, err := f.app.db.Exec("UPDATE users SET category_id=? WHERE id=?", workflowCategoryID, id); err != nil {
+			t.Fatal(err)
+		}
+	}
 	for _, query := range []string{
 		`INSERT INTO categories(id,name) VALUES(1,'虫族'),(2,'神族')`,
 		`UPDATE users SET category_id=1 WHERE id=6`,
@@ -61,9 +66,9 @@ func TestPlayerRecordsIncludeBothSidesAndOpponentCategories(t *testing.T) {
 		t.Fatalf("未实际出场的正式队员也应计入团战胜负: %+v", reserve)
 	}
 	want := []categoryRecord{
-		{CategoryID: 0, recordScore: recordScore{1, 1}},
 		{CategoryID: 1, Name: "虫族", recordScore: recordScore{2, 1}},
 		{CategoryID: 2, Name: "神族", recordScore: recordScore{0, 2}},
+		{CategoryID: workflowCategoryID, Name: "赛事测试分类", recordScore: recordScore{1, 1}},
 	}
 	if !reflect.DeepEqual(got.ByCategory, want) {
 		t.Fatalf("对手分类战绩不正确: got %+v, want %+v", got.ByCategory, want)
@@ -82,7 +87,7 @@ func TestPlayerRecordsIncludeBothSidesAndOpponentCategories(t *testing.T) {
 	}
 	f.app.invalidateCategoryDirectory()
 	got = f.records(t, 0, 3)
-	if len(got.ByCategory) != 2 || got.ByCategory[1].recordScore != (recordScore{2, 3}) {
+	if len(got.ByCategory) != 2 || got.ByCategory[0].CategoryID != 2 || got.ByCategory[0].recordScore != (recordScore{2, 3}) {
 		t.Fatalf("未使用当前分类汇总: %+v", got.ByCategory)
 	}
 }

@@ -3,8 +3,52 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 )
+
+func TestTournamentRosterRequiresCategoryForNewPlayers(t *testing.T) {
+	f := newWorkflowFixture(t)
+	if _, err := f.app.db.Exec("UPDATE users SET category_id=NULL WHERE id=2"); err != nil {
+		t.Fatal(err)
+	}
+	body := map[string]any{"name": "分类校验", "start_time": "2026-11-19T20", "manager_id": 2, "player_ids": []int{2}}
+	var created struct{ ID int64 }
+	if err := json.Unmarshal(f.request(t, 1, "POST", "/api/tournaments", body, 200), &created); err != nil {
+		t.Fatal(err)
+	}
+	path := fmt.Sprintf("/api/tournaments/%d", created.ID)
+	if raw := f.request(t, 2, "GET", path+"/eligible-users", nil, 200); !strings.Contains(string(raw), `"username":"user2"`) {
+		t.Fatal("未分类的赛事管理员没有出现在候选中")
+	}
+	f.request(t, 2, "POST", path+"/players", map[string]any{"player_ids": []int{2, 3}}, 200)
+	f.assertCount(t, 1, "SELECT COUNT(*) FROM tournament_setup_roster WHERE tournament_id=? AND user_id=2", created.ID)
+
+	if _, err := f.app.db.Exec("UPDATE users SET category_id=NULL WHERE id IN (3,4)"); err != nil {
+		t.Fatal(err)
+	}
+	f.request(t, 2, "POST", path+"/players", map[string]any{"player_ids": []int{2, 3, 4}}, 400)
+	f.request(t, 2, "PATCH", path+"/settings", map[string]any{"player_ids": []int{2, 3, 4}}, 400)
+	f.assertCount(t, 2, "SELECT COUNT(*) FROM tournament_setup_roster WHERE tournament_id=?", created.ID)
+	f.request(t, 1, "PATCH", path+"/settings", map[string]any{"manager_id": 4, "player_ids": []int{2, 3, 4}}, 200)
+	f.assertCount(t, 1, "SELECT COUNT(*) FROM tournament_setup_roster WHERE tournament_id=? AND user_id=4", created.ID)
+
+	body["player_ids"] = []int{2, 3, 4, 5, 6, 7}
+	body["round1_target"], body["round2_target"] = 1, 1
+	body["matches"] = []archivedMatch{{1, 2, 6, "a"}, {2, 2, 6, "a"}}
+	f.request(t, 1, "POST", "/api/tournaments/archive", body, 400)
+	f.assertCount(t, 1, "SELECT COUNT(*) FROM tournaments")
+
+	archive := map[string]any{
+		"manager_id": 2, "name": "未分类管理员补录", "start_time": "2026-11-19T20",
+		"round1_target": 1, "round2_target": 1,
+		"player_ids":        []int{2, 5, 6, 7, 8, 9},
+		"fixed_assignments": map[string]string{"2": "A", "5": "A", "6": "A", "7": "B", "8": "B", "9": "B"},
+		"matches":           []archivedMatch{{1, 2, 7, "a"}, {2, 2, 7, "a"}},
+	}
+	f.request(t, 1, "POST", "/api/tournaments/archive", archive, 200)
+	f.assertCount(t, 2, "SELECT COUNT(*) FROM tournaments")
+}
 
 func TestTournamentRequiresExplicitRegisteredManager(t *testing.T) {
 	f := newWorkflowFixture(t)

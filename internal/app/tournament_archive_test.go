@@ -16,7 +16,7 @@ func TestArchiveValidatesTeamSizes(t *testing.T) {
 				id := int64(index + 3)
 				ids[index] = id
 				if id > 9 {
-					if _, err := f.app.db.Exec(`INSERT INTO users(id,username,display_name,password_hash,role) VALUES(?,?,?,'unused','user')`, id, fmt.Sprint("user", id), fmt.Sprint("选手", id)); err != nil {
+					if _, err := f.app.db.Exec(`INSERT INTO users(id,username,display_name,password_hash,role,category_id) VALUES(?,?,?,'unused','user',?)`, id, fmt.Sprint("user", id), fmt.Sprint("选手", id), workflowCategoryID); err != nil {
 						t.Fatal(err)
 					}
 				}

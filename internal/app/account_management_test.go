@@ -83,7 +83,7 @@ func TestAccountWeeklyChangesAndAtomicSave(t *testing.T) {
 	f.accountForm(t, 2, "POST", "/api/auth/avatar", nil, true, 400)
 	// 本人所有资料共享冷却；只改密码或重复保存原值仍然允许。
 	f.request(t, 2, "PATCH", "/api/auth/profile", map[string]any{"display_name": "新显示名", "username": "new-user-2", "category_id": 0}, 400)
-	f.request(t, 2, "PATCH", "/api/auth/profile", map[string]any{"display_name": "新显示名", "username": "new-user", "category_id": 0, "new_password": "secret2", "new_password_confirm": "secret2"}, 200)
+	f.request(t, 2, "PATCH", "/api/auth/profile", map[string]any{"display_name": "新显示名", "username": "new-user", "category_id": workflowCategoryID, "new_password": "secret2", "new_password_confirm": "secret2"}, 200)
 	f.accountForm(t, 2, "PATCH", "/api/auth/profile", map[string]string{"username": "must-not-save"}, true, 400)
 	f.assertCount(t, 1, "SELECT COUNT(*) FROM users WHERE id=2 AND username='new-user'")
 	// 管理员可以连续代改资料、头像和密码，不能更改他人的登录名。

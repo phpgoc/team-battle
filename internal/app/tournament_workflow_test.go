@@ -17,6 +17,8 @@ type workflowFixture struct {
 	tokens  map[int]string
 }
 
+const workflowCategoryID = 9001
+
 func newWorkflowFixture(t *testing.T) *workflowFixture {
 	t.Helper()
 	db, err := openDatabase(filepath.Join(t.TempDir(), "tournaments.sqlite"))
@@ -28,12 +30,15 @@ func newWorkflowFixture(t *testing.T) *workflowFixture {
 	if err := migrate(db); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := db.Exec("INSERT INTO categories(id,name) VALUES(?,'赛事测试分类')", workflowCategoryID); err != nil {
+		t.Fatal(err)
+	}
 	for id := 1; id <= 9; id++ {
 		role := "user"
 		if id == 1 {
 			role = "superadmin"
 		}
-		if _, err := db.Exec(`INSERT INTO users(id,username,display_name,password_hash,role) VALUES(?,?,?,?,?)`, id, fmt.Sprint("user", id), fmt.Sprint("选手", id), "unused", role); err != nil {
+		if _, err := db.Exec(`INSERT INTO users(id,username,display_name,password_hash,role,category_id) VALUES(?,?,?,?,?,?)`, id, fmt.Sprint("user", id), fmt.Sprint("选手", id), "unused", role, workflowCategoryID); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -14,15 +14,27 @@ func saveSetupRoster(tx *sql.Tx, tournamentID int64, ids []int64, fixed map[stri
 	if len(ids) > 12 {
 		return errors.New("参赛列表最多12人")
 	}
+	var managerID int64
+	if err := tx.QueryRow(`SELECT manager_id FROM tournaments WHERE id=?`, tournamentID).Scan(&managerID); err != nil {
+		return errors.New("赛事不存在")
+	}
 	seen := map[int64]bool{}
 	for _, id := range ids {
 		if seen[id] {
 			return errors.New("参赛选手不能重复")
 		}
 		seen[id] = true
-		var count int
-		if err := tx.QueryRow(`SELECT COUNT(*) FROM users WHERE id=? AND role<>'superadmin' AND status='active' AND is_deleted=0`, id).Scan(&count); err != nil || count != 1 {
+		var categoryID int64
+		var alreadyEntered bool
+		// 既有名单在保存时保留，避免后来清除分类导致无法调整其他队员。
+		if err := tx.QueryRow(`SELECT COALESCE(category_id,0),
+			EXISTS(SELECT 1 FROM tournament_setup_roster WHERE tournament_id=? AND user_id=users.id)
+			OR EXISTS(SELECT 1 FROM tournament_players WHERE tournament_id=? AND user_id=users.id AND active=1)
+			FROM users WHERE id=? AND role<>'superadmin' AND status='active' AND is_deleted=0`, tournamentID, tournamentID, id).Scan(&categoryID, &alreadyEntered); err != nil {
 			return errors.New("参赛选手列表中存在无效账号")
+		}
+		if categoryID <= 0 && !alreadyEntered && id != managerID {
+			return errors.New("参赛选手必须先选择分类")
 		}
 	}
 	if _, err := tx.Exec(`DELETE FROM tournament_setup_roster WHERE tournament_id=?`, tournamentID); err != nil {

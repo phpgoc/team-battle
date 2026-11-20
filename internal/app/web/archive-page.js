@@ -66,7 +66,11 @@
         d.entries = [...form.querySelectorAll('[data-roster-player]')].map(row => [Number(row.dataset.rosterPlayer), $('select', row).value]);
         refreshRevivalRule();
       } });
-      form.addEventListener('input', readBasics); form.addEventListener('change', readBasics);
+      form.addEventListener('input', readBasics);
+      form.addEventListener('change', event => {
+        readBasics();
+        if (event.target.name === 'manager_id') users.forEach(user => { user.selectable = user.category_id > 0 || user.id === d.manager_id; });
+      });
     } else if (round) {
       form.addEventListener('change', event => {
         if (event.target.name === 'ace_source') d.ace_source = event.target.value;

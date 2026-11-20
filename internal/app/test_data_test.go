@@ -53,7 +53,7 @@ func TestDemoDataHasConsistentCompleteMatches(t *testing.T) {
 	f.assertCount(t, 10, `SELECT COUNT(*) FROM users WHERE username IN ('admin','Flash','Jaedong','Bisu','Stork','sAviOr','iloveoov','NaDa','Rain','soO')`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM users WHERE username='admin' AND role='superadmin' AND display_name='超级管理员'`)
 	f.assertCount(t, 9, `SELECT COUNT(*) FROM users WHERE role='user' AND username=display_name`)
-	f.assertCount(t, 4, `SELECT COUNT(*) FROM categories`)
+	f.assertCount(t, 4, `SELECT COUNT(*) FROM categories WHERE id<>?`, workflowCategoryID)
 	f.assertCount(t, 2, `SELECT COUNT(*) FROM backgrounds WHERE id IN (1,2) AND image_mime='image/png' AND length(image_data)=0 AND image_size>0`)
 	f.assertCount(t, 5, `SELECT COUNT(*) FROM tournaments WHERE status='completed'`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE name='特殊对战1' AND id IN (SELECT tournament_id FROM tournament_players GROUP BY tournament_id HAVING COUNT(*)=8)`)

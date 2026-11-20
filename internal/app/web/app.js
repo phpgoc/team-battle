@@ -614,9 +614,9 @@
       e = { ...e, rules: { ...defaultRules(), ...catalog.tournament_defaults } };
     }
     // 将已录入资料补入目录，停用账号也不能在查看或保存时悄悄消失。
-    const directory = new Map(users.users.filter(u => u.role !== 'superadmin').map(user => [user.id, user]));
+    const directory = new Map(users.users.filter(u => u.role !== 'superadmin').map(user => [user.id, { ...user, selectable: user.category_id > 0 || user.id === Number(e.manager_id) }]));
     for (const player of [...(e.teams || []).flatMap(team => team.players), ...(e.setup_roster || [])]) {
-      if (player.display_name && !directory.has(player.id)) directory.set(player.id, player);
+      if (player.display_name && !directory.has(player.id)) directory.set(player.id, { ...player, selectable: false });
     }
     state.users = [...directory.values()];
     state.specialTeams = Object.fromEntries((e.teams || []).flatMap((team, index) => team.players.filter(player => player.active !== false).map(player => [player.id, index === 0 ? 'A' : 'B'])));
@@ -697,6 +697,10 @@
       form.requestSubmit();
     });
     bindRoster(form);
+    $('select[name="manager_id"]', form)?.addEventListener('change', event => {
+      const managerID = Number(event.target.value);
+      state.users.forEach(user => { user.selectable = user.category_id > 0 || user.id === managerID; });
+    });
     if (mode !== 'roster') bindRules(form);
     $('.event-settings-fields', form).disabled = readonly;
     form.onsubmit = action(async event => {
@@ -1202,7 +1206,7 @@
     const [directory, backgrounds] = await Promise.all([api('/api/users'), api('/api/backgrounds')]);
     if (!preserve || !state.archiveDraft) state.archiveDraft = window.TBArchivePage.create(localTime());
     window.TBArchivePage.render({
-      draft: state.archiveDraft, managers: directory.users.filter(user => user.status === 'active'), users: directory.users.filter(user => user.role !== 'superadmin'), backgrounds: backgrounds.backgrounds || [],
+      draft: state.archiveDraft, managers: directory.users.filter(user => user.status === 'active'), users: directory.users.filter(user => user.role !== 'superadmin' && user.status === 'active').map(user => ({ ...user, selectable: user.category_id > 0 || user.id === state.archiveDraft.manager_id })), backgrounds: backgrounds.backgrounds || [],
       t, esc, field, input, compactNumber, startTimeInput, startTimeValue, backgroundOptions, shell, action, toast, person,
       onSave: async body => { const result = await post('/api/tournaments/archive', body); state.archiveDraft = null; go('/live/' + result.id); }
     });
