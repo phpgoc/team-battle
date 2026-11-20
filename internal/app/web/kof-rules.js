@@ -6,7 +6,8 @@
     for (let left = entries.length - sizes[0] - sizes[1]; left > 0; left--) sizes[sizes[0] <= sizes[1] ? 0 : 1]++;
     return sizes;
   }
-  const needsRevivalRule = (sizes, target) => sizes.every(size => size > 0) && target - Math.min(...sizes) >= 2;
+  const canRevive = (sizes, target) => sizes.every(size => size > 0) && target > Math.min(...sizes);
+  const needsRevivalRule = (sizes, target) => canRevive(sizes, target - 1);
   // 仅供败方全员淘汰后的复活使用；胜者连续留场不增加淘汰次数。
   function revivalCandidates(ids, matches, side) {
     const losses = new Map(ids.map(id => [id, 0]));
@@ -26,5 +27,5 @@
     const eligible = revival && noRepeat ? revivalCandidates(ids, matches, side) : ids;
     return { ids: revival ? eligible : fresh, carry: false, revival };
   }
-  window.TBKOF = { teamSizes, needsRevivalRule, revivalCandidates, nextPlayers };
+  window.TBKOF = { teamSizes, canRevive, needsRevivalRule, revivalCandidates, nextPlayers };
 })();

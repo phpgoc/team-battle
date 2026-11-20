@@ -47,6 +47,7 @@ func (s AceSpecial) allPlayerIDs() []int64 {
 type TournamentRules struct {
 	Round1Mode         string       `json:"round1_mode"`
 	KOFStarter         string       `json:"kof_starter"`
+	KOFManualRevival   bool         `json:"kof_manual_revival"`
 	KOFRevivalNoRepeat bool         `json:"kof_revival_no_repeat"`
 	NoRepeat           bool         `json:"no_repeat"`
 	RandomDrawSeconds  int          `json:"random_draw_seconds"`
@@ -60,7 +61,7 @@ func defaultRules() TournamentRules {
 	return TournamentRules{Round1Mode: "manual", KOFStarter: "random", NoRepeat: true, RandomDrawSeconds: 5, AceDrawSeconds: 5, AceMostWins: 20, AceMostLosses: 20, AceSpecials: []AceSpecial{}}
 }
 
-// 兼容旧赛事未保存首发方式的规则，缺省时使用随机首发。
+// 兼容未保存首发和复活方式的旧赛事，默认随机首发、随机复活。
 func (r *TournamentRules) UnmarshalJSON(data []byte) error {
 	type plainRules TournamentRules
 	defaults := plainRules(defaultRules())
@@ -68,7 +69,12 @@ func (r *TournamentRules) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*r = TournamentRules(defaults)
+	r.enforceRevivalRule()
 	return nil
+}
+
+func (r *TournamentRules) enforceRevivalRule() {
+	r.KOFRevivalNoRepeat = r.KOFRevivalNoRepeat || r.KOFManualRevival
 }
 
 func decodeRules(raw string) (TournamentRules, error) {

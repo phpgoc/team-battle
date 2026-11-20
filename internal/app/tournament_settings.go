@@ -33,7 +33,11 @@ func tournamentHasGrouping(db sqlRunner, tournamentID int64) (bool, error) {
 }
 
 func roundSetupChanged(before, after TournamentRules) bool {
-	return before.Round1Mode != after.Round1Mode || before.KOFStarter != after.KOFStarter || before.NoRepeat != after.NoRepeat || before.KOFRevivalNoRepeat != after.KOFRevivalNoRepeat
+	return before.Round1Mode != after.Round1Mode ||
+		before.KOFStarter != after.KOFStarter ||
+		before.NoRepeat != after.NoRepeat ||
+		before.KOFManualRevival != after.KOFManualRevival ||
+		before.KOFRevivalNoRepeat != after.KOFRevivalNoRepeat
 }
 
 func (a *App) updateTournamentSettings(c *gin.Context) {

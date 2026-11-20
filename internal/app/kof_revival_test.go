@@ -9,12 +9,12 @@ import (
 func prepareRevivalKOF(t *testing.T, noRepeat bool) (*workflowFixture, int64, []int64) {
 	t.Helper()
 	f := newWorkflowFixture(t)
-	id := f.create(t, "random")
+	id := f.create(t, "captain")
 	rules := mustTournamentRules(f.app.db, id)
 	rules.KOFRevivalNoRepeat = noRepeat
 	rules.NoRepeat = noRepeat
 	raw, _ := json.Marshal(rules)
-	if _, err := f.app.db.Exec(`UPDATE tournaments SET rules_json=?,round2_target=12,kof_initial_a=3,kof_initial_b=6 WHERE id=?`, string(raw), id); err != nil {
+	if _, err := f.app.db.Exec(`UPDATE tournaments SET rules_json=?,round2_target=12 WHERE id=?`, string(raw), id); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.app.db.Exec(`UPDATE rounds SET target_score=12 WHERE tournament_id=? AND stage='round2'`, id); err != nil {
@@ -22,6 +22,9 @@ func prepareRevivalKOF(t *testing.T, noRepeat bool) (*workflowFixture, int64, []
 	}
 	f.enterKOF(t, id)
 	teams := f.teams(t, id)
+	for side, player := range []int64{3, 6} {
+		f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/kof/starter", id), map[string]any{"team_id": teams[side], "player_id": player}, 200)
+	}
 	return f, id, teams
 }
 
@@ -92,15 +95,17 @@ func TestKOFRevivalRuleLocksAfterGrouping(t *testing.T) {
 	id := createSetupTournament(t, f, 6, "random", "captain", nil)
 	path := fmt.Sprintf("/api/tournaments/%d/settings", id)
 	rules := mustTournamentRules(f.app.db, id)
-	rules.KOFRevivalNoRepeat = true
+	rules.KOFManualRevival = true
 	f.request(t, 4, "PATCH", path, map[string]any{"rules": rules}, 403)
 	f.request(t, 2, "PATCH", path, map[string]any{"rules": rules, "round2_target": 5}, 200)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND json_extract(rules_json,'$.kof_manual_revival')=1 AND json_extract(rules_json,'$.kof_revival_no_repeat')=1`, id)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/setup-draw", id), nil, 200)
-	rules.KOFRevivalNoRepeat = false
+	rules.KOFManualRevival = false
+	rules.KOFRevivalNoRepeat = true
 	for _, actor := range []int{1, 2} {
 		f.request(t, actor, "PATCH", path, map[string]any{"rules": rules}, 400)
 	}
-	if !mustTournamentRules(f.app.db, id).KOFRevivalNoRepeat {
+	if !mustTournamentRules(f.app.db, id).KOFManualRevival {
 		t.Fatal("分组后规则被改动")
 	}
 }

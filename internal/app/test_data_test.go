@@ -71,7 +71,7 @@ func TestDemoDataHasConsistentCompleteMatches(t *testing.T) {
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE name='KOF 阶段示例' AND status='round2'`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE name='KOF 不重复复活示例' AND status='round2' AND json_extract(rules_json,'$.kof_revival_no_repeat')=1`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments t JOIN rounds r ON r.tournament_id=t.id
-		WHERE t.name='KOF 手动复活示例' AND t.status='round2' AND json_extract(t.rules_json,'$.kof_starter')='captain'
+		WHERE t.name='KOF 手动复活示例' AND t.status='round2' AND json_extract(t.rules_json,'$.kof_manual_revival')=1
 		AND r.stage='round2' AND r.score_a=3 AND r.target_score=5
 		AND NOT EXISTS (SELECT 1 FROM matches WHERE round_id=r.id AND status='pending')
 		AND NOT EXISTS (SELECT 1 FROM tournament_players WHERE tournament_id=t.id AND team_id=t.id*2 AND is_captain=1)`)

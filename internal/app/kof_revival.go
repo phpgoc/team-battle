@@ -84,5 +84,5 @@ func (e *matchEngine) kofNextCandidates(m engineMatch, team int64, ids []int64) 
 	if m.status == statusPending || (rules.NoRepeat && len(candidates) > 1) {
 		candidates = slices.DeleteFunc(candidates, func(id int64) bool { return id == current })
 	}
-	return candidates, rules.KOFStarter == "random", nil
+	return candidates, !rules.KOFManualRevival, nil
 }

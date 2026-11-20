@@ -154,7 +154,7 @@ func TestKOFWinningQueueSurvivesWhileWaiting(t *testing.T) {
 func TestCaptainSelectionAndManualRevival(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "captain")
-	if _, err := f.app.db.Exec(`UPDATE tournaments SET rules_json=json_set(rules_json,'$.kof_revival_no_repeat',json('true')),round2_target=5 WHERE id=?`, id); err != nil {
+	if _, err := f.app.db.Exec(`UPDATE tournaments SET rules_json=json_set(rules_json,'$.kof_manual_revival',json('true'),'$.kof_revival_no_repeat',json('false'),'$.no_repeat',json('false')),round2_target=5 WHERE id=?`, id); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.app.db.Exec(`UPDATE rounds SET target_score=5 WHERE tournament_id=? AND stage='round2'`, id); err != nil {
@@ -182,7 +182,6 @@ func TestCaptainSelectionAndManualRevival(t *testing.T) {
 		if seq == 3 {
 			f.assertCount(t, 0, `SELECT COUNT(*) FROM matches WHERE tournament_id=? AND round_no=2 AND status='pending'`, id)
 			choose(7, match, 7, 400)
-			choose(2, match, 8, 400) // 开启避免连续出场时，刚输的选手不能立刻复活。
 			choose(6, match, 7, 200)
 		}
 		if seq == 4 {

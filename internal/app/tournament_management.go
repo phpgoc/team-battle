@@ -301,6 +301,7 @@ func (a *App) createTournament(c *gin.Context) {
 			return
 		}
 	}
+	rules.enforceRevivalRule()
 	if err := rules.validate(); err != nil {
 		fail(c, http.StatusBadRequest, err.Error())
 		return

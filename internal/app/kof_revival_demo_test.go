@@ -39,6 +39,7 @@ func seedKOFRevivalDemo(tx *sql.Tx, managerID, creatorID int64, players []int64,
 	captainB := players[1]
 	if manual {
 		rules.KOFStarter = "captain"
+		rules.KOFManualRevival = true
 		captainB = 0 // B队没有队长，队员可直接报名复活。
 	}
 	if err := saveRules(tx, id, rules); err != nil {

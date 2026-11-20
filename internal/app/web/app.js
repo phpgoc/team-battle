@@ -370,7 +370,7 @@
       form.dispatchEvent(new Event('rosterchange'));
     } });
   }
-  const defaultRules = () => ({ round1_mode: 'manual', kof_starter: 'random', kof_revival_no_repeat: false, no_repeat: true, random_draw_seconds: 5, ace_draw_seconds: 5, ace_most_wins: 20, ace_most_losses: 20, ace_specials: [] });
+  const defaultRules = () => ({ round1_mode: 'manual', kof_starter: 'random', kof_manual_revival: false, kof_revival_no_repeat: false, no_repeat: true, random_draw_seconds: 5, ace_draw_seconds: 5, ace_most_wins: 20, ace_most_losses: 20, ace_specials: [] });
   const specialSideIDs = (row, side) => [...($(`[name="special_${side}_ids"]`, row)?.selectedOptions || [])].map(option => Number(option.value));
   const specialCandidatesValue = row => ({ team_a_ids: specialSideIDs(row, 'a'), team_b_ids: specialSideIDs(row, 'b') });
   const specialCandidateIDs = row => [...new Set([...specialSideIDs(row, 'a'), ...specialSideIDs(row, 'b')])];
@@ -404,13 +404,17 @@
     const roundDisabled = roundEditable ? '' : ' disabled';
     const aceDisabled = aceEditable ? '' : ' disabled';
     const hiddenRound = roundEditable ? '' : input('round1_target', e.round1_target || 4, 'hidden') + input('round2_target', e.round2_target || 5, 'hidden') + input('round1_mode', rules.round1_mode, 'hidden') + (rules.no_repeat ? input('no_repeat', 'on', 'hidden') : '') + input('kof_starter', rules.kof_starter, 'hidden') + (rules.kof_revival_no_repeat ? input('kof_revival_no_repeat', 'on', 'hidden') : '');
-    return `<section class="panel section-gap editor-section" id="event-round1"><div class="panel-head"><h2>${t('round1')}</h2></div><div class="panel-body form-grid">${compactNumber('round1_target', e.round1_target || 4, 'round1Target', 1, 99, t('targetUnit'), !roundEditable)}${field('round1Mode', `<select name="round1_mode"${roundDisabled}><option value="manual"${rules.round1_mode === 'manual' ? ' selected' : ''}>${t('manual')}</option><option value="random"${rules.round1_mode === 'random' ? ' selected' : ''}>${t('random')}</option></select>`)}<label class="check"><input name="no_repeat" type="checkbox"${rules.no_repeat ? ' checked' : ''}${roundDisabled}>${t('noRepeat')}</label>${hiddenRound}</div></section><section class="panel section-gap editor-section" id="event-round2"><div class="panel-head"><h2>${t('round2')}</h2></div><div class="panel-body form-grid">${compactNumber('round2_target', e.round2_target || 5, 'round2Target', 1, 99, t('targetUnit'), !roundEditable)}${field('kofStarter', `<div class="mode-choices">${['random', 'captain'].map(mode => `<label><input type="radio" name="kof_starter" value="${mode}"${rules.kof_starter === mode ? ' checked' : ''}${roundDisabled}><span>${t(mode === 'random' ? 'randomStarter' : 'captainStarter')}</span></label>`).join('')}</div>`)}<div class="full" data-kof-revival-rule><label class="check"><input name="kof_revival_no_repeat" type="checkbox"${rules.kof_revival_no_repeat ? ' checked' : ''}${roundDisabled}>${t('kofRevivalNoRepeat')}</label><p class="help">${t('kofRevivalNoRepeatHint')}</p></div><p class="help full">${t('kofHint')}</p></div></section><section class="panel section-gap editor-section" id="event-ace"><div class="panel-head"><div class="ace-editor-heading"><h2>${t('aceRules')}</h2><span class="ace-edit-hint">${t('aceEditableUntilFirstResult')}</span></div><span id="fallback-probability"></span></div><div class="panel-body"><div class="ace-probability-grid">${compactNumber('ace_most_wins', rules.ace_most_wins, 'mostWins', 0, 100, '%', !aceEditable)}${compactNumber('ace_most_losses', rules.ace_most_losses, 'mostLosses', 0, 100, '%', !aceEditable)}</div><p class="help">${t('aceHint')}</p><div id="special-rules">${rules.ace_specials.map(specialMarkup).join('')}</div><button type="button" class="outline" id="add-special"${aceDisabled}>${t('addSpecial')}</button></div></section>`;
+    return `<section class="panel section-gap editor-section" id="event-round1"><div class="panel-head"><h2>${t('round1')}</h2></div><div class="panel-body form-grid">${compactNumber('round1_target', e.round1_target || 4, 'round1Target', 1, 99, t('targetUnit'), !roundEditable)}${field('round1Mode', `<select name="round1_mode"${roundDisabled}><option value="manual"${rules.round1_mode === 'manual' ? ' selected' : ''}>${t('manual')}</option><option value="random"${rules.round1_mode === 'random' ? ' selected' : ''}>${t('random')}</option></select>`)}<label class="check"><input name="no_repeat" type="checkbox"${rules.no_repeat ? ' checked' : ''}${roundDisabled}>${t('noRepeat')}</label>${hiddenRound}</div></section><section class="panel section-gap editor-section" id="event-round2"><div class="panel-head"><h2>${t('round2')}</h2></div><div class="panel-body form-grid">${compactNumber('round2_target', e.round2_target || 5, 'round2Target', 1, 99, t('targetUnit'), !roundEditable)}${field('kofStarter', `<div class="mode-choices">${['random', 'captain'].map(mode => `<label><input type="radio" name="kof_starter" value="${mode}"${rules.kof_starter === mode ? ' checked' : ''}${roundDisabled}><span>${t(mode === 'random' ? 'randomStarter' : 'captainStarter')}</span></label>`).join('')}</div>`)}${kofManualRevivalMarkup(rules, roundDisabled)}<div class="full" data-kof-revival-rule><label class="check"><input name="kof_revival_no_repeat" type="checkbox"${rules.kof_revival_no_repeat ? ' checked' : ''}${roundDisabled}>${t('kofRevivalNoRepeat')}</label><p class="help">${t('kofRevivalNoRepeatHint')}</p></div><p class="help full">${t('kofHint')}</p></div></section><section class="panel section-gap editor-section" id="event-ace"><div class="panel-head"><div class="ace-editor-heading"><h2>${t('aceRules')}</h2><span class="ace-edit-hint">${t('aceEditableUntilFirstResult')}</span></div><span id="fallback-probability"></span></div><div class="panel-body"><div class="ace-probability-grid">${compactNumber('ace_most_wins', rules.ace_most_wins, 'mostWins', 0, 100, '%', !aceEditable)}${compactNumber('ace_most_losses', rules.ace_most_losses, 'mostLosses', 0, 100, '%', !aceEditable)}</div><p class="help">${t('aceHint')}</p><div id="special-rules">${rules.ace_specials.map(specialMarkup).join('')}</div><button type="button" class="outline" id="add-special"${aceDisabled}>${t('addSpecial')}</button></div></section>`;
+  }
+  function kofManualRevivalMarkup(rules, disabled) {
+    return `<div class="full" data-kof-manual-revival hidden><label class="check"><input name="kof_manual_revival" type="checkbox"${rules.kof_manual_revival ? ' checked' : ''}${disabled}>${t('kofManualRevival')}</label></div>`;
   }
   function readRulesDraft(form) {
     // FormData会跳过禁用控件；只读赛事和锁定规则也必须按实际值计算概率。
     const value = name => $(`[name="${name}"]:checked`, form)?.value ?? $(`[name="${name}"]`, form)?.value;
     const checked = name => !!$(`[name="${name}"]:checked`, form);
-    return { round1_mode: value('round1_mode'), kof_starter: value('kof_starter'), no_repeat: checked('no_repeat'), kof_revival_no_repeat: checked('kof_revival_no_repeat'), random_draw_seconds: Number(value('random_draw_seconds')), ace_draw_seconds: Number(value('ace_draw_seconds')), ace_most_wins: Number(value('ace_most_wins')), ace_most_losses: Number(value('ace_most_losses')), ace_specials: $$('.special-rule', form).map(row => ({ probability: Number($('[name="special_probability"]', row).value), ...specialCandidatesValue(row), player_ids: specialCandidateIDs(row) })) };
+    const manualRevival = checked('kof_manual_revival');
+    return { round1_mode: value('round1_mode'), kof_starter: value('kof_starter'), no_repeat: checked('no_repeat'), kof_manual_revival: manualRevival, kof_revival_no_repeat: manualRevival || checked('kof_revival_no_repeat'), random_draw_seconds: Number(value('random_draw_seconds')), ace_draw_seconds: Number(value('ace_draw_seconds')), ace_most_wins: Number(value('ace_most_wins')), ace_most_losses: Number(value('ace_most_losses')), ace_specials: $$('.special-rule', form).map(row => ({ probability: Number($('[name="special_probability"]', row).value), ...specialCandidatesValue(row), player_ids: specialCandidateIDs(row) })) };
   }
   function rulesValue(form) {
     const rules = readRulesDraft(form);
@@ -421,6 +425,8 @@
     return rules;
   }
   function bindRules(form) {
+    const manualRevival = $('[name=kof_manual_revival]', form);
+    const uniqueRevival = $('#event-round2 input[name=kof_revival_no_repeat]', form);
     const refresh = () => {
       const rules = readRulesDraft(form);
       const total = rules.ace_most_wins + rules.ace_most_losses + rules.ace_specials.reduce((sum, group) => sum + group.probability, 0);
@@ -428,7 +434,11 @@
       $('#fallback-probability').classList.toggle('danger', total > 100);
       refreshSpecialCounts();
       const sizes = window.TBKOF.teamSizes(state.rosterOrder.map(id => [id, state.specialTeams?.[id] || state.roster[id]]));
-      $('[data-kof-revival-rule]', form).hidden = !window.TBKOF.needsRevivalRule(sizes, Number($('[name=round2_target]', form).value));
+      const target = Number($('#event-round2 [name=round2_target]', form).value);
+      $('[data-kof-manual-revival]', form).hidden = !window.TBKOF.canRevive(sizes, target);
+      $('[data-kof-revival-rule]', form).hidden = !window.TBKOF.needsRevivalRule(sizes, target);
+      uniqueRevival.disabled = manualRevival.disabled || manualRevival.checked;
+      if (manualRevival.checked) uniqueRevival.checked = true;
     };
     $('#add-special').onclick = () => { $('#special-rules').insertAdjacentHTML('beforeend', specialMarkup()); refresh(); };
     $('#special-rules').addEventListener('click', event => { const remove = event.target.closest('[data-remove-special]'); if (remove) { remove.closest('.special-rule').remove(); refresh(); } });
@@ -821,7 +831,15 @@
     const odds = [['sourceMostWins', Number(rules.ace_most_wins) || 0], ['sourceMostLosses', Number(rules.ace_most_losses) || 0], ['fallback', Math.max(0, 100 - configured)]];
     return `<div class="board-rule-block ace-rule-block"><div class="ace-rule-heading"><h3>${t('ace')}</h3><div class="ace-rule-odds">${odds.map(([label, probability]) => `<dl><dt>${t(label)}</dt><dd>${probability}%</dd></dl>`).join('')}</div></div>${specials ? `<dl class="ace-special-list">${specials}</dl>` : ''}</div>`;
   }
-  function rulesSummary(e) { if (e.is_imported) return `<section class="board-rules"><div class="board-roster-head"><span>${t('eventRules')}</span></div><div class="board-rule-block board-imported-rule">${t('importedTournament')}</div></section>`; const rules = { ...defaultRules(), ...e.rules }; return `<section class="board-rules"><div class="board-roster-head"><span>${t('eventRules')}</span></div><div class="board-rule-block"><h3>${t('round1')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round1_target}</dd></div><div><dt>${t('round1Mode')}</dt><dd>${t(rules.round1_mode === 'random' ? 'random' : 'manual')}</dd></div><div><dt>${t('noRepeat')}</dt><dd>${t(rules.no_repeat ? 'enabled' : 'disabled')}</dd></div></dl></div><div class="board-rule-block"><h3>${t('round2')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round2_target}</dd></div><div><dt>${t('kofStarter')}</dt><dd>${t(rules.kof_starter === 'captain' ? 'captainStarter' : 'randomStarter')}</dd></div>${window.TBKOF.needsRevivalRule(hasGrouping(e) ? e.teams.map(team => team.players.filter(player => player.active !== false).length) : window.TBKOF.teamSizes((e.setup_roster || []).map(player => [player.id, player.fixed_team])), e.round2_target) ? `<div><dt>${t('kofRevivalNoRepeat')}</dt><dd>${t(rules.kof_revival_no_repeat ? 'enabled' : 'disabled')}</dd></div>` : ''}</dl></div>${aceRulesSummary(e, rules)}</section>`; }
+  function kofRevivalSummary(e, rules) {
+    const sizes = hasGrouping(e) ? e.teams.map(team => team.players.filter(player => player.active !== false).length)
+      : window.TBKOF.teamSizes((e.setup_roster || []).map(player => [player.id, player.fixed_team]));
+    if (!window.TBKOF.canRevive(sizes, e.round2_target)) return '';
+    const item = (key, enabled) => `<div><dt>${t(key)}</dt><dd>${t(enabled ? 'enabled' : 'disabled')}</dd></div>`;
+    return item('kofManualRevival', rules.kof_manual_revival)
+      + (window.TBKOF.needsRevivalRule(sizes, e.round2_target) ? item('kofRevivalNoRepeat', rules.kof_revival_no_repeat) : '');
+  }
+  function rulesSummary(e) { if (e.is_imported) return `<section class="board-rules"><div class="board-roster-head"><span>${t('eventRules')}</span></div><div class="board-rule-block board-imported-rule">${t('importedTournament')}</div></section>`; const rules = { ...defaultRules(), ...e.rules }; return `<section class="board-rules"><div class="board-roster-head"><span>${t('eventRules')}</span></div><div class="board-rule-block"><h3>${t('round1')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round1_target}</dd></div><div><dt>${t('round1Mode')}</dt><dd>${t(rules.round1_mode === 'random' ? 'random' : 'manual')}</dd></div><div><dt>${t('noRepeat')}</dt><dd>${t(rules.no_repeat ? 'enabled' : 'disabled')}</dd></div></dl></div><div class="board-rule-block"><h3>${t('round2')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round2_target}</dd></div><div><dt>${t('kofStarter')}</dt><dd>${t(rules.kof_starter === 'captain' ? 'captainStarter' : 'randomStarter')}</dd></div>${kofRevivalSummary(e, rules)}</dl></div>${aceRulesSummary(e, rules)}</section>`; }
   // 预抽对阵只用于展示，正式开赛后由比赛引擎按同一份排阵生成真实对局。
   function plannedMatches(e, stage) {
     if (!['round1', 'round2'].includes(stage) || terminal(e) || e.rounds.find(round => round.stage === stage)?.status === 'finished') return [];
@@ -1011,8 +1029,8 @@
       return eligible.filter(player => count(player) === minimum);
     }
     if (next.stage === 'round2') {
-      if (event.rules.kof_starter === 'captain') return final;
-      if (next.seq === 1) return players;
+      if (next.seq === 1) return event.rules.kof_starter === 'captain' ? final : players;
+      if (event.rules.kof_manual_revival) return final;
       const finished = event.matches.filter(match => match.stage === 'round2' && match.seq < next.seq && match.status === 'finished')
         .map(match => ({ a_id: match.player_a_id, b_id: match.player_b_id, who_win: match.who_win }));
       const teamSide = side ? 'b' : 'a';

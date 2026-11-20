@@ -166,6 +166,20 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
     await page.locator('#add-player').click();
     await page.locator(`[name="pick_${user.id}"]`).selectOption(index < 3 ? 'A' : 'B');
   }
+  const manualRevival = page.locator('#event-round2 [name=kof_manual_revival]');
+  const uniqueRevival = page.locator('#event-round2 [name=kof_revival_no_repeat]');
+  const kofTarget = page.locator('#event-round2 [name=round2_target]');
+  await expect(manualRevival).not.toBeChecked();
+  await kofTarget.fill('4');
+  await expect(manualRevival).toBeVisible();
+  await expect(uniqueRevival).toBeHidden();
+  await kofTarget.fill('5');
+  await expect(uniqueRevival).toBeEnabled();
+  await expect(uniqueRevival).not.toBeChecked();
+  await manualRevival.check();
+  await expect(uniqueRevival).toBeChecked();
+  await expect(uniqueRevival).toBeDisabled();
+  await expect(page.locator('[name=kof_starter][value=random]')).toBeChecked();
   await page.locator('[name=round1_mode]').selectOption('random');
   await page.locator('[name=random_draw_seconds]').fill('0');
   await page.locator('[name=ace_draw_seconds]').fill('0');
@@ -178,6 +192,8 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
   await page.locator('.language-picker').selectOption('en');
   await expect(page.locator('[data-roster-player]')).toHaveCount(6);
   await expect(page.locator('[name=special_b_ids]')).toHaveValues([String(roster[3].id), String(roster[4].id)]);
+  await expect(manualRevival).toBeChecked();
+  await expect(uniqueRevival).toBeDisabled();
   await page.locator('.language-picker').selectOption('zh');
   const createdResponse = page.waitForResponse(response => response.url().endsWith('/api/tournaments') && response.request().method() === 'POST');
   await page.locator('#event-form button[type=submit]').click();
@@ -190,6 +206,8 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
   await json(page.request, 'POST', `/api/tournaments/${created.id}/setup-draw`, {});
   await page.goto(`/live/${created.id}/setting`);
   await expect(page.locator('select[name=round1_mode]')).toBeDisabled();
+  await expect(manualRevival).toBeChecked();
+  await expect(manualRevival).toBeDisabled();
   await expect(page.locator('[name=ace_most_wins]')).toBeEnabled();
   await expect(page.locator('[data-remove-player]')).toHaveCount(0);
   await page.locator('[name=random_draw_seconds]').fill('2');
@@ -202,10 +220,9 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
 test('无队长的选手可以报名KOF复活并直接上场', async ({ page, browser }) => {
   await login(page);
   const roster = await players(page.request, '复活');
-  const [a, , , returning, second, third] = roster;
   const { id } = await createTournament(page.request, '3 打 3 抢 5', roster, {
     round1_target: 1, round2_target: 5,
-    rules: { round1_mode: 'random', kof_starter: 'captain', no_repeat: true, kof_revival_no_repeat: true, random_draw_seconds: 4 }
+    rules: { round1_mode: 'random', kof_starter: 'random', no_repeat: true, kof_manual_revival: true, random_draw_seconds: 4 }
   });
   const path = '/api/tournaments/' + id, live = '/live/' + id;
   await json(page.request, 'POST', path + '/setup-draw');
@@ -216,8 +233,9 @@ test('无队长的选手可以报名KOF复活并直接上场', async ({ page, br
   });
   const first = (await detail()).matches.find(match => match.stage === 'round1' && match.status === 'pending');
   await finish(first);
-  await json(page.request, 'POST', path + '/kof/starter', { team_id: first.team_a_id, player_id: a.id });
-  await json(page.request, 'POST', path + '/kof/starter', { team_id: first.team_b_id, player_id: returning.id });
+  const starter = (await detail()).matches.find(match => match.stage === 'round2' && match.status === 'pending');
+  const returning = roster.find(player => player.id === starter.player_b_id);
+  const [second, third] = roster.slice(3).filter(player => player.id !== returning.id);
   for (const next of [second.id, third.id, 0]) {
     const match = (await detail()).matches.find(match => match.stage === 'round2' && match.status === 'pending');
     await finish(match, next);
