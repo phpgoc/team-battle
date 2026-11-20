@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const app = document.getElementById('app');
-  const state = { user: null, language: localStorage.getItem('tb_language') || 'zh', boardTransparency: readBoardTransparency(), event: null, stream: null, editor: null, roster: {}, rosterOrder: [], users: [], page: 1, filters: {}, connection: '', drawTimer: null, drawToken: 0, draw: null };
+  const state = { user: null, language: localStorage.getItem('tb_language') || 'zh', boardTransparency: readBoardTransparency(), rulesEventId: null, rulesExpanded: true, event: null, stream: null, editor: null, roster: {}, rosterOrder: [], users: [], page: 1, filters: {}, connection: '', drawTimer: null, drawToken: 0, draw: null };
   const langs = { zh: '中文', en: 'English', ko: '한국어' };
   const pagePaths = { home: '/', createEvent: '/tournaments/new', accounts: '/accounts', tournamentManagement: '/tournaments', archive: '/tournaments/archive', siteSettings: '/site-settings', backgrounds: '/backgrounds', settings: '/account' };
   const pageForPath = (path = location.pathname) => Object.keys(pagePaths).find(page => pagePaths[page] === path) || (/^\/accounts\/(new|[1-9]\d*)$/.test(path) ? 'accounts' : null);
@@ -865,7 +865,16 @@
     return item('kofManualRevival', rules.kof_manual_revival)
       + (window.TBKOF.needsRevivalRule(sizes, e.round2_target) ? item('kofRevivalNoRepeat', rules.kof_revival_no_repeat) : '');
   }
-  function rulesSummary(e) { if (e.is_imported) return `<section class="board-rules"><div class="board-roster-head"><span>${t('eventRules')}</span></div><div class="board-rule-block board-imported-rule">${t('importedTournament')}</div></section>`; const rules = { ...defaultRules(), ...e.rules }; return `<section class="board-rules"><div class="board-roster-head"><span>${t('eventRules')}</span></div><div class="board-rule-block"><h3>${t('round1')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round1_target}</dd></div><div><dt>${t('round1Mode')}</dt><dd>${t(rules.round1_mode === 'random' ? 'random' : 'manual')}</dd></div><div><dt>${t('noRepeat')}</dt><dd>${t(rules.no_repeat ? 'enabled' : 'disabled')}</dd></div></dl></div><div class="board-rule-block"><h3>${t('round2')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round2_target}</dd></div><div><dt>${t('kofStarter')}</dt><dd>${t(rules.kof_starter === 'captain' ? 'captainStarter' : 'randomStarter')}</dd></div>${kofRevivalSummary(e, rules)}</dl></div>${aceRulesSummary(e, rules)}</section>`; }
+  function rulesSummary(e) {
+    let content;
+    if (e.is_imported) {
+      content = `<div class="board-rule-block board-imported-rule">${t('importedTournament')}</div>`;
+    } else {
+      const rules = { ...defaultRules(), ...e.rules };
+      content = `<div class="board-rule-block"><h3>${t('round1')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round1_target}</dd></div><div><dt>${t('round1Mode')}</dt><dd>${t(rules.round1_mode === 'random' ? 'random' : 'manual')}</dd></div><div><dt>${t('noRepeat')}</dt><dd>${t(rules.no_repeat ? 'enabled' : 'disabled')}</dd></div></dl></div><div class="board-rule-block"><h3>${t('round2')}</h3><dl><div><dt>${t('target')}</dt><dd>${e.round2_target}</dd></div><div><dt>${t('kofStarter')}</dt><dd>${t(rules.kof_starter === 'captain' ? 'captainStarter' : 'randomStarter')}</dd></div>${kofRevivalSummary(e, rules)}</dl></div>${aceRulesSummary(e, rules)}`;
+    }
+    return `<details class="board-rules"${state.rulesExpanded ? ' open' : ''}><summary class="board-roster-head">${t('eventRules')}</summary><div class="board-rules-content">${content}</div></details>`;
+  }
   // 预抽对阵只用于展示，正式开赛后由比赛引擎按同一份排阵生成真实对局。
   function plannedMatches(e, stage) {
     if (!['round1', 'round2'].includes(stage) || terminal(e) || e.rounds.find(round => round.stage === stage)?.status === 'finished') return [];
@@ -1035,7 +1044,14 @@
   }
   function boardPage() {
     const e = state.event;
+    if (state.rulesEventId !== e.id) {
+      state.rulesEventId = e.id;
+      state.rulesExpanded = true;
+    }
     app.innerHTML = `<main class="broadcast-board" data-variant="${boardVariant(e)}"><div class="board-toolbar"><div class="board-toolbar-actions board-event-actions"></div><details class="board-menu"><summary aria-label="${t('displaySettings')}" title="${t('displaySettings')}">☰</summary><div>${picker()}<fieldset class="board-contrast-setting"><legend>${t('contrastSettings')}</legend><label for="board-transparency">${t('panelTransparency')}<output id="board-transparency-value" for="board-transparency">${state.boardTransparency}%</output></label><input id="board-transparency" type="range" min="0" max="100" step="1" value="${state.boardTransparency}"></fieldset><button data-go="/">${t('homeLink')}</button>${!state.user ? `<button data-go="/login?return=/live/${e.id}">${t('openLogin')}</button>` : ''}<span id="connection-state" class="help">${terminal(e) ? t('readOnly') : t(state.connection || 'reconnecting')}</span></div></details></div><div id="board-content">${boardContent(e)}</div></main>`;
+    $('#board-content').addEventListener('toggle', event => {
+      if (event.target.matches('.board-rules')) state.rulesExpanded = event.target.open;
+    }, true);
     applyEventBackground(e); bindBoardTransparency(); bindCommon(); bindBoardSettings();
   }
   function currentPending(event) {

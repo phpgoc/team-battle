@@ -202,18 +202,17 @@ tr[hidden]{display:none}
 .board-current-fighters .board-avatar{width:58px;height:58px;flex-basis:58px}
 .board-roster-player .board-roster-name{min-width:0;flex:1}
 .board-roster-player .player-record-link{white-space:normal;overflow-wrap:anywhere;text-align:left}
-.board-rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:22px}
-.board-rules>.board-roster-head{grid-column:1/-1}
-.board-rules>.board-rule-block{border-right:1px solid #2a3a53;border-bottom:0}
-.board-rules>.board-rule-block:last-child{border-right:0}
-.board-rules>.board-rule-block:has(.summary-description){grid-column:1/-1;border-top:1px solid #2a3a53}
+.board-rules-content{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:22px}
+.board-rules-content>.board-rule-block{border-right:1px solid #2a3a53;border-bottom:0}
+.board-rules-content>.board-rule-block:last-child{border-right:0}
+.board-rules-content>.board-rule-block:has(.summary-description){grid-column:1/-1;border-top:1px solid #2a3a53}
 @media(max-width:1100px){
   .board-columns{grid-template-columns:1fr}
   .board-right{grid-template-columns:1fr 1fr;align-items:start}
 }
 @media(max-width:760px){
-  .board-left,.board-right,.board-rules{grid-template-columns:1fr}
-  .board-rules>.board-rule-block{border-right:0;border-bottom:1px solid #2a3a53}
+  .board-left,.board-right,.board-rules-content{grid-template-columns:1fr}
+  .board-rules-content>.board-rule-block{border-right:0;border-bottom:1px solid #2a3a53}
   .board-score strong{font-size:48px}
   .board-match{grid-template-columns:23px minmax(0,1fr) 65px minmax(0,1fr)}
   .board-current-fighters .board-avatar{width:48px;height:48px;flex-basis:48px}
@@ -287,14 +286,18 @@ tr[hidden]{display:none}
 .broadcast-board .board-roster-player .player-record-link{font-size:inherit;white-space:normal;overflow-wrap:anywhere;text-align:left;line-height:1.2}
 .broadcast-board .board-roster-player .board-category-icon{width:24px;height:24px;flex-basis:24px;margin-left:0}
 .broadcast-board .board-captain{font-size:12px;justify-self:start;width:auto}
-.broadcast-board .board-rules{margin:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));max-height:170px;min-height:0;overflow:auto;flex:none;scrollbar-width:thin;scrollbar-color:#536985 #152237}
-.broadcast-board .board-rules>.board-roster-head{grid-column:1/-1;padding:7px 16px;font-size:16px}
+.broadcast-board .board-rules{margin:0;display:flex;flex-direction:column;max-height:170px;min-height:0;overflow:hidden;flex:none;scrollbar-width:thin;scrollbar-color:#536985 #152237}
+.broadcast-board .board-rules>summary{display:flex;align-items:center;cursor:pointer;list-style:none;padding:7px 16px;font-size:16px;user-select:none}
+.broadcast-board .board-rules>summary::-webkit-details-marker{display:none}
+.broadcast-board .board-rules>summary::after{content:'+';font-size:22px;line-height:1}
+.broadcast-board .board-rules[open]>summary::after{content:'−'}
+.broadcast-board .board-rules-content{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:0;min-height:0;margin:0;overflow:auto;flex:1;scrollbar-width:thin;scrollbar-color:#536985 #152237}
 .broadcast-board .board-rule-block{padding:9px 16px;min-width:0}
 .broadcast-board .board-rule-block h3{font-size:16px;margin:0 0 6px}
 .broadcast-board .board-rule-block dl{font-size:15px;gap:4px}
 .broadcast-board .board-rule-block dt,.broadcast-board .board-rule-block dd{font-size:15px}
 .broadcast-board .board-rule-block dd{overflow-wrap:anywhere;flex-shrink:1}
-.broadcast-board .board-rule-block:has(.summary-description){grid-column:1/-1}
+.broadcast-board .board-rules-content>.board-rule-block:has(.summary-description){grid-column:1/-1}
 .broadcast-board .summary-description{line-height:1.5}
 /* 抽签覆盖当前对局，操作面板单独滚动。 */
 .broadcast-board .board-draw-roll{position:absolute;inset:42px 18px 10px;margin:0;display:flex;flex-direction:column;justify-content:center;padding:6px 14px;z-index:1}
@@ -372,7 +375,7 @@ tr[hidden]{display:none}
   .broadcast-board .board-current-fighters .board-current-vs{order:2}
 }
 @media(max-width:600px){
-  .broadcast-board .board-left,.broadcast-board .board-rules{grid-template-columns:1fr}
+  .broadcast-board .board-left,.broadcast-board .board-rules-content{grid-template-columns:1fr}
   .broadcast-board .board-matches{max-height:380px}
   .broadcast-board .board-match{grid-template-columns:22px minmax(0,1fr) 60px minmax(0,1fr);gap:5px}
   .broadcast-board .board-player{font-size:18px}

@@ -379,6 +379,17 @@ test('直播点击确认和公开SSE更新、历史筛选与软删除恢复', as
     await publicPage.goto(`/live/${created.id}`);
     await expect(publicPage.locator('.broadcast-board')).toBeVisible();
     await expect(publicPage.locator('.sidebar, .topbar, #board-settings, [data-current-winner]')).toHaveCount(0);
+    await expect(publicPage.locator('.board-rules')).toHaveAttribute('open', '');
+    const tracks = await publicPage.locator('.board-columns').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').map(Number.parseFloat));
+    expect(tracks).toHaveLength(3);
+    expect(tracks[0] / tracks[1]).toBeCloseTo(1, 1);
+    expect(tracks[2] / tracks[0]).toBeCloseTo(1.5, 1);
+    const expandedBoardHeight = await publicPage.locator('.board-columns').evaluate(element => element.getBoundingClientRect().height);
+    await publicPage.locator('.board-rules > summary').click();
+    await expect(publicPage.locator('.board-rules')).not.toHaveAttribute('open');
+    await expect.poll(() => publicPage.locator('.board-columns').evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThan(expandedBoardHeight);
+    const avatarSize = await publicPage.locator('.board-roster-player .board-avatar').first().evaluate(element => element.getBoundingClientRect().width);
+    expect(avatarSize).toBeGreaterThan(30);
     await expect.poll(() => streams.length).toBe(1);
     await page.goto(`/live/${created.id}`);
     await page.locator('[data-current-winner]').first().click();
@@ -388,6 +399,7 @@ test('直播点击确认和公开SSE更新、历史筛选与软删除恢复', as
     await expect(publicPage.locator('[data-stage=round1] h2')).toHaveText('0 : 0');
     await page.locator('[data-confirm-accept]').click();
     await expect(publicPage.locator('[data-stage=round1] h2')).toHaveText('1 : 0');
+    await expect(publicPage.locator('.board-rules')).not.toHaveAttribute('open');
     // 访客只收到结果，管理员的抽签动画不应在访客页面播放。
     await expect(publicPage.locator('.board-draw-roll:visible')).toHaveCount(0);
 
