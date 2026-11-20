@@ -215,7 +215,71 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
   await expect(page).toHaveURL(new RegExp(`/live/${created.id}$`));
   await page.goto(`/live/${created.id}/setting`);
   await expect(page.locator('[name=random_draw_seconds]')).toHaveValue('2');
+  await test.step('校验分队设置、直接抽取KOF首发及4对3名单等高', () => verifyFixedSetupDraw(page));
 });
+
+async function verifyFixedSetupDraw(page) {
+  const roster = await players(page.request, '固定分队', 7);
+  const { id } = await createTournament(page.request, '固定分队校验', roster, {
+    fixed_assignments: Object.fromEntries(roster.map(user => [user.id, 'A'])),
+    rules: { round1_mode: 'manual', kof_starter: 'random', random_draw_seconds: 1 }
+  });
+  const live = '/live/' + id;
+  await page.goto(live + '/setting');
+  const draw = page.locator('#start-setup-draw');
+  const hint = page.locator('#setup-draw-hint');
+  await expect(draw).toBeDisabled();
+  await expect(hint).toHaveText('两队都必须有选手');
+  for (const player of roster.slice(4)) {
+    await page.locator(`[name="pick_${player.id}"]`).selectOption('R');
+  }
+  const target = page.locator('#event-round2 [name=round2_target]');
+  await target.fill('0');
+  await expect(draw).toBeDisabled();
+  await target.fill('5');
+  const probability = page.locator('[name=ace_most_wins]');
+  await probability.fill('81');
+  await expect(draw).toBeDisabled();
+  await expect(hint).toContainText('概率总和');
+  await probability.fill('20');
+  await expect(draw).toBeEnabled();
+
+  await page.evaluate(() => {
+    const observer = new MutationObserver(() => {
+      const board = document.querySelector('#board-content[data-setup-drawing]');
+      if (!board) return;
+      window.setupDrawRoster = ['a', 'b'].map(side =>
+        board.querySelectorAll(`.board-roster-${side} [data-roster-player]`).length);
+      observer.disconnect();
+    });
+    observer.observe(document.getElementById('app'), { childList: true, subtree: true });
+  });
+  const response = page.waitForResponse(res => res.url().endsWith(`/api/tournaments/${id}/setup-draw`) && res.request().method() === 'POST');
+  await draw.click();
+  expect((await (await response).json()).steps.map(step => step.kind)).toEqual(['round2']);
+  await expect(page).toHaveURL(new RegExp(live + '$'));
+  const animation = page.locator('#board-content[data-setup-drawing]');
+  await expect.poll(() => page.evaluate(() => window.setupDrawRoster)).toEqual([4, 3]);
+  await expect(animation).toHaveCount(0);
+  await expect(page.locator('.board-round[data-stage=round2] .board-match')).toHaveCount(1);
+
+  for (const [width, height] of [[1920, 1080], [1536, 864], [1366, 768], [1280, 720]]) {
+    await page.setViewportSize({ width, height });
+    const left = page.locator('.board-roster-a [data-roster-player]');
+    const right = page.locator('.board-roster-b [data-roster-player]');
+    const rows = list => list.evaluateAll(items => items.map(item => {
+      const { y, height } = item.getBoundingClientRect();
+      return { y, height };
+    }));
+    const a = await rows(left), b = await rows(right);
+    expect(a).toHaveLength(4);
+    expect(b).toHaveLength(3);
+    expect(b).toEqual(a.slice(0, 3));
+    expect(a[3].height).toBeCloseTo(a[0].height, 1);
+    const bList = await page.locator('.board-roster-b .board-roster-list').boundingBox();
+    expect(bList.y + bList.height - b[2].y - b[2].height).toBeGreaterThanOrEqual(a[3].height);
+  }
+}
 
 test('无队长的选手可以报名KOF复活并直接上场', async ({ page, browser }) => {
   await login(page);

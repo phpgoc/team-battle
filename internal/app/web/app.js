@@ -448,6 +448,34 @@
     form.addEventListener('change', refresh);
     refresh();
   }
+  function bindSetupDraw(form) {
+    const button = $('#start-setup-draw', form);
+    const hint = $('#setup-draw-hint', form);
+    const refresh = () => {
+      const { player_ids: ids, fixed_assignments: fixed } = rosterValue(form);
+      const sides = Object.values(fixed);
+      let error = '';
+      if (ids.length < 6 || ids.length > 12) error = t('setupDrawPlayerCount');
+      else if (sides.length === ids.length && new Set(sides).size < 2) error = t('setupDrawEmptyTeam');
+      else if (ids.some(id => !state.users.some(user => user.id === id && user.selectable && user.status === 'active'))) error = t('setupDrawInvalidPlayer');
+      else if (form.matches(':invalid') || !$('[name=name]', form).value.trim()) error = t('setupDrawInvalidSettings');
+      else {
+        try { rulesValue(form); }
+        catch (invalid) { error = invalid.message; }
+      }
+      button.disabled = Boolean(error);
+      hint.textContent = error || t('setupDrawHint');
+      hint.classList.toggle('danger', Boolean(error));
+    };
+    for (const event of ['rosterchange', 'formrestored', 'input', 'change']) form.addEventListener(event, refresh);
+    button.addEventListener('click', () => {
+      refresh();
+      if (button.disabled || form.dataset.busy || !form.reportValidity()) return;
+      form.dataset.submitAction = 'draw';
+      form.requestSubmit();
+    });
+    refresh();
+  }
   function drawTimingMarkup(e, editableTiming, creating) {
     const rules = { ...defaultRules(), ...e.rules };
     return `<section class="draw-timing-section editor-section" id="event-timing">
@@ -700,12 +728,6 @@
     });
     form.addEventListener('change', event => { if (event.target.closest('[data-correction-players]')) syncResultCorrection(form); });
     form.addEventListener('formrestored', () => syncResultCorrection(form));
-    if (mode !== 'create' && mode !== 'roster' && roundSetupEditable) $('#event-ace').insertAdjacentHTML('beforebegin', `<div class="setup-draw-action"><button type="button" class="primary accent" id="start-setup-draw">${t('startSetupDraw')}</button><span class="help">${t('setupDrawHint')}</span></div>`);
-    $('#start-setup-draw')?.addEventListener('click', () => {
-      if (form.dataset.busy || !form.reportValidity()) return;
-      form.dataset.submitAction = 'draw';
-      form.requestSubmit();
-    });
     bindRoster(form);
     $('select[name="manager_id"]', form)?.addEventListener('change', event => {
       const managerID = Number(event.target.value);
@@ -713,6 +735,10 @@
     });
     if (mode !== 'roster') bindRules(form);
     $('.event-settings-fields', form).disabled = readonly;
+    if (settings && roundSetupEditable) {
+      $('#event-ace').insertAdjacentHTML('beforebegin', `<div class="setup-draw-action"><button type="button" class="primary accent" id="start-setup-draw" aria-describedby="setup-draw-hint">${t('startSetupDraw')}</button><span class="help" id="setup-draw-hint" role="status"></span></div>`);
+      bindSetupDraw(form);
+    }
     form.onsubmit = action(async event => {
       event.preventDefault();
       const beginDraw = form.dataset.submitAction === 'draw';
@@ -852,7 +878,7 @@
     });
   }
   async function playSetupDraw(steps, e) {
-    if (!manages(e)) return;
+    if (!steps.length || !manages(e)) return;
     const session = { id: e.id, progress: null };
     state.setupDraw = session;
     const active = () => state.setupDraw === session && state.event?.id === e.id && !state.editor && manages(state.event) && preMatch(state.event);

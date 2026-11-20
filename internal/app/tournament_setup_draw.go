@@ -99,6 +99,15 @@ func (a *App) drawTournamentSetup(c *gin.Context) {
 		if len(ids) < 6 || len(ids) > 12 {
 			return errors.New("分组抽签需要6到12名选手")
 		}
+		for _, stage := range []string{stageRound1, stageRound2} {
+			round, err := e.round(stage)
+			if err != nil {
+				return err
+			}
+			if round.target < 1 || round.target > 99 {
+				return errors.New("抢分目标必须在1到99之间")
+			}
+		}
 		teams, err := e.teams()
 		if err != nil {
 			return err
@@ -133,7 +142,9 @@ func (a *App) drawTournamentSetup(c *gin.Context) {
 				}
 			}
 		}
-		for len(queues[0])+len(queues[1]) > 0 {
+		// 未指定的选手若全部补入同一队，交换他们的顺序也不会改变分队结果。
+		hasTeamDraw := len(queues[0]) > 0 && len(queues[1]) > 0
+		for hasTeamDraw && len(queues[0])+len(queues[1]) > 0 {
 			step := setupDrawStep{Kind: "group", PoolA: append([]int64{}, remaining...), PoolB: append([]int64{}, remaining...)}
 			for side := 0; side < 2; side++ {
 				if len(queues[side]) > 0 {

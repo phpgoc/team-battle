@@ -5,7 +5,8 @@
     async play({ steps, event, render, playerMarkup, translate, isActive }) {
       const people = event.teams.flatMap(team => team.players);
       const byID = id => people.find(player => player.id === id);
-      const visible = new Set((event.setup_roster || []).filter(player => player.fixed_team).map(player => player.id));
+      const drawn = new Set(steps.filter(step => step.kind === 'group').flatMap(step => [step.a, step.b, step.extra_a]));
+      const visible = new Set(people.filter(player => !drawn.has(player.id)).map(player => player.id));
       const progress = { visible, round1: 0, kof: false, step: null };
       const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
       const draw = () => { if (isActive()) render(progress); };

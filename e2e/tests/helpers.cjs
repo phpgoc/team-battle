@@ -26,7 +26,7 @@ async function json(request, method, url, data) {
 }
 
 let sequence = 0;
-async function players(request, label) {
+async function players(request, label, count = 6) {
   const { categories } = await json(request, 'GET', '/api/site-settings');
   let categoryID = categories[0]?.id;
   if (!categoryID) {
@@ -36,7 +36,7 @@ async function players(request, label) {
     categoryID = settings.categories.find(category => category.name === '赛事测试分类').id;
   }
   const users = [];
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < count; i++) {
     const username = `${label}_${++sequence}`;
     const result = await json(request, 'POST', '/api/users', { username, display_name: username, password: 'test1234', role: 'user', category_id: categoryID });
     users.push({ id: result.id, username, display_name: username });

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"testing"
 )
 
@@ -119,6 +120,41 @@ func TestSetupDrawFixedTeamsAndAtomicFailure(t *testing.T) {
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND team_id=?`, id, teams[1])
 	f.assertCount(t, 6, `SELECT COUNT(*) FROM lineup_entries WHERE tournament_id=?`, id)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/players", id), map[string]any{"player_ids": []int{3, 4, 5, 6, 7, 8}}, 400)
+}
+
+func TestSetupDrawSkipsDeterminedTeams(t *testing.T) {
+	for _, tc := range []struct {
+		name, round1, kof string
+		fixed             map[string]string
+		kinds             []string
+	}{
+		{"全员固定", "random", "random", map[string]string{"3": "A", "4": "A", "5": "A", "6": "B", "7": "B", "8": "B"}, []string{"round1", "round1", "round1", "round2"}},
+		{"剩余全补B队", "manual", "random", map[string]string{"3": "A", "4": "A", "5": "A"}, []string{"round2"}},
+		{"剩余全补A队且后续手动", "manual", "captain", map[string]string{"6": "B", "7": "B", "8": "B"}, nil},
+		{"剩余需要随机分到两队", "manual", "random", map[string]string{"3": "A", "4": "A"}, []string{"group", "group", "group", "round2"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newWorkflowFixture(t)
+			id := createSetupTournament(t, f, 6, tc.round1, tc.kof, tc.fixed)
+			path := fmt.Sprintf("/api/tournaments/%d/setup-draw", id)
+			var result struct {
+				Steps []setupDrawStep `json:"steps"`
+			}
+			if err := json.Unmarshal(f.request(t, 2, "POST", path, nil, 200), &result); err != nil {
+				t.Fatal(err)
+			}
+			kinds := make([]string, 0, len(result.Steps))
+			for _, step := range result.Steps {
+				kinds = append(kinds, step.Kind)
+			}
+			if !slices.Equal(kinds, tc.kinds) {
+				t.Fatalf("抽签顺序为 %v，预期 %v", kinds, tc.kinds)
+			}
+			for _, team := range f.teams(t, id) {
+				f.assertCount(t, 3, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND team_id=?`, id, team)
+			}
+		})
+	}
 }
 
 func TestSetupDraftRulesAndSelectionRollback(t *testing.T) {
