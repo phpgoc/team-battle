@@ -97,7 +97,7 @@
 :is(.shell, .event-editor-page) .compact-number-field { display: inline-flex; align-items: center; gap: 7px; color: #46524f; font-size: 12px; font-weight: 600; white-space: nowrap; }
 :is(.shell, .event-editor-page) .compact-number-control { display: inline-flex; align-items: center; gap: 5px; flex: none; }
 :is(.shell, .event-editor-page) input.compact-number-input[type=number] { width: 54px; min-height: 34px; height: 34px; padding: 4px 5px; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; }
-:is(.shell, .event-editor-page) .probability-number-field input.compact-number-input[type=number] { width: 48px; }
+:is(.shell, .event-editor-page) .probability-number-field input.compact-number-input[type=number] { width: 64px; }
 :is(.shell, .event-editor-page) .compact-number-control > span { color: #64716e; font-size: 12px; }
 :is(.shell, .event-editor-page) input[type=number]::-webkit-inner-spin-button { opacity: .65; }
 :is(.shell, .event-editor-page) .check { min-height: 36px; padding: 7px 9px; border-color: #e1e7e4; border-radius: 5px; background: #f8faf8; color: #475451; font-size: 12px; }

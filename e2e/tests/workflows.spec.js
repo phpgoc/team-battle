@@ -423,6 +423,7 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
     await expect(page.locator(selector)).toHaveClass(/compact-number-input/);
     expect((await page.locator(selector).boundingBox()).width).toBeLessThan(90);
   }
+  expect((await page.locator('#event-ace [name=ace_most_wins]').boundingBox()).width).toBeGreaterThan(55);
   const roster = await players(page.request, '建赛选手');
   // 创建页重新读取目录后，用联想选择和逐人添加完成整份名单。
   await page.reload();
