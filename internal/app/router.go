@@ -19,6 +19,14 @@ func (a *App) router() *gin.Engine {
 	r.GET("/live/:id", func(c *gin.Context) { a.serveLiveEntry(c, false) })
 	r.GET("/assets/styles.css", a.serveStyles)
 	r.GET("/assets/app.js", a.serveAppScript)
+	r.GET("/favicon.svg", func(c *gin.Context) {
+		data, err := webFS.ReadFile("web/favicon.svg")
+		if err != nil {
+			c.Status(http.StatusInternalServerError)
+			return
+		}
+		c.Data(http.StatusOK, "image/svg+xml", data)
+	})
 	for _, asset := range []struct{ path, contentType string }{{"kof-rules.js", "application/javascript"}, {"match-draw.js", "application/javascript"}, {"match-draw.css", "text/css"}, {"lineup-page.js", "application/javascript"}, {"lineup-page.css", "text/css"}, {"kof-board.js", "application/javascript"}, {"kof-board.css", "text/css"}, {"archive-page.js", "application/javascript"}, {"archive-page.css", "text/css"}, {"confirm-dialog.js", "application/javascript"}, {"confirm-dialog.css", "text/css"}, {"result-correction.css", "text/css"}, {"broadcast-layout.css", "text/css"}} {
 		path, contentType := asset.path, asset.contentType
 		r.GET("/assets/"+path, func(c *gin.Context) {

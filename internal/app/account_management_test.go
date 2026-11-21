@@ -137,6 +137,7 @@ func TestNoPasswordAccountLifecycleAndOwnerGuard(t *testing.T) {
 	}
 	f.accountForm(t, 1, "PATCH", fmt.Sprintf("/api/users/%d", superadminID), map[string]string{"no_password": "true"}, false, 400)
 	f.accountForm(t, 1, "PATCH", fmt.Sprintf("/api/users/%d", accountID), map[string]string{"role": "superadmin", "no_password": "true"}, false, 400)
+	f.accountForm(t, 1, "PATCH", fmt.Sprintf("/api/users/%d", accountID), map[string]string{"role": "superadmin"}, false, 400)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM users WHERE id=? AND role='user' AND password_hash=''`, accountID)
 
 	if _, err := f.app.db.Exec(`UPDATE users SET session_token='existing-password-free-session' WHERE id=?`, accountID); err != nil {

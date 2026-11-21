@@ -210,6 +210,9 @@ test('赛事管理按赛事名和开始日期筛选，后台页面不显示重�
   await createTournament(page.request, '日期筛选乙', roster, { start_time: '2026-11-18T19' });
   await page.goto('/tournaments');
   await expect(page.locator('.site-footer')).toHaveCount(0);
+  const favicon = await page.request.get('/favicon.svg');
+  expect(favicon.ok()).toBeTruthy();
+  await expect(page.locator('.event-emblem')).toHaveCount(0);
   await page.locator('#tournament-filter [name=name]').fill('日期筛选甲');
   await page.locator('#tournament-filter [name=from]').fill('2026-11-19');
   await page.locator('#tournament-filter [name=to]').fill('2026-11-19');
@@ -296,7 +299,7 @@ test('账号创建、密码二次校验、头像和手机搜索', async ({ page 
   await page.locator('#user-form button[type=submit]').click();
   await expect(page).toHaveURL(/\/accounts$/);
   let noPasswordRow = page.locator('[data-account-row]').filter({ hasText: 'NoPasswordUser' });
-  await expect(noPasswordRow.locator('.account-login-cell')).toHaveText('Cannot log in');
+  await expect(noPasswordRow.locator('.account-login-cell')).toHaveText('No');
   await noPasswordRow.locator('[data-go]').click();
   await expect(page.locator('#user-form [name=no_password]')).toBeChecked();
   await page.locator('#user-form [name=no_password]').uncheck();
@@ -307,13 +310,13 @@ test('账号创建、密码二次校验、头像和手机搜索', async ({ page 
   await page.locator('#user-form button[type=submit]').click();
   await expect(page).toHaveURL(/\/accounts$/);
   noPasswordRow = page.locator('[data-account-row]').filter({ hasText: 'NoPasswordUser' });
-  await expect(noPasswordRow.locator('.account-login-cell')).toHaveText('Can log in');
+  await expect(noPasswordRow.locator('.account-login-cell')).toHaveText('Yes');
   await noPasswordRow.locator('[data-go]').click();
   await page.locator('#user-form [name=no_password]').check();
   await page.locator('#user-form button[type=submit]').click();
   await expect(page).toHaveURL(/\/accounts$/);
   noPasswordRow = page.locator('[data-account-row]').filter({ hasText: 'NoPasswordUser' });
-  await expect(noPasswordRow.locator('.account-login-cell')).toHaveText('Cannot log in');
+  await expect(noPasswordRow.locator('.account-login-cell')).toHaveText('No');
   await page.goto('/accounts/new');
   await page.locator('[name=username]').fill('PasswordAdmin');
   await page.locator('[name=display_name]').fill('PasswordAdmin');
@@ -326,7 +329,7 @@ test('账号创建、密码二次校验、头像和手机搜索', async ({ page 
   await page.locator('#user-form button[type=submit]').click();
   await expect(page).toHaveURL(/\/accounts$/);
   const passwordAdminRow = page.locator('[data-account-row]').filter({ hasText: 'PasswordAdmin' });
-  await expect(passwordAdminRow.locator('.account-login-cell')).toHaveText('Can log in');
+  await expect(passwordAdminRow.locator('.account-login-cell')).toHaveText('Yes');
   await passwordAdminRow.locator('[data-go]').click();
   await expect(page.locator('#user-form [name=no_password]')).toHaveCount(0);
   await page.goto('/accounts/1');
