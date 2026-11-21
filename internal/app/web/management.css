@@ -156,7 +156,8 @@
 .event-editor-page .event-phase-basics .event-background-panel, .shell .event-phase-basics .event-background-panel { margin: 18px 0 0; }
 .event-editor-page .event-phase-after-ace #event-management, .shell .event-phase-after-ace #event-management { display: grid; gap: 12px; }
 .event-editor-page .event-phase-after-ace > .panel, .shell .event-phase-after-ace > .panel { margin: 0 0 12px; }
-.event-editor-page .event-editor-actions #delete-active-tournament, .shell .event-editor-actions #delete-active-tournament { border-color: #e3b7b2; }
+.event-editor-page .event-cancel-actions, .shell .event-cancel-actions { display: flex; justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.event-editor-page .event-cancel-actions #delete-active-tournament, .shell .event-cancel-actions #delete-active-tournament { border-color: #e3b7b2; }
 .event-editor-page .event-background-panel select { width: min(100%, 28rem); }
 .event-editor-page .tournament-extra-info { display: grid; gap: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 .event-editor-page .tournament-extra-info > h3 { margin: 0; color: #52615d; font-size: 12px; font-weight: 650; }

@@ -792,7 +792,7 @@
     const title = creating ? 'createEvent' : rosterOnly ? 'editRoster' : 'eventSettings';
     const eventPhases = rosterOnly
       ? `<fieldset class="event-settings-fields">${rosterMarkup(state.users, state.roster, roundSetupEditable)}</fieldset>`
-      : `${basic}<section class="event-phase-group event-phase-before-ace" id="event-phase-before-ace"><fieldset class="event-settings-fields">${rosterMarkup(state.users, state.roster, roundSetupEditable)}${rulesMarkup(e, roundSetupEditable, aceSettingsEditable, catalog.extra_infos || [], 'before-ace')}${drawTimingMarkup(e, timingEditable, creating)}</fieldset></section><section class="event-phase-group event-phase-ace" id="event-phase-ace"><fieldset class="event-settings-fields">${rulesMarkup(e, roundSetupEditable, aceSettingsEditable, catalog.extra_infos || [], 'ace')}${management?.aceMarkup || ''}</fieldset></section><section class="event-phase-group event-phase-after-ace" id="event-phase-after-ace">${correctionPanel}${management?.afterAceMarkup || ''}</section>`;
+      : `${basic}<section class="event-phase-group event-phase-before-ace" id="event-phase-before-ace"><fieldset class="event-settings-fields">${rosterMarkup(state.users, state.roster, roundSetupEditable)}${rulesMarkup(e, roundSetupEditable, aceSettingsEditable, catalog.extra_infos || [], 'before-ace')}${drawTimingMarkup(e, timingEditable, creating)}</fieldset></section><section class="event-phase-group event-phase-ace" id="event-phase-ace"><fieldset class="event-settings-fields">${rulesMarkup(e, roundSetupEditable, aceSettingsEditable, catalog.extra_infos || [], 'ace')}${management?.aceMarkup || ''}</fieldset></section><section class="event-phase-group event-phase-after-ace" id="event-phase-after-ace">${correctionPanel}${management?.afterAceMarkup || ''}${settings && editable(e) ? `<div class="event-cancel-actions"><button type="button" class="outline danger" id="delete-active-tournament">${t('cancelTournament')}</button></div>` : ''}</section>`;
     const content = `
       <div class="page-head tournament-editor-heading">
         <div><h1>${t(title)}</h1>${settingsHint ? `<p class="subtitle">${t(settingsHint)}</p>` : ''}</div>
@@ -801,9 +801,7 @@
       <form id="event-form">
         ${eventPhases}
         <div class="event-editor-actions">
-          ${creating ? '' : `<button type="button" class="outline" id="back-board">${t('backToMatch')}</button>`}
-          ${settings && editable(e) ? `<button type="button" class="outline danger" id="delete-active-tournament">${t('cancelTournament')}</button>` : ''}
-          ${terminal(e) ? '' : `<button type="submit" class="primary accent">${t(creating ? 'createEvent' : 'save')}</button>`}
+          ${settings ? `<button type="button" class="outline" id="back-board">${t('returnTournament')}</button><button type="submit" class="outline" data-submit-action="save-and-return">${t('saveAndReturn')}</button><button type="submit" class="primary accent" data-submit-action="save">${t('save')}</button>` : `${creating ? '' : `<button type="button" class="outline" id="back-board">${t('returnTournament')}</button>`}${terminal(e) ? '' : `<button type="submit" class="primary accent">${t(creating ? 'createEvent' : 'save')}</button>`}`}
         </div>
       </form>`;
     if (creating) shell(content, 'createEvent'); else {
@@ -863,7 +861,8 @@
     }
     form.onsubmit = action(async event => {
       event.preventDefault();
-      const beginDraw = form.dataset.submitAction === 'draw';
+      const submitAction = form.dataset.submitAction || event.submitter?.dataset.submitAction || 'save-and-return';
+      const beginDraw = submitAction === 'draw';
       delete form.dataset.submitAction;
       const f = new FormData(form);
       let body = readonly ? { random_draw_seconds: Number(f.get('random_draw_seconds')), ace_draw_seconds: Number(f.get('ace_draw_seconds')), background_id: Number(f.get('background_id') || 0) } : mode === 'roster' ? rosterValue(form) : {
@@ -960,6 +959,12 @@
           closeStream(); history.pushState({}, '', '/live/' + e.id);
           await openEvent(e.id, false, false, result.steps);
           if (state.setupDraw) await playSetupDraw(state.setupDraw, state.event);
+          return;
+        }
+        if (settings && submitAction === 'save') {
+          state.event = await api('/api/tournaments/' + e.id);
+          await eventEditor('settings');
+          toast(t('saved'));
           return;
         }
         state.editor = null;

@@ -461,7 +461,7 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
   await expect(page.locator('[name=ace_most_wins]')).toBeEnabled();
   await expect(page.locator('[data-remove-player]')).toHaveCount(0);
   await page.locator('[name=random_draw_seconds]').fill('2');
-  await page.locator('#event-form button[type=submit]').click();
+  await page.locator('#event-form [data-submit-action="save-and-return"]').click();
   await expect(page).toHaveURL(new RegExp(`/live/${created.id}$`));
   await page.goto(`/live/${created.id}/setting`);
   await expect(page.locator('[name=random_draw_seconds]')).toHaveValue('2');
@@ -494,9 +494,22 @@ test('赛事基本信息仅超管可修改且分组抽签后锁定', async ({ pa
   await page.goto(setting);
   await expect(page.locator('#event-basics [name=name]')).toBeEnabled();
   await page.locator('#event-basics [name=description]').fill('超管在抽签前更新');
-  await page.locator('#event-form button[type=submit]').click();
+  await page.locator('#event-form [data-submit-action="save-and-return"]').click();
   await expect(page).toHaveURL(new RegExp(`/live/${id}$`));
   expect(await json(page.request, 'GET', `/api/public/tournaments/${id}`)).toMatchObject({ description: '超管在抽签前更新' });
+
+  await page.goto(setting);
+  await page.locator('#event-basics [name=description]').fill('返回时不保存');
+  await page.locator('#back-board').click();
+  await expect(page).toHaveURL(new RegExp(`/live/${id}$`));
+  expect(await json(page.request, 'GET', `/api/public/tournaments/${id}`)).toMatchObject({ description: '超管在抽签前更新' });
+
+  await page.goto(setting);
+  await page.locator('#event-basics [name=description]').fill('超管保存后留在设置');
+  await page.locator('#event-form [data-submit-action="save"]').click();
+  await expect(page).toHaveURL(new RegExp(`/live/${id}/setting$`));
+  await expect(page.locator('#event-basics [name=description]')).toHaveValue('超管保存后留在设置');
+  expect(await json(page.request, 'GET', `/api/public/tournaments/${id}`)).toMatchObject({ description: '超管保存后留在设置' });
 
   await json(page.request, 'POST', `/api/tournaments/${id}/setup-draw`, {});
   const grouped = await json(page.request, 'GET', `/api/public/tournaments/${id}`);
@@ -511,7 +524,7 @@ test('赛事基本信息仅超管可修改且分组抽签后锁定', async ({ pa
   await expect(background).toBeEnabled();
   await expect(page.locator('#event-phase-before-ace #event-background')).toHaveCount(0);
   await background.selectOption(String(backgroundID));
-  await page.locator('#event-form button[type=submit]').click();
+  await page.locator('#event-form [data-submit-action="save-and-return"]').click();
   await expect(page).toHaveURL(new RegExp(`/live/${id}$`));
   expect(await json(page.request, 'GET', `/api/public/tournaments/${id}`)).toMatchObject({ background_id: backgroundID });
 
@@ -539,6 +552,10 @@ test('赛事设置按四大区域分区并要求三次确认后永久删除', as
   expect(regionGaps.every(gap => gap >= 32)).toBeTruthy();
   const deleteButton = page.locator('#delete-active-tournament');
   await expect(deleteButton).toBeVisible();
+  await expect(page.locator('#event-phase-after-ace #delete-active-tournament')).toBeVisible();
+  await expect(page.locator('.event-editor-actions #delete-active-tournament')).toHaveCount(0);
+  const footerLabels = await page.locator('.event-editor-actions button').evaluateAll(buttons => buttons.map(button => button.textContent.trim()));
+  expect(footerLabels).toEqual(['返回赛事', '保存并返回', '保存']);
   await page.setViewportSize({ width: 375, height: 812 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
   const footerButtons = await page.locator('.event-editor-actions button:visible').evaluateAll(buttons => buttons.map(button => {
@@ -829,14 +846,14 @@ test('纠错确认清除范围、验证批量合法性并允许修正最后一�
   await page.locator(`[data-correct-match="${firstRoundID}"]`).click();
   await page.locator(`[data-correct-match="${kofID}"]`).click();
   await expect(page.locator('[data-correction-scope]')).toContainText('整批修改会被拒绝');
-  await page.locator('#event-form button[type="submit"]').click();
+  await page.locator('#event-form [data-submit-action="save-and-return"]').click();
   await expect(page.locator('#confirm-dialog')).toBeVisible();
   await page.locator('[data-confirm-accept]').click();
   await expect(page.locator('.form-error')).toContainText('第一轮尚未达到目标胜场');
   await expect.poll(async () => (await json(page.request, 'GET', detailPath)).matches.filter(match => match.status === 'finished').length).toBe(4);
 
   await page.locator(`[data-correct-match="${kofID}"]`).click();
-  await page.locator('#event-form button[type="submit"]').click();
+  await page.locator('#event-form [data-submit-action="save-and-return"]').click();
   await page.locator('[data-confirm-accept]').click();
   await expect(page.locator('#confirm-dialog')).toContainText('全部');
   await page.locator('[data-confirm-cancel]').click();
@@ -848,7 +865,7 @@ test('纠错确认清除范围、验证批量合法性并允许修正最后一�
   const replacement = detail.teams[1].players.find(player => player.id !== last.player_b_id);
   await page.locator('[name="correction_player_b_id"]').selectOption(String(replacement.id));
   await expect(page.locator('[name="correction_player_b_id"]')).toHaveValue(String(replacement.id));
-  await page.locator('#event-form button[type="submit"]').click();
+  await page.locator('#event-form [data-submit-action="save-and-return"]').click();
   await expect(page.locator('#confirm-dialog')).toBeVisible();
   await expect(page.locator('#confirm-dialog')).toContainText(replacement.display_name);
   const correctionRequest = page.waitForRequest(request => request.method() === 'PATCH' && request.url().endsWith(`/api/tournaments/${created.id}/settings`));
