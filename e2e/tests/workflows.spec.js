@@ -285,6 +285,37 @@ test('账号创建、密码二次校验、头像和手机搜索', async ({ page 
   await page.locator('[data-account-row]:visible [data-go]').click();
   await expect(page.locator('[name=display_name]')).toHaveValue('更新的选手');
   await expect(page.locator('#avatar-preview img')).toBeVisible();
+
+  await page.goto('/accounts/new');
+  await page.locator('[name=username]').fill('NoPasswordUser');
+  await page.locator('[name=display_name]').fill('NoPasswordUser');
+  const noPassword = page.locator('#user-form [name=no_password]');
+  await noPassword.check();
+  await expect(page.locator('[name=new_password]')).toBeDisabled();
+  await expect(page.locator('[name=new_password_confirm]')).toBeDisabled();
+  await page.locator('#user-form button[type=submit]').click();
+  await expect(page).toHaveURL(/\/accounts$/);
+  let noPasswordRow = page.locator('[data-account-row]').filter({ hasText: 'NoPasswordUser' });
+  await expect(noPasswordRow.locator('.account-login-cell')).toHaveText('Cannot log in');
+  await noPasswordRow.locator('[data-go]').click();
+  await expect(page.locator('#user-form [name=no_password]')).toBeChecked();
+  await page.locator('#user-form [name=no_password]').uncheck();
+  await expect(page.locator('[name=new_password]')).toHaveAttribute('required', '');
+  await expect(page.locator('[name=new_password_confirm]')).toHaveAttribute('required', '');
+  await page.locator('[name=new_password]').fill('restored-password');
+  await page.locator('[name=new_password_confirm]').fill('restored-password');
+  await page.locator('#user-form button[type=submit]').click();
+  await expect(page).toHaveURL(/\/accounts$/);
+  noPasswordRow = page.locator('[data-account-row]').filter({ hasText: 'NoPasswordUser' });
+  await expect(noPasswordRow.locator('.account-login-cell')).toHaveText('Can log in');
+  await noPasswordRow.locator('[data-go]').click();
+  await page.locator('#user-form [name=no_password]').check();
+  await page.locator('#user-form button[type=submit]').click();
+  await expect(page).toHaveURL(/\/accounts$/);
+  noPasswordRow = page.locator('[data-account-row]').filter({ hasText: 'NoPasswordUser' });
+  await expect(noPasswordRow.locator('.account-login-cell')).toHaveText('Cannot log in');
+  await page.goto('/accounts/1');
+  await expect(page.locator('#user-form [name=no_password]')).toHaveCount(0);
 });
 
 test('网站设置子菜单、默认值、分类图片和背景上传', async ({ page }) => {

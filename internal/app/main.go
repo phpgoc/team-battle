@@ -102,6 +102,7 @@ type loginRequest struct {
 type profileRequest struct {
 	Username           *string `json:"username"`
 	DisplayName        *string `json:"display_name"`
+	NoPassword         *bool   `json:"no_password"`
 	CurrentPassword    string  `json:"current_password"`
 	NewPassword        string  `json:"new_password"`
 	NewPasswordConfirm string  `json:"new_password_confirm"`

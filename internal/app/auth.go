@@ -62,7 +62,7 @@ func (a *App) login(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "读取账号失败")
 		return
 	}
-	if errors.Is(err, sql.ErrNoRows) || bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)) != nil {
+	if errors.Is(err, sql.ErrNoRows) || hash == "" || bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)) != nil {
 		if a.operationLogger != nil {
 			a.operationLogger.logLoginFailure(username)
 		}
@@ -174,7 +174,34 @@ func (a *App) listUsers(c *gin.Context) {
 		fail(c, 500, err.Error())
 		return
 	}
-	users := []User{}
+	type accountListUser struct {
+		User
+		HasPassword bool `json:"has_password"`
+		CanLogin    bool `json:"can_login"`
+	}
+	users := []accountListUser{}
+	passwordRows, err := a.db.Query(`SELECT id,length(password_hash)>0 FROM users WHERE is_deleted=0`)
+	if err != nil {
+		fail(c, 500, "读取账号登录状态失败")
+		return
+	}
+	hasPassword := map[int64]bool{}
+	for passwordRows.Next() {
+		var id int64
+		var enabled bool
+		if err := passwordRows.Scan(&id, &enabled); err != nil {
+			passwordRows.Close()
+			fail(c, 500, "读取账号登录状态失败")
+			return
+		}
+		hasPassword[id] = enabled
+	}
+	if err := passwordRows.Err(); err != nil {
+		passwordRows.Close()
+		fail(c, 500, "读取账号登录状态失败")
+		return
+	}
+	passwordRows.Close()
 	rows, err := a.db.Query(`SELECT player_a_id FROM matches WHERE status='finished' UNION SELECT player_b_id FROM matches WHERE status='finished'`)
 	if err != nil {
 		fail(c, 500, "读取账号战绩失败")
@@ -201,7 +228,8 @@ func (a *App) listUsers(c *gin.Context) {
 			continue
 		}
 		u.CanDelete = u.ID != user.ID && !played[u.ID]
-		users = append(users, u)
+		canLogin := hasPassword[u.ID] && u.Status == "active"
+		users = append(users, accountListUser{User: u, HasPassword: hasPassword[u.ID], CanLogin: canLogin})
 	}
 	sort.Slice(users, func(i, j int) bool { return users[i].ID < users[j].ID })
 	ok(c, gin.H{"users": users})

@@ -234,6 +234,7 @@
   }
   function profileFields(user, categories, managed = false, creating = false) {
     const limited = !creating && user.id === state.user.id && state.user.role !== 'superadmin';
+    const canSetNoPassword = managed && (creating || Number(user.id) !== Number(state.user.id));
     const next = profileLimit(user.profile_changed_at, limited);
     const blocked = limited && state.profileEditBlocked;
     const disabled = next || blocked ? ' disabled' : '';
@@ -243,16 +244,35 @@
     const section = (title, contents) => `<fieldset class="profile-section full"><legend>${t(title)}</legend><div class="form-grid">${contents}</div></fieldset>`;
     const identity = field('avatar', `<div class="avatar-upload"><div id="avatar-preview">${user.avatar_url ? `<img class="account-avatar-preview" src="${esc(user.avatar_url)}" alt="">` : `<span class="account-avatar-empty">${t('noAvatar')}</span>`}</div><div><input type="file" name="avatar" accept="image/jpeg,image/png,image/gif,image/webp" aria-label="${t('avatar')}"${disabled}><p class="help">${t('imageHint')}</p></div></div>`, true)
       + field('displayName', input('display_name', user.display_name || '', 'text', (creating ? '' : 'required') + disabled), true);
+    const passwordControl = canSetNoPassword ? ' data-no-password-control' : '';
+    const noPasswordChoice = canSetNoPassword
+      ? `<label class="check full"><input type="checkbox" name="no_password" value="true"${!creating && user.has_password === false ? ' checked' : ''}>${t('noPassword')}</label><p class="help full">${t('noPasswordHint')}</p>`
+      : '';
     const credentials = field('username', input('username', user.username || '', 'text', 'required autocomplete="username"' + (editableLogin ? disabled : ' readonly')) + (editableLogin ? '' : '<p class="help">' + t('usernameSelfOnly') + '</p>'), true)
-      + field('newPassword', input('new_password', '', 'password', 'minlength="6" autocomplete="new-password"' + (creating ? ' required' : '')))
-      + field('confirmPassword', input('new_password_confirm', '', 'password', 'autocomplete="new-password"' + (creating ? ' required' : '')))
-      + `<p class="help full">${t('passwordHint')}</p>`;
+      + field('newPassword', input('new_password', '', 'password', 'minlength="6" autocomplete="new-password"' + (creating ? ' required' : '') + passwordControl))
+      + field('confirmPassword', input('new_password_confirm', '', 'password', 'autocomplete="new-password"' + (creating ? ' required' : '') + passwordControl))
+      + noPasswordChoice
+      + `<p class="help full">${t(creating ? 'createPasswordHint' : 'passwordHint')}</p>`;
     const category = field('category', `<div class="category-choices"><label><input type="radio" name="category_id" value="0"${!user.category_id ? ' checked' : ''}${disabled}>${t('noCategory')}</label>${categories.map(c => `<label><input type="radio" name="category_id" value="${c.id}"${Number(c.id) === Number(user.category_id) ? ' checked' : ''}${disabled}>${c.icon_url ? `<img src="${esc(c.icon_url)}" alt="">` : ''}${esc(c.name)}</label>`).join('')}</div>`, true)
       + (managed ? field('role', '<select name="role"' + disabled + '>' + ['user', 'superadmin'].map(role => '<option value="' + role + '"' + (role === (user.role || 'user') ? ' selected' : '') + '>' + t(role) + '</option>').join('') + '</select>') : '');
     return limitHint + section('profileIdentity', identity) + section('profileCredentials', credentials) + section('profileCategory', category);
   }
   function bindProfileForm(form, endpoint, method, saved) {
     let previewURL;
+    const noPassword = $('[name="no_password"]', form);
+    if (noPassword) {
+      const passwordFields = $$('[data-no-password-control]', form);
+      const passwordRequired = form.dataset.creating === 'true' || form.dataset.noPasswordAccount === 'true';
+      const syncPasswordFields = () => passwordFields.forEach(input => {
+        input.disabled = noPassword.checked;
+        input.required = !noPassword.checked && passwordRequired;
+        const toggle = input.parentElement.querySelector('.password-toggle');
+        if (toggle) toggle.disabled = noPassword.checked;
+      });
+      noPassword.addEventListener('change', syncPasswordFields);
+      form.addEventListener('formrestored', syncPasswordFields);
+      syncPasswordFields();
+    }
     $('[name="avatar"]', form).onchange = event => {
       if (previewURL) URL.revokeObjectURL(previewURL);
       const file = event.target.files[0];
@@ -285,7 +305,7 @@
     const creating = edit === 'new', user = creating ? {} : users.find(u => String(u.id) === edit);
     if (edit && !creating && !user) return go(pageURL('accounts'));
     if (creating || user) {
-      shell(`<div class="page-head"><div><h1>${t(creating ? 'createUser' : 'editAccount')}</h1>${creating ? '' : `<p class="subtitle">${esc(user.display_name)} · ${esc(user.username)}</p>`}</div><button class="outline" data-go="${pageURL('accounts')}">${t('backAccounts')}</button></div><section class="panel profile-panel"><form id="user-form" class="form-grid panel-body profile-form">${profileFields(user, catalog.categories, true, creating)}<button type="submit" class="primary accent">${t(creating ? 'createUser' : 'save')}</button></form></section>`, 'accounts');
+      shell(`<div class="page-head"><div><h1>${t(creating ? 'createUser' : 'editAccount')}</h1>${creating ? '' : `<p class="subtitle">${esc(user.display_name)} · ${esc(user.username)}</p>`}</div><button class="outline" data-go="${pageURL('accounts')}">${t('backAccounts')}</button></div><section class="panel profile-panel"><form id="user-form" class="form-grid panel-body profile-form" data-creating="${creating}" data-no-password-account="${!creating && user.has_password === false}">${profileFields(user, catalog.categories, true, creating)}<button type="submit" class="primary accent">${t(creating ? 'createUser' : 'save')}</button></form></section>`, 'accounts');
       bindProfileForm($('#user-form'), '/api/users' + (creating ? '' : '/' + user.id), creating ? 'POST' : 'PATCH', async result => {
         if (result.user?.id === state.user.id) state.user = result.user;
         toast(t(creating ? 'accountCreated' : 'saved'));
@@ -293,7 +313,7 @@
       });
       return;
     }
-    shell(`<div class="page-head"><h1>${t('accounts')}</h1><button class="primary accent" data-go="${pageURL('accounts')}/new">${t('createUser')}</button></div><section class="panel accounts-panel"><form id="account-filter" class="panel-body accounts-toolbar" role="search"><div class="field"><label for="account-search">${t('searchPlayers')}</label><input type="search" id="account-search" name="search" placeholder="${t('searchPlayers')}"></div><span id="account-count" class="count-badge" role="status" aria-live="polite"></span><p class="help">${t('accountDeleteHint')}</p></form><div class="table-wrap"><table class="table accounts-table"><thead><tr><th scope="col">${t('account')}</th><th scope="col">${t('role')}</th><th scope="col">${t('category')}</th><th scope="col">${t('actions')}</th></tr></thead><tbody>${users.map(u => `<tr data-account-row="${esc((u.username + ' ' + u.display_name).toLowerCase())}"><td class="account-identity">${person(u)}</td><td class="account-role-cell" data-label="${t('role')}">${t(u.role)}</td><td class="account-category-cell" data-label="${t('category')}">${esc(u.category_name || '—')}</td><td class="account-action-cell"><div class="account-actions"><button class="outline" data-go="${pageURL('accounts')}/${u.id}">${t('editAccount')}</button><button class="outline danger" data-delete-user="${u.id}"${u.can_delete ? '' : ' disabled'} title="${u.can_delete ? '' : t(u.id === state.user.id ? 'cannotDeleteSelf' : 'cannotDeletePlayed')}">${t('delete')}</button></div></td></tr>`).join('')}<tr id="account-empty" hidden><td colspan="4"><div class="empty">${t('noAccountMatches')}</div></td></tr></tbody></table></div></section>`, 'accounts');
+    shell(`<div class="page-head"><h1>${t('accounts')}</h1><button class="primary accent" data-go="${pageURL('accounts')}/new">${t('createUser')}</button></div><section class="panel accounts-panel"><form id="account-filter" class="panel-body accounts-toolbar" role="search"><div class="field"><label for="account-search">${t('searchPlayers')}</label><input type="search" id="account-search" name="search" placeholder="${t('searchPlayers')}"></div><span id="account-count" class="count-badge" role="status" aria-live="polite"></span><p class="help">${t('accountDeleteHint')}</p></form><div class="table-wrap"><table class="table accounts-table"><thead><tr><th scope="col">${t('account')}</th><th scope="col">${t('role')}</th><th scope="col">${t('loginAbility')}</th><th scope="col">${t('category')}</th><th scope="col">${t('actions')}</th></tr></thead><tbody>${users.map(u => `<tr data-account-row="${esc((u.username + ' ' + u.display_name).toLowerCase())}"><td class="account-identity">${person(u)}</td><td class="account-role-cell" data-label="${t('role')}">${t(u.role)}</td><td class="account-login-cell" data-label="${t('loginAbility')}" data-can-login="${u.can_login}">${t(u.can_login ? 'canLogin' : 'cannotLogin')}</td><td class="account-category-cell" data-label="${t('category')}">${esc(u.category_name || '—')}</td><td class="account-action-cell"><div class="account-actions"><button class="outline" data-go="${pageURL('accounts')}/${u.id}">${t('editAccount')}</button><button class="outline danger" data-delete-user="${u.id}"${u.can_delete ? '' : ' disabled'} title="${u.can_delete ? '' : t(u.id === state.user.id ? 'cannotDeleteSelf' : 'cannotDeletePlayed')}">${t('delete')}</button></div></td></tr>`).join('')}<tr id="account-empty" hidden><td colspan="5"><div class="empty">${t('noAccountMatches')}</div></td></tr></tbody></table></div></section>`, 'accounts');
     const filterAccounts = () => {
       const text = $('#account-search').value.trim().toLowerCase();
       const rows = $$('[data-account-row]');

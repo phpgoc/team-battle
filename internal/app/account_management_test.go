@@ -47,7 +47,6 @@ func (f *workflowFixture) accountForm(t *testing.T, user int, method, path strin
 	}
 	return res.Body.Bytes()
 }
-
 // 包括超级管理员在内，所有人只能修改自己的登录名；失败时不应保存其他字段。
 func TestAccountUsernameOwnership(t *testing.T) {
 	f := newWorkflowFixture(t)
@@ -104,6 +103,58 @@ func TestAccountWeeklyChangesAndAtomicSave(t *testing.T) {
 	now := time.Now().UTC()
 	if !profileChangeAllowed(now.Add(-profileChangeInterval).Format(time.RFC3339Nano), now) || profileChangeAllowed(now.Add(-profileChangeInterval+time.Second).Format(time.RFC3339Nano), now) {
 		t.Fatal("7天边界校验不正确")
+	}
+}
+
+func TestNoPasswordAccountLifecycleAndOwnerGuard(t *testing.T) {
+	f := newWorkflowFixture(t)
+	f.accountForm(t, 1, "POST", "/api/users", map[string]string{
+		"username": "password-free", "display_name": "无密码账号", "role": "user", "no_password": "true",
+	}, false, 200)
+	var accountID int64
+	if err := f.app.db.QueryRow(`SELECT id FROM users WHERE username='password-free'`).Scan(&accountID); err != nil {
+		t.Fatal(err)
+	}
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM users WHERE id=? AND password_hash='' AND session_token IS NULL`, accountID)
+	f.request(t, 0, "POST", "/api/auth/login", map[string]any{"username": "password-free", "password": "test1234"}, 401)
+	f.accountForm(t, 1, "POST", "/api/users", map[string]string{
+		"username": "conflicting-password", "role": "user", "no_password": "true", "new_password": "test1234",
+	}, false, 400)
+	f.assertCount(t, 0, `SELECT COUNT(*) FROM users WHERE username='conflicting-password'`)
+
+	if _, err := f.app.db.Exec(`UPDATE users SET session_token='existing-password-free-session' WHERE id=?`, accountID); err != nil {
+		t.Fatal(err)
+	}
+	f.tokens[int(accountID)] = "existing-password-free-session"
+	f.accountForm(t, 1, "PATCH", fmt.Sprintf("/api/users/%d", accountID), map[string]string{"no_password": "true"}, false, 200)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM users WHERE id=? AND password_hash='' AND session_token IS NULL`, accountID)
+	f.request(t, int(accountID), "GET", "/api/auth/me", nil, 401)
+	f.accountForm(t, 1, "PATCH", fmt.Sprintf("/api/users/%d", accountID), map[string]string{
+		"new_password": "restored-password", "new_password_confirm": "restored-password",
+	}, false, 200)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM users WHERE id=? AND length(password_hash)>0`, accountID)
+	f.request(t, 0, "POST", "/api/auth/login", map[string]any{"username": "password-free", "password": "restored-password"}, 200)
+
+	f.request(t, 1, "PATCH", "/api/users/1", map[string]any{"no_password": true}, 400)
+	f.request(t, 1, "PATCH", "/api/auth/profile", map[string]any{"no_password": true}, 400)
+	f.request(t, 2, "PATCH", "/api/auth/profile", map[string]any{"no_password": true}, 400)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM users WHERE id=1 AND length(password_hash)>0`)
+
+	var listed struct {
+		Users []struct {
+			ID          int64  `json:"id"`
+			Username    string `json:"username"`
+			HasPassword bool   `json:"has_password"`
+			CanLogin    bool   `json:"can_login"`
+		} `json:"users"`
+	}
+	if err := json.Unmarshal(f.request(t, 1, "GET", "/api/users", nil, 200), &listed); err != nil {
+		t.Fatal(err)
+	}
+	for _, user := range listed.Users {
+		if user.ID == accountID && (!user.HasPassword || !user.CanLogin) {
+			t.Fatalf("设置密码后账号登录状态未更新: %+v", user)
+		}
 	}
 }
 

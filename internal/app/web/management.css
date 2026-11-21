@@ -238,6 +238,8 @@
 .shell .accounts-table th, .shell .accounts-table td { padding: 9px var(--panel-inset); font-size: 13px; }
 .shell .accounts-table th { background: #f7f9f8; font-size: 11px; }
 .shell .accounts-table th:first-child { width: 38%; }
+.shell .accounts-table .account-login-cell[data-can-login="true"] { color: #34795f; }
+.shell .accounts-table .account-login-cell[data-can-login="false"] { color: #ad5148; }
 .shell .accounts-table .person { gap: 10px; }
 .shell .accounts-table .person > span:not(.board-avatar) { min-width: 90px; }
 .shell .accounts-table .person strong { font-size: 14px; }
@@ -373,9 +375,11 @@
   .shell .accounts-table .person { flex-wrap: wrap; gap: 6px 9px; }
   .shell .accounts-table .person > span:not(.board-avatar) { flex: 1; min-width: 70px; }
   .shell .accounts-table .person strong, .shell .accounts-table .person small { white-space: normal; overflow-wrap: anywhere; }
-  .shell .accounts-table .account-role-cell, .shell .accounts-table .account-category-cell { grid-column: 1; color: #52615d; font-size: 12px; }
+  .shell .accounts-table .account-role-cell, .shell .accounts-table .account-login-cell, .shell .accounts-table .account-category-cell { grid-column: 1; color: #52615d; font-size: 12px; }
+  .shell .accounts-table .account-login-cell[data-can-login="true"] { color: #34795f; }
+  .shell .accounts-table .account-login-cell[data-can-login="false"] { color: #ad5148; }
   .shell .accounts-table td[data-label]::before { margin-right: 9px; color: #6d7975; content: attr(data-label); }
-  .shell .accounts-table .account-action-cell { grid-column: 2; grid-row: 1 / 4; }
+  .shell .accounts-table .account-action-cell { grid-column: 2; grid-row: 1 / 5; }
   .shell .accounts-table .account-actions { flex-direction: column; gap: 6px; }
   .shell .accounts-table .account-actions button { width: 100%; padding: 7px 9px; }
 }

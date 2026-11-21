@@ -86,6 +86,13 @@ func parseAccountChange(c *gin.Context) (profileRequest, *avatarUpload, error) {
 		}
 		req.CategoryID = &id
 	}
+	if values.Has("no_password") {
+		noPassword, err := strconv.ParseBool(values.Get("no_password"))
+		if err != nil {
+			return req, nil, errors.New("无密码选项无效")
+		}
+		req.NoPassword = &noPassword
+	}
 	req.Password = values.Get("password")
 	req.NewPassword = values.Get("new_password")
 	req.NewPasswordConfirm = values.Get("new_password_confirm")
@@ -159,6 +166,7 @@ func (a *App) validCategory(id int64) bool {
 
 func (a *App) saveAccountChange(c *gin.Context, actor, target User, req profileRequest, avatar *avatarUpload) {
 	username, displayName, role, category := target.Username, target.DisplayName, target.Role, target.CategoryID
+	self := actor.ID == target.ID
 	if req.Username != nil {
 		username = strings.TrimSpace(*req.Username)
 		if username == "" {
@@ -195,8 +203,22 @@ func (a *App) saveAccountChange(c *gin.Context, actor, target User, req profileR
 			return
 		}
 	}
+	noPassword := req.NoPassword != nil && *req.NoPassword
+	if noPassword {
+		if self {
+			fail(c, 400, "不能将自己的账号设置为无密码")
+			return
+		}
+		if actor.Role != roleSuperAdmin {
+			fail(c, 403, "只有超级管理员可以设置无密码账号")
+			return
+		}
+		if req.NewPassword != "" || req.NewPasswordConfirm != "" || req.Password != "" {
+			fail(c, 400, "无密码账号不能同时设置密码")
+			return
+		}
+	}
 	now := time.Now().UTC()
-	self := actor.ID == target.ID
 	profileChanged := username != target.Username || displayName != target.DisplayName || role != target.Role || category != target.CategoryID || avatar != nil
 	profileChangedAt := target.ProfileChangedAt
 	nameChangedAt, avatarChangedAt := target.DisplayNameChangedAt, target.AvatarChangedAt
@@ -213,7 +235,8 @@ func (a *App) saveAccountChange(c *gin.Context, actor, target User, req profileR
 			avatarChangedAt = profileChangedAt
 		}
 	}
-	var hash []byte
+	passwordChanged := false
+	passwordHash := ""
 	if req.NewPassword != "" || req.NewPasswordConfirm != "" {
 		if len(req.NewPassword) < 6 {
 			fail(c, 400, "新密码至少需要6位")
@@ -224,11 +247,13 @@ func (a *App) saveAccountChange(c *gin.Context, actor, target User, req profileR
 			return
 		}
 		var err error
-		hash, err = bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+		hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 		if err != nil {
 			fail(c, 400, "密码长度无效")
 			return
 		}
+		passwordHash = string(hash)
+		passwordChanged = true
 	}
 	if username != target.Username {
 		var count int
@@ -258,8 +283,17 @@ func (a *App) saveAccountChange(c *gin.Context, actor, target User, req profileR
 		}
 	}
 	_, err = tx.Exec(`UPDATE users SET username=?,display_name=?,role=?,category_id=?,display_name_changed_at=?,avatar_changed_at=?,profile_changed_at=? WHERE id=? AND is_deleted=0`, username, displayName, role, nullableInt64(category), nameChangedAt, avatarChangedAt, profileChangedAt, target.ID)
-	if err == nil && len(hash) > 0 {
-		_, err = tx.Exec(`UPDATE users SET password_hash=? WHERE id=?`, string(hash), target.ID)
+	if err == nil && passwordChanged {
+		_, err = tx.Exec(`UPDATE users SET password_hash=? WHERE id=?`, passwordHash, target.ID)
+	}
+	if err == nil && noPassword {
+		result, updateErr := tx.Exec(`UPDATE users SET password_hash='',session_token=NULL WHERE id=? AND (length(password_hash)>0 OR session_token IS NOT NULL)`, target.ID)
+		err = updateErr
+		if err == nil {
+			var changed int64
+			changed, err = result.RowsAffected()
+			passwordChanged = changed > 0
+		}
 	}
 	if err == nil && avatar != nil {
 		_, err = tx.Exec(`UPDATE users SET avatar_data=?,avatar_mime=?,avatar_version=avatar_version+1 WHERE id=?`, avatar.data, avatar.mime, target.ID)
@@ -272,7 +306,7 @@ func (a *App) saveAccountChange(c *gin.Context, actor, target User, req profileR
 		fail(c, 500, "保存账号失败")
 		return
 	}
-	if profileChanged || len(hash) > 0 {
+	if profileChanged || passwordChanged {
 		fields := []string{}
 		if username != target.Username {
 			fields = append(fields, "username")
@@ -289,7 +323,7 @@ func (a *App) saveAccountChange(c *gin.Context, actor, target User, req profileR
 		if avatar != nil {
 			fields = append(fields, "avatar")
 		}
-		if len(hash) > 0 {
+		if passwordChanged {
 			fields = append(fields, "password")
 		}
 		action := "修改账号资料"
@@ -325,16 +359,31 @@ func (a *App) createAccount(c *gin.Context) {
 		fail(c, 400, "请填写登录名并选择超级管理员或选手")
 		return
 	}
-	password := req.NewPassword
-	if password == "" && req.NewPasswordConfirm == "" {
-		password = req.Password // 兼容原创建账号接口。
-	} else if password != req.NewPasswordConfirm {
-		fail(c, 400, "两次输入的新密码不一致")
-		return
-	}
-	if len(password) < 6 {
-		fail(c, 400, "密码至少需要6位")
-		return
+	noPassword := req.NoPassword != nil && *req.NoPassword
+	passwordHash := ""
+	if noPassword {
+		if req.NewPassword != "" || req.NewPasswordConfirm != "" || req.Password != "" {
+			fail(c, 400, "无密码账号不能同时设置密码")
+			return
+		}
+	} else {
+		password := req.NewPassword
+		if password == "" && req.NewPasswordConfirm == "" {
+			password = req.Password // 兼容原创建账号接口。
+		} else if password != req.NewPasswordConfirm {
+			fail(c, 400, "两次输入的新密码不一致")
+			return
+		}
+		if len(password) < 6 {
+			fail(c, 400, "密码至少需要6位")
+			return
+		}
+		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		if err != nil {
+			fail(c, 400, "密码长度无效")
+			return
+		}
+		passwordHash = string(hash)
 	}
 	username := strings.TrimSpace(*req.Username)
 	displayName := username
@@ -349,11 +398,6 @@ func (a *App) createAccount(c *gin.Context) {
 		fail(c, 400, "分类不存在")
 		return
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		fail(c, 400, "密码长度无效")
-		return
-	}
 	role := roleUser
 	if *req.Role == roleSuperAdmin {
 		role = roleSuperAdmin
@@ -363,13 +407,16 @@ func (a *App) createAccount(c *gin.Context) {
 	if avatar != nil {
 		data, mime, version = avatar.data, avatar.mime, 1
 	}
-	result, err := a.db.Exec(`INSERT INTO users(username,display_name,password_hash,role,category_id,avatar_data,avatar_mime,avatar_version) VALUES(?,?,?,?,?,?,?,?)`, username, displayName, string(hash), role, nullableInt64(category), data, mime, version)
+	result, err := a.db.Exec(`INSERT INTO users(username,display_name,password_hash,role,category_id,avatar_data,avatar_mime,avatar_version) VALUES(?,?,?,?,?,?,?,?)`, username, displayName, passwordHash, role, nullableInt64(category), data, mime, version)
 	if err != nil {
 		fail(c, 400, "登录名已存在或账号资料无效")
 		return
 	}
 	id, _ := result.LastInsertId()
-	fields := []string{"role", "category", "password"}
+	fields := []string{"role", "category"}
+	if !noPassword {
+		fields = append(fields, "password")
+	}
 	if avatar != nil {
 		fields = append(fields, "avatar")
 	}
