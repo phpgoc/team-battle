@@ -144,6 +144,8 @@ func (a *App) updateTournamentSettings(c *gin.Context) {
 		rules := beforeRules
 		if req.Rules != nil {
 			rules = *req.Rules
+			// 抽签样式来自创建赛事时的网站配置快照。
+			rules.DrawAnimation = beforeRules.DrawAnimation
 		}
 		if req.RandomDrawSeconds != nil {
 			rules.RandomDrawSeconds = *req.RandomDrawSeconds

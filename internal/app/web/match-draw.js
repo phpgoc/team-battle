@@ -1,32 +1,76 @@
 (() => {
   'use strict';
   const sourceLabel = (source, special, t) => source === 'most_wins' ? t('sourceMostWins') : source === 'most_losses' ? t('sourceMostLosses') : source === 'special' ? `${t('specialMatchGroup')}${special || 1}` : source.startsWith('special:') ? `${t('specialMatchGroup')}${Number(source.slice(8)) + 1}` : source === 'mixed' ? t('mixed') : t('random');
-  const playerFrames = new WeakMap();
+  const stepTime = 1000 / 3;
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const slotFrames = new WeakMap();
 
-  // 只平滑替换对战位中的人像和姓名，最终结果继续使用同一个对战位。
-  function swapPlayer(slot, markup, key, { animate = true, className = slot.className } = {}) {
-    const previous = playerFrames.get(slot);
-    if (previous?.key === key && previous.markup === markup && slot.className === className) return;
-    previous?.animations.forEach(animation => animation.cancel());
-    slot.querySelectorAll('.draw-player-leaving').forEach(node => node.remove());
-    const leaving = animate && slot.hasChildNodes() ? slot.cloneNode(true) : null;
-    slot.className = className;
-    slot.innerHTML = markup;
-    slot.dataset.drawPlayer = String(key || 0);
-    const animations = [];
-    if (leaving) {
-      leaving.removeAttribute('data-draw-player');
-      leaving.classList.add('draw-player-leaving');
-      leaving.setAttribute('aria-hidden', 'true');
-      leaving.querySelectorAll('button,a').forEach(node => node.setAttribute('tabindex', '-1'));
-      const incoming = [...slot.children];
-      slot.append(leaving);
-      const options = { duration: 180, easing: 'cubic-bezier(.2,.7,.3,1)' };
-      const outgoing = leaving.animate([{ opacity: 1, transform: 'translateY(0)' }, { opacity: 0, transform: 'translateY(-16px)' }], options);
-      animations.push(outgoing, ...incoming.map(node => node.animate([{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'translateY(0)' }], options)));
-      outgoing.finished.catch(() => {}).then(() => leaving.remove());
+  // 每秒推进三个候选，最后一格延长并缓出。候选只用于展示，落点由服务端给出。
+  function reelFrame(pool, result, elapsed, duration, offset = 0) {
+    if (pool.length < 2 || elapsed >= duration || reducedMotion.matches) return { from: result, to: result, progress: 1 };
+    const lastStep = Math.max(0, Math.ceil(duration / stepTime) - 2);
+    const index = Math.floor(elapsed / stepTime);
+    const candidate = step => pool[(step + offset) % pool.length];
+    if (index >= lastStep) {
+      const start = lastStep * stepTime;
+      const progress = Math.min(1, (elapsed - start) / Math.max(1, duration - start - 100));
+      const from = candidate(lastStep) === result ? candidate(lastStep - 1) : candidate(lastStep);
+      return { from, to: result, progress: 1 - (1 - progress) ** 3 };
     }
-    playerFrames.set(slot, { key, markup, animations });
+    const progress = Math.min(1, (elapsed - index * stepTime) / (stepTime * .88));
+    return { from: candidate(index), to: candidate(index + 1), progress: progress * progress * (3 - 2 * progress) };
+  }
+
+  // 两层内容在同一裁切框内交接，停定后保留实际出场选手的节点。
+  function paintSlot(slot, { from, to, progress }, markup, mode) {
+    if (!slot) return;
+    let frames = slotFrames.get(slot);
+    if (!frames) {
+      const first = slot.firstElementChild;
+      const second = first.cloneNode(false);
+      slot.append(second);
+      frames = [first, second];
+      slotFrames.set(slot, frames);
+    }
+    const moving = from !== to && progress < 1;
+    const gradient = mode === 'gradient';
+    const leading = moving ? from : to;
+    const first = frames.find(node => node.dataset.drawValue === String(leading))
+      || frames.find(node => node.dataset.drawValue !== String(to)) || frames[0];
+    const second = frames.find(node => node !== first);
+    frames.used = first;
+    for (const [index, layer] of [first, second].entries()) {
+      if (index && !moving) {
+        layer.hidden = true;
+        break;
+      }
+      const value = index ? to : leading;
+      if (layer.dataset.drawValue !== String(value)) {
+        layer.innerHTML = markup(value);
+        layer.dataset.drawValue = String(value);
+      }
+      const distance = moving ? (index - progress) : 0;
+      layer.hidden = false;
+      layer.inert = moving;
+      layer.style.transform = gradient || !distance ? '' : `translate3d(0,${distance * 100}%,0)`;
+      layer.style.opacity = moving ? String(gradient ? 1 - Math.abs(distance) : 1 - Math.abs(distance) * .62) : '';
+      // 渐变时头像可叠化。姓名在交接点先隐去再显现，避免两行字重叠。
+      const labelOpacity = moving && gradient ? String(Math.max(0, 1 - Math.abs(distance) * 2)) : '';
+      layer.style.setProperty('--draw-label-opacity', labelOpacity);
+    }
+  }
+
+  function stopSlot(slot) {
+    const frames = slotFrames.get(slot);
+    if (!frames) return;
+    const active = frames.used;
+    const inactive = frames.find(node => node !== active);
+    active.inert = false;
+    active.style.transform = '';
+    active.style.opacity = '';
+    active.style.removeProperty('--draw-label-opacity');
+    inactive.remove();
+    slotFrames.delete(slot);
   }
 
   function extraInfoItems(event, match) {
@@ -53,7 +97,10 @@
 
   window.TBMatchDraw = {
     sourceLabel,
-    swapPlayer,
+    reelFrame,
+    paintSlot,
+    stopSlot,
+    tickMilliseconds: stepTime,
     extraInfoVisibleCount,
     record(event, { t, esc, recordName }) {
       const draw = event.ace_draw;
@@ -88,7 +135,7 @@
     frame(plan, elapsed) {
       let start = 0;
       for (const [index, phase] of plan.phases.entries()) {
-        if (elapsed < start + phase.duration) return { ...phase, index, tick: Math.floor((elapsed - start) / 250), settling: start + phase.duration - elapsed <= 250 };
+        if (elapsed < start + phase.duration) return { ...phase, index, elapsed: elapsed - start };
         start += phase.duration;
       }
       return null;

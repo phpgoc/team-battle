@@ -301,6 +301,7 @@ func (a *App) createTournament(c *gin.Context) {
 			return
 		}
 	}
+	rules.DrawAnimation = defaults.DrawAnimation
 	rules.enforceRevivalRule()
 	if err := normalizeTournamentExtraInfo(a.db, &rules, nil); err != nil {
 		fail(c, http.StatusBadRequest, err.Error())

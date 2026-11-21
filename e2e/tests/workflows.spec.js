@@ -12,8 +12,19 @@ test('额外信息在选手抽签后逐秒揭晓并留出展示时间', async ({
   expect(timeline).toEqual({ total: 7000, visible: [0, 0, 0, 1, 1, 2, 2, 2] });
 });
 
+test('抽签转盘每秒切换三次且结果相邻结果不同', async ({ page }) => {
+  await page.goto('/login');
+  const frame = await page.evaluate(() => window.TBMatchDraw.reelFrame([1, 2], 1, 3800, 4000));
+  expect(frame.from).toBe(2);
+  expect(frame.to).toBe(1);
+  expect(frame.progress).toBeGreaterThan(0);
+  expect(frame.progress).toBeLessThan(1);
+  expect(await page.evaluate(() => window.TBMatchDraw.tickMilliseconds)).toBeCloseTo(1000 / 3, 4);
+});
+
 test('管理员KOF抽签先揭晓选手，再逐项揭晓额外信息', async ({ page }) => {
   await login(page);
+  await json(page.request, 'PATCH', '/api/site-settings/tournament-defaults', { draw_animation: 'slide' });
   for (const [name, option] of [['地图演示', '地图甲'], ['比赛模式', '昼间']]) {
     const response = await page.request.post('/api/site-settings/extra-infos', { multipart: { name, options: option } });
     expect(response.ok(), await response.text()).toBeTruthy();
@@ -44,23 +55,27 @@ test('管理员KOF抽签先揭晓选手，再逐项揭晓额外信息', async ({
     await page.locator(`[data-current-winner="${before.teams[0].id}"]`).click();
     await page.locator('[data-confirm-accept]').click();
   };
-  const sendNextKOFPlayer = async () => {
+  const sendNextKOFPlayer = async verifyDraw => {
     const choices = await json(page.request, 'GET', `/api/tournaments/${created.id}/kof/options`);
     const choice = choices.teams.find(team => team.candidate_ids?.length);
     expect(choice).toBeTruthy();
-    await json(page.request, 'POST', `/api/tournaments/${created.id}/kof/next-player`, {
-      match_id: choices.match_id, team_id: choice.team_id, player_id: choice.candidate_ids[0]
-    });
+    const row = page.locator(`[data-roster-player="${choice.candidate_ids[0]}"]`);
+    await row.locator('.roster-action-area').click();
+    await page.locator('#roster-actions [data-send-kof]').click();
+    if (verifyDraw) {
+      await expect(page.locator('.board-current-match')).toHaveAttribute('data-draw-phase', /^(players|reveal)$/);
+    }
     await expect(page.locator('[data-current-winner]').first()).toBeEnabled();
   };
   await recordAWin();
-  await sendNextKOFPlayer();
+  await sendNextKOFPlayer(true);
   await recordAWin();
   await sendNextKOFPlayer();
   await recordAWin();
-  const values = () => page.locator('.board-current-extra-info-rows dd').allTextContents();
+  const values = () => page.locator('.board-current-extra-info-rows dd:visible').allTextContents();
+  await expect(page.locator('.board-current-match')).toHaveAttribute('data-draw-phase', 'players');
   await expect.poll(values).toEqual([]);
-  await expect.poll(values, { timeout: 10000 }).toEqual(['地图甲']);
+  await expect.poll(values, { timeout: 10000, intervals: [100] }).toEqual(['地图甲']);
   await expect.poll(values, { timeout: 10000 }).toEqual(['地图甲', '昼间']);
   await expect(page.locator('[data-current-winner]').first()).toBeEnabled();
   const pendingMatchDetails = page.locator('[data-stage="round2"] .board-match.is-pending .board-extra-info-trigger');
@@ -71,6 +86,68 @@ test('管理员KOF抽签先揭晓选手，再逐项揭晓额外信息', async ({
   await expect(details).toContainText('比赛模式');
   await expect(details).toContainText('地图甲');
   await expect(details).toContainText('昼间');
+});
+
+test('管理员自动KOF复活抽签在原对战位连续滚动并落定', async ({ page }) => {
+  await login(page);
+  const roster = await players(page.request, '自动复活动画');
+  const created = await createTournament(page.request, '自动复活抽签动画', roster, {
+    round1_target: 1,
+    round2_target: 5,
+    rules: {
+      round1_mode: 'random', kof_starter: 'random', no_repeat: true,
+      random_draw_seconds: 4, ace_draw_seconds: 0,
+      ace_most_wins: 0, ace_most_losses: 0, ace_specials: []
+    }
+  });
+  const api = '/api/tournaments/' + created.id;
+  const detail = () => json(page.request, 'GET', '/api/public/tournaments/' + created.id);
+  await json(page.request, 'POST', api + '/setup-draw', {});
+  let event = await detail();
+  await json(page.request, 'POST', api + '/captains/confirm', {
+    team_a_player_id: event.teams[0].players[0].id,
+    team_b_player_id: event.teams[1].players[0].id
+  });
+  await json(page.request, 'POST', api + '/start', {});
+  event = await detail();
+  let match = event.matches.find(row => row.stage === 'round1' && row.status === 'pending');
+  await json(page.request, 'POST', api + '/matches/' + match.id + '/result', { winner_team_id: event.teams[0].id });
+
+  const lost = new Set();
+  const result = async (winnerSide, assignFreshPlayer) => {
+    event = await detail();
+    match = event.matches.find(row => row.stage === 'round2' && row.status === 'pending');
+    expect(match).toBeTruthy();
+    const loserSide = winnerSide === 0 ? 1 : 0;
+    const loserID = loserSide === 0 ? match.player_a_id : match.player_b_id;
+    const body = { winner_team_id: event.teams[winnerSide].id };
+    lost.add(loserID);
+    if (assignFreshPlayer) {
+      const loserTeam = event.teams[loserSide];
+      body.next_player_id = loserTeam.players.find(player => !lost.has(player.id)).id;
+    }
+    await json(page.request, 'POST', api + '/matches/' + match.id + '/result', body);
+  };
+  await result(0, true);
+  await result(1, true);
+  await result(0, true);
+  await result(1, true);
+
+  await page.goto('/live/' + created.id);
+  const before = await detail();
+  const finalKOF = before.matches.find(row => row.stage === 'round2' && row.status === 'pending');
+  expect(finalKOF).toBeTruthy();
+  await page.locator(`[data-current-winner="${before.teams[0].id}"]`).click();
+  await page.locator('[data-confirm-accept]').click();
+  const current = page.locator('.board-current-match');
+  await expect(current).toHaveAttribute('data-draw-phase', /^(players|reveal)$/);
+  const final = await detail();
+  const resultMatch = final.matches.find(row => row.stage === 'round2' && row.status === 'pending');
+  expect(resultMatch).toBeTruthy();
+  await expect(page.locator('.current-player .player-record-link').first()).toContainText(resultMatch.player_a_name);
+  await expect(page.locator('.current-player .player-record-link').last()).toContainText(resultMatch.player_b_name);
+  await expect(page.locator('[data-current-winner]').first()).toBeEnabled({ timeout: 10000 });
+  await expect(current).not.toHaveAttribute('data-draw-phase', 'players');
 });
 
 test('赛前抽签揭晓KOF额外信息并显示对阵详情', async ({ page }) => {
@@ -216,7 +293,10 @@ test('网站设置子菜单、默认值、分类图片和背景上传', async ({
   await expect(submenu.getByRole('link')).toHaveText(['常用赛事名', '分类', '额外信息']);
   await page.locator('[name=random_draw_seconds]').fill('6');
   await page.locator('[name=ace_draw_seconds]').fill('7');
+  await page.getByLabel('抽签动画').selectOption('gradient');
   await Promise.all([page.waitForResponse('/api/site-settings/tournament-defaults'), page.locator('#tournament-defaults-form button').click()]);
+  await page.reload();
+  await expect(page.getByLabel('抽签动画')).toHaveValue('gradient');
   await submenu.getByRole('link', { name: '常用赛事名', exact: true }).click();
   await expect(page).toHaveURL(/\/site-settings\/tournament-names$/);
   await expect(page.locator('#name-form')).toBeVisible();
@@ -683,6 +763,7 @@ test('纠错确认清除范围、验证批量合法性并允许修正最后一�
 
 test('观众实时接收大将抽签结果但不播放悬念动画', async ({ page, browser }) => {
   await login(page);
+  await json(page.request, 'PATCH', '/api/site-settings/tournament-defaults', { draw_animation: 'gradient' });
   const roster = await players(page.request, '抽签观众');
   const created = await createTournament(page.request, '观众抽签动画', roster, {
     round1_target: 1,
@@ -706,8 +787,10 @@ test('观众实时接收大将抽签结果但不播放悬念动画', async ({ pa
     await expect(publicPage.locator('#draw-ace')).toHaveCount(0);
     await page.goto(`/live/${created.id}`);
     await expect(page.locator('#draw-ace')).toBeVisible();
+    await expect(page.locator('.broadcast-board')).toHaveAttribute('data-draw-animation', 'gradient');
     await page.locator('#draw-ace').click();
     await expect(page.locator('#draw-roll')).toBeVisible();
+    await expect(page.locator('.draw-rule-slot')).toBeVisible();
     await expect(publicPage.locator('[data-stage="ace"] .board-matches .board-match')).toHaveCount(1);
     await expect(publicPage.locator('#draw-roll:visible')).toHaveCount(0);
     await expect(publicPage.locator('#draw-ace')).toHaveCount(0);

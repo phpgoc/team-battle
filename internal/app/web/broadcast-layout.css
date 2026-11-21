@@ -17,7 +17,6 @@
 .broadcast-board .board-round-head h2{margin:0;text-align:center}
 .broadcast-board .board-ace-source{text-align:center}
 .broadcast-board .board-current-match .board-current-fighters{margin-top:0}
-.broadcast-board .board-current-match .board-draw-roll{inset:8px}
 
 /* 三轮战况与选手区按2:2:3分配桌面宽度。 */
 @media(min-width:1180px){

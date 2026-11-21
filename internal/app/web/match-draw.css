@@ -10,15 +10,73 @@
 .ace-draw-popover b{color:#ffc48b}
 .ace-draw-candidates p>span{display:block;color:#9faec4;font-size:13px}
 .broadcast-board .board-right>.board-round:has(.ace-draw-record){overflow:visible;position:relative;z-index:2}
-.broadcast-board .board-draw-roll .draw-rule-name{display:block;grid-template-columns:none;font-size:clamp(34px,3vw,58px);color:#ffc48b;font-weight:800}
-.broadcast-board .board-draw-roll small{display:block;margin-top:10px;font-size:18px;color:#c7d1df}
+/* 当前对战位本身就是抽签舞台。名单、比分与录分按钮不参与位移。 */
+.broadcast-board .board-current-match{isolation:isolate}
+.broadcast-board .board-current-match::before{
+  content:"";position:absolute;inset:2px 0;z-index:-1;pointer-events:none;
+  border:1px solid #91bbec42;border-radius:18px;opacity:0;
+  background:radial-gradient(ellipse at 18% 60%,#6f432c6b,transparent 55%),radial-gradient(ellipse at 82% 60%,#22556d78,transparent 55%),#0b192261;
+  transition:opacity .34s ease;
+}
+.broadcast-board .board-current-match[data-draw-phase]:not([data-draw-phase=""])::before{opacity:1}
+.broadcast-board .board-current-match .board-draw-roll{
+  position:absolute;inset:4px 0 auto;height:20px;z-index:2;min-height:0;margin:0;padding:0;
+  border:0;background:none;box-shadow:none;pointer-events:none;
+  display:flex;align-items:center;justify-content:center;
+}
+.broadcast-board .board-current-match .board-draw-roll[hidden]{display:none}
+.broadcast-board .board-draw-roll .draw-roll-label{
+  margin:0;color:#f0c2a0;font-size:13px;font-weight:700;letter-spacing:.09em;line-height:1;
+}
+.broadcast-board .board-current-fighters .current-player,.broadcast-board .draw-rule-slot{
+  display:grid;grid-template:minmax(0,1fr)/minmax(0,1fr);gap:0;min-width:0;
+  align-items:stretch;justify-items:stretch;width:100%;overflow:clip;
+}
+.broadcast-board .current-player>.draw-player-frame,.broadcast-board .draw-rule-slot>.draw-player-frame{
+  grid-area:1/1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-width:0;max-width:none;gap:6px;position:relative;
+}
+.broadcast-board .draw-player-frame[hidden],.broadcast-board .draw-rule-slot[hidden]{display:none}
+.broadcast-board .current-player .is-record-new strong{color:#72d7a0}
+.broadcast-board .current-player .is-record-winner strong{color:#ff6b5f}
+.broadcast-board .current-player .is-lost strong{text-decoration:line-through;text-decoration-thickness:2px}
+.broadcast-board .current-player .board-identity{white-space:nowrap}
+.broadcast-board .current-player .player-record-link{overflow:hidden;text-overflow:ellipsis}
+.broadcast-board .current-player strong{opacity:var(--draw-label-opacity,1)}
+.broadcast-board .board-current-match[data-draw-phase]:not([data-draw-phase=""]) .current-player{
+  mask-image:linear-gradient(to bottom,transparent,black 14%,black 88%,transparent);
+}
+.broadcast-board .board-current-match[data-draw-phase="rule"] .board-current-fighters{
+  opacity:0;pointer-events:none;
+}
+.broadcast-board .board-current-fighters{transition:opacity .24s ease}
+.broadcast-board .draw-rule-slot{
+  position:absolute;z-index:1;inset:50% auto auto 50%;transform:translate(-50%,-50%);
+  width:min(72%,470px);height:clamp(62px,9vh,104px);pointer-events:none;
+  border-block:1px solid #f2c99c50;color:#ffdbb6;
+  background:linear-gradient(90deg,transparent,#ffbe8622,transparent);
+  mask-image:linear-gradient(to bottom,transparent,black 18%,black 82%,transparent);
+  font-size:clamp(24px,2.6vw,46px);text-align:center;
+}
 .broadcast-board.is-drawing-rule .ace-draw-record{visibility:hidden}
-.broadcast-board.is-drawing .ace-draw-details{visibility:hidden}
-.broadcast-board .board-current-match:has(.board-draw-roll:not([hidden])) .board-current-fighters{visibility:visible;opacity:1}
-.broadcast-board.is-drawing .board-match.is-pending .board-identity{visibility:hidden}
-.broadcast-board.is-drawing .board-match.is-pending .board-extra-info-trigger{visibility:hidden}
-.broadcast-board .board-current-side>.current-player{position:relative;width:100%}
-.broadcast-board .current-player>.draw-player-leaving{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:inherit;width:100%;height:100%;pointer-events:none}
-.broadcast-board .board-current-match .board-draw-roll{inset:0 0 auto;height:22px;min-height:0;padding:0;border:0;border-radius:0;background:none;box-shadow:none;pointer-events:none;display:flex;flex-direction:row;align-items:center;gap:8px}
-.broadcast-board .board-draw-roll>span{margin:0;font-size:13px;line-height:1.4}
-.broadcast-board .board-draw-roll .draw-rule-name{width:auto;font-size:16px;line-height:1.4}
+.broadcast-board.is-drawing .ace-draw-details,.broadcast-board.is-drawing .board-match.is-pending .board-identity,.broadcast-board.is-drawing .board-match.is-pending .board-extra-info-trigger{visibility:hidden}
+.broadcast-board .board-current-match[data-draw-phase]:not([data-draw-phase=""]) .board-current-win{visibility:hidden;pointer-events:none}
+.broadcast-board .board-current-match[data-has-extra-info] .board-current-fighters{
+  grid-template-columns:minmax(0,1fr) minmax(104px,22%) minmax(0,1fr);
+}
+.broadcast-board .board-current-extra-info-rows>div[hidden]{display:none}
+.broadcast-board .board-current-match[data-draw-phase]:not([data-draw-phase=""]) .board-current-extra-info-rows>div{animation:draw-info-in .33s ease both}
+@keyframes draw-info-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* 渐变模式让卡片原地交接，分队颜色的光带缓慢移动。 */
+.broadcast-board[data-draw-animation="gradient"] .board-current-match::before{
+  background:linear-gradient(115deg,#472a4d80,#1f627784,#90613572,#264f7884);background-size:230% 100%;
+}
+.broadcast-board[data-draw-animation="gradient"] .board-current-match[data-draw-phase]:not([data-draw-phase=""])::before{
+  animation:draw-colors 4.5s ease-in-out infinite alternate;
+}
+@keyframes draw-colors{to{background-position:100% 0}}
+@media(prefers-reduced-motion:reduce){
+  .broadcast-board .board-current-match::before,.broadcast-board .board-current-fighters,.broadcast-board .board-current-win{transition:none}
+  .broadcast-board[data-draw-animation="gradient"] .board-current-match[data-draw-phase]::before,.broadcast-board .board-current-match[data-draw-phase] .board-current-extra-info-rows>div{animation:none!important}
+}

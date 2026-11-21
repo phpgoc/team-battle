@@ -217,8 +217,6 @@ tr[hidden]{display:none}
   .board-match{grid-template-columns:23px minmax(0,1fr) 65px minmax(0,1fr)}
   .board-current-fighters .board-avatar{width:48px;height:48px;flex-basis:48px}
 }
-/* 直播抽签滚动区与当前对局保持同一视觉区域。 */
-.board-draw-roll{margin:17px 0 2px;padding:12px 14px;border:1px solid #ef835488;background:#203653;border-radius:7px;text-align:center}.board-draw-roll>span{display:block;color:#f0b194;font-size:10px;letter-spacing:.13em;text-transform:uppercase;margin-bottom:8px}.board-draw-roll>div{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:center}.board-draw-roll strong{color:#fff;font-size:18px;overflow-wrap:anywhere}.board-draw-roll b{color:#9babc0;font-size:11px;letter-spacing:.16em}.board-current-match:has(.board-draw-roll:not([hidden])) .board-current-fighters{opacity:.35}
 .board-ace-source{color:#c7d1df;font-size:12px;text-align:right}
 
 /* 直播与历史看板铺满视口，双方名单放在大将战下方。 */
@@ -300,11 +298,6 @@ tr[hidden]{display:none}
 .broadcast-board .board-rules-content>.board-rule-block:has(.summary-description){grid-column:1/-1}
 .broadcast-board .summary-description{line-height:1.5}
 /* 抽签覆盖当前对局，操作面板单独滚动。 */
-.broadcast-board .board-draw-roll{position:absolute;inset:42px 18px 10px;margin:0;display:flex;flex-direction:column;justify-content:center;padding:6px 14px;z-index:1}
-.broadcast-board .board-draw-roll[hidden]{display:none}
-.broadcast-board .board-draw-roll>span{font-size:15px;margin-bottom:5px}
-.broadcast-board .board-draw-roll>div{width:100%}
-.broadcast-board .board-draw-roll strong{font-size:clamp(30px,2.6vw,54px)}
 .broadcast-board .event-operations{position:fixed;inset:5vh max(20px,8vw);z-index:5;max-width:none;margin:0;overflow:auto;overscroll-behavior:contain;box-shadow:0 0 0 100vmax #070d19b8,0 20px 80px #0008;outline:0}
 /* 常用桌面分辨率固定视口，长战绩及名单只在各自区域滚动。 */
 @media(min-width:1180px) and (min-height:620px){
@@ -413,7 +406,6 @@ tr[hidden]{display:none}
 .event-editor-actions{position:fixed;bottom:16px;right:max(20px,calc((100vw - 1200px)/2));z-index:20;display:flex;gap:12px;padding:12px 16px;border:1px solid #52617a;background:#101b2df2;box-shadow:0 8px 32px #0006;border-radius:14px;backdrop-filter:blur(12px)}
 .event-editor-actions button{min-width:108px}
 .setup-draw-action{display:flex;align-items:center;gap:18px;margin:24px 0}
-.setup-empty-slot{color:#a3b3c9;font-size:clamp(24px,2.7vw,48px)}
 .setup-flying-player{position:fixed;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transform-origin:top left;pointer-events:none;color:#72d7a0;background:#15263ef0;border:1px solid #f0ad75;border-radius:16px;padding:12px;box-shadow:0 10px 35px #0006}
 .setup-flying-player .board-avatar{width:min(8vw,154px);height:min(8vw,154px);border-radius:50%;object-fit:cover}
 .setup-flying-player strong{font-size:clamp(22px,2vw,42px)}

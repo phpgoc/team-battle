@@ -19,7 +19,7 @@ func readSiteDefaults(t *testing.T, f *workflowFixture) tournamentDefaults {
 
 func TestSiteDefaultsPersistAcrossInitialization(t *testing.T) {
 	f := newWorkflowFixture(t)
-	if got := readSiteDefaults(t, f); got != (tournamentDefaults{4, 5}) {
+	if got := readSiteDefaults(t, f); got != (tournamentDefaults{4, 5, "slide"}) {
 		t.Fatalf("初始网站默认时长错误: %+v", got)
 	}
 	f.assertCount(t, 2, `SELECT COUNT(*) FROM config WHERE (key='random_draw_seconds' AND value='4') OR (key='ace_draw_seconds' AND value='5')`)
@@ -27,12 +27,12 @@ func TestSiteDefaultsPersistAcrossInitialization(t *testing.T) {
 	if err := migrate(f.app.db); err != nil {
 		t.Fatal(err)
 	}
-	if got := readSiteDefaults(t, f); got != (tournamentDefaults{7, 9}) {
+	if got := readSiteDefaults(t, f); got != (tournamentDefaults{7, 9, "slide"}) {
 		t.Fatalf("重复初始化覆盖了已保存配置: %+v", got)
 	}
 	// 单项更新保留另一项，显式零秒也应保存。
 	f.request(t, 1, "PATCH", "/api/site-settings/tournament-defaults", map[string]any{"random_draw_seconds": 0}, 200)
-	if got := readSiteDefaults(t, f); got != (tournamentDefaults{0, 9}) {
+	if got := readSiteDefaults(t, f); got != (tournamentDefaults{0, 9, "slide"}) {
 		t.Fatalf("部分更新未保留配置: %+v", got)
 	}
 }
@@ -50,9 +50,25 @@ func TestSiteDefaultsRejectUnauthorizedAndInvalidUpdates(t *testing.T) {
 		map[string]any{"random_draw_seconds": "8"},
 	} {
 		f.request(t, 1, "PATCH", path, body, 400)
-		if got := readSiteDefaults(t, f); got != (tournamentDefaults{4, 5}) {
+		if got := readSiteDefaults(t, f); got != (tournamentDefaults{4, 5, "slide"}) {
 			t.Fatalf("非法请求部分写入了配置: %+v, 请求: %+v", got, body)
 		}
+	}
+}
+
+func TestSiteDrawAnimationDefaultIsValidatedAndSnapshotted(t *testing.T) {
+	f := newWorkflowFixture(t)
+	f.request(t, 1, "PATCH", "/api/site-settings/tournament-defaults", map[string]any{"draw_animation": "gradient"}, 200)
+	if got := readSiteDefaults(t, f); got.DrawAnimation != "gradient" {
+		t.Fatalf("网站默认抽签动画未保存: %+v", got)
+	}
+	id := f.create(t, "random")
+	if rules := mustTournamentRules(f.app.db, id); rules.DrawAnimation != "gradient" {
+		t.Fatalf("新赛事未保存抽签动画快照: %+v", rules)
+	}
+	f.request(t, 1, "PATCH", "/api/site-settings/tournament-defaults", map[string]any{"draw_animation": "unknown"}, 400)
+	if got := readSiteDefaults(t, f); got.DrawAnimation != "gradient" {
+		t.Fatalf("非法动画设置覆盖了已有值: %+v", got)
 	}
 }
 
@@ -94,12 +110,12 @@ func TestSiteDefaultsOnlyApplyToNewTournaments(t *testing.T) {
 		rules any
 		want  tournamentDefaults
 	}{
-		{nil, tournamentDefaults{7, 9}},
-		{map[string]any{}, tournamentDefaults{7, 9}},
-		{map[string]any{"round1_mode": "random"}, tournamentDefaults{7, 9}},
-		{map[string]any{"random_draw_seconds": 0}, tournamentDefaults{0, 9}},
-		{map[string]any{"ace_draw_seconds": 0}, tournamentDefaults{7, 0}},
-		{map[string]any{"random_draw_seconds": 2, "ace_draw_seconds": 3}, tournamentDefaults{2, 3}},
+		{nil, tournamentDefaults{7, 9, "slide"}},
+		{map[string]any{}, tournamentDefaults{7, 9, "slide"}},
+		{map[string]any{"round1_mode": "random"}, tournamentDefaults{7, 9, "slide"}},
+		{map[string]any{"random_draw_seconds": 0}, tournamentDefaults{0, 9, "slide"}},
+		{map[string]any{"ace_draw_seconds": 0}, tournamentDefaults{7, 0, "slide"}},
+		{map[string]any{"random_draw_seconds": 2, "ace_draw_seconds": 3}, tournamentDefaults{2, 3, "slide"}},
 	} {
 		body := map[string]any{"name": "网站默认值验证", "start_time": "2026-11-19T20", "manager_id": 2}
 		if test.rules != nil {
@@ -110,7 +126,7 @@ func TestSiteDefaultsOnlyApplyToNewTournaments(t *testing.T) {
 			t.Fatal(err)
 		}
 		rules := mustTournamentRules(f.app.db, result.ID)
-		if got := (tournamentDefaults{rules.RandomDrawSeconds, rules.AceDrawSeconds}); got != test.want {
+		if got := (tournamentDefaults{rules.RandomDrawSeconds, rules.AceDrawSeconds, rules.DrawAnimation}); got != test.want {
 			t.Fatalf("新赛事时长错误: %+v, 期望: %+v, 请求: %+v", got, test.want, test.rules)
 		}
 	}

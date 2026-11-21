@@ -53,21 +53,22 @@ func (s AceSpecial) allPlayerIDs() []int64 {
 }
 
 type TournamentRules struct {
-	Round1Mode         string       `json:"round1_mode"`
-	KOFStarter         string       `json:"kof_starter"`
-	KOFManualRevival   bool         `json:"kof_manual_revival"`
-	KOFRevivalNoRepeat bool         `json:"kof_revival_no_repeat"`
-	NoRepeat           bool         `json:"no_repeat"`
-	RandomDrawSeconds  int          `json:"random_draw_seconds"`
-	AceDrawSeconds     int          `json:"ace_draw_seconds"`
-	AceMostWins        int          `json:"ace_most_wins"`
-	AceMostLosses      int          `json:"ace_most_losses"`
-	AceSpecials        []AceSpecial `json:"ace_specials"`
+	Round1Mode         string                           `json:"round1_mode"`
+	KOFStarter         string                           `json:"kof_starter"`
+	KOFManualRevival   bool                             `json:"kof_manual_revival"`
+	KOFRevivalNoRepeat bool                             `json:"kof_revival_no_repeat"`
+	NoRepeat           bool                             `json:"no_repeat"`
+	RandomDrawSeconds  int                              `json:"random_draw_seconds"`
+	AceDrawSeconds     int                              `json:"ace_draw_seconds"`
+	DrawAnimation      string                           `json:"draw_animation"`
+	AceMostWins        int                              `json:"ace_most_wins"`
+	AceMostLosses      int                              `json:"ace_most_losses"`
+	AceSpecials        []AceSpecial                     `json:"ace_specials"`
 	ExtraInfo          map[string][]TournamentExtraInfo `json:"extra_info,omitempty"`
 }
 
 func defaultRules() TournamentRules {
-	return TournamentRules{Round1Mode: "manual", KOFStarter: "random", NoRepeat: true, RandomDrawSeconds: 5, AceDrawSeconds: 5, AceMostWins: 20, AceMostLosses: 20, AceSpecials: []AceSpecial{}}
+	return TournamentRules{Round1Mode: "manual", KOFStarter: "random", NoRepeat: true, RandomDrawSeconds: 5, AceDrawSeconds: 5, DrawAnimation: "slide", AceMostWins: 20, AceMostLosses: 20, AceSpecials: []AceSpecial{}}
 }
 
 // 兼容未保存首发和复活方式的旧赛事，默认随机首发、随机复活。
@@ -116,6 +117,9 @@ func (r TournamentRules) validateStored() error {
 	}
 	if r.RandomDrawSeconds < 0 || r.AceDrawSeconds < 0 {
 		return errors.New("抽选时间不能为负数")
+	}
+	if r.DrawAnimation != "slide" && r.DrawAnimation != "gradient" {
+		return errors.New("抽签动画设置无效")
 	}
 	total := r.AceMostWins + r.AceMostLosses
 	if r.AceMostWins < 0 || r.AceMostLosses < 0 {
