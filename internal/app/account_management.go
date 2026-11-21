@@ -271,6 +271,17 @@ func (a *App) saveAccountChange(c *gin.Context, actor, target User, req profileR
 		return
 	}
 	defer tx.Rollback()
+	if req.NoPassword != nil && !noPassword && req.NewPassword == "" && req.NewPasswordConfirm == "" {
+		var hasPassword bool
+		if err := tx.QueryRow(`SELECT length(password_hash)>0 FROM users WHERE id=? AND is_deleted=0`, target.ID).Scan(&hasPassword); err != nil {
+			fail(c, 500, "读取账号登录状态失败")
+			return
+		}
+		if !hasPassword {
+			fail(c, 400, "启用登录必须设置新密码")
+			return
+		}
+	}
 	if self && profileChanged && actor.Role != roleSuperAdmin {
 		blocked, err := hasOpenParticipation(tx, target.ID)
 		if err != nil {

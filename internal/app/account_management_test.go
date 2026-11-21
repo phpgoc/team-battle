@@ -47,6 +47,7 @@ func (f *workflowFixture) accountForm(t *testing.T, user int, method, path strin
 	}
 	return res.Body.Bytes()
 }
+
 // 包括超级管理员在内，所有人只能修改自己的登录名；失败时不应保存其他字段。
 func TestAccountUsernameOwnership(t *testing.T) {
 	f := newWorkflowFixture(t)
@@ -117,6 +118,8 @@ func TestNoPasswordAccountLifecycleAndOwnerGuard(t *testing.T) {
 	}
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM users WHERE id=? AND password_hash='' AND session_token IS NULL`, accountID)
 	f.request(t, 0, "POST", "/api/auth/login", map[string]any{"username": "password-free", "password": "test1234"}, 401)
+	f.accountForm(t, 1, "PATCH", fmt.Sprintf("/api/users/%d", accountID), map[string]string{"no_password": "false"}, false, 400)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM users WHERE id=? AND password_hash=''`, accountID)
 	f.accountForm(t, 1, "POST", "/api/users", map[string]string{
 		"username": "conflicting-password", "role": "user", "no_password": "true", "new_password": "test1234",
 	}, false, 400)
