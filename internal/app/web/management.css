@@ -151,6 +151,17 @@
 :is(.shell, .event-editor-page) .event-editor-actions { position: sticky; bottom: 0; z-index: 4; display: flex; justify-content: flex-end; gap: 8px; margin: 18px calc(-1 * var(--page-gutter)) calc(-1 * var(--page-gutter)); padding: 9px var(--page-gutter); border: 0; border-top: 1px solid var(--line); border-radius: 0; background: #ffffffed; box-shadow: 0 -4px 14px #26312d0d; backdrop-filter: blur(8px); }
 :is(.shell, .event-editor-page) .event-editor-actions button { min-width: 92px; min-height: 38px; }
 :is(.shell, .event-editor-page) #event-form { padding-bottom: 0; }
+.event-editor-page .event-phase-group, .shell .event-phase-group { margin: 0 0 24px; padding: 8px 0 20px; border-bottom: 1px solid var(--line); scroll-margin-top: 72px; }
+.event-editor-page .event-phase-heading, .shell .event-phase-heading { display: flex; align-items: center; min-height: 42px; margin-bottom: 10px; padding: 0 0 9px 12px; border-bottom: 2px solid #829a91; border-left: 4px solid #527c6f; }
+.event-editor-page .event-phase-heading h2, .shell .event-phase-heading h2 { margin: 0; font-size: 18px; line-height: 1.35; font-weight: 700; }
+.event-editor-page .event-phase-basics > .event-phase-heading, .shell .event-phase-basics > .event-phase-heading { border-bottom-color: #6f9283; border-left-color: #436f5c; }
+.event-editor-page .event-phase-ace > .event-phase-heading, .shell .event-phase-ace > .event-phase-heading { border-bottom-color: #c99b78; border-left-color: #bb7048; }
+.event-editor-page .event-phase-after-ace > .event-phase-heading, .shell .event-phase-after-ace > .event-phase-heading { border-bottom-color: #93a5ad; border-left-color: #547786; }
+.event-editor-page .event-phase-group > .event-settings-fields, .shell .event-phase-group > .event-settings-fields { margin: 0; }
+.event-editor-page .event-phase-group .event-background-panel, .shell .event-phase-group .event-background-panel { margin: 0; }
+.event-editor-page .event-phase-after-ace #event-management, .shell .event-phase-after-ace #event-management { display: grid; gap: 12px; }
+.event-editor-page .event-phase-after-ace > .panel, .shell .event-phase-after-ace > .panel { margin: 0 0 12px; }
+.event-editor-page .event-editor-actions #delete-active-tournament, .shell .event-editor-actions #delete-active-tournament { border-color: #e3b7b2; }
 .shell .editor-jumps { position: sticky; top: 58px; z-index: 3; display: flex; gap: 2px; margin: -5px 0 14px; padding: 4px 0; overflow-x: auto; border-bottom: 1px solid var(--line); background: #f3f5f3ed; backdrop-filter: blur(8px); scrollbar-width: thin; }
 .event-editor-page .editor-jumps { position: sticky; top: 0; z-index: 3; display: flex; gap: 2px; margin: -4px 0 14px; padding: 4px 0; overflow-x: auto; border-bottom: 1px solid var(--line); background: #f3f5f3ed; backdrop-filter: blur(8px); scrollbar-width: thin; }
 :is(.shell, .event-editor-page) .editor-jumps a { flex: 0 0 auto; padding: 7px 10px; border-radius: 4px; color: #596663; font-size: 12px; font-weight: 550; }
@@ -343,6 +354,10 @@
   :is(.shell, .event-editor-page) .page-head { align-items: start; flex-wrap: wrap; }
   :is(.shell, .event-editor-page) .event-settings-fields { grid-template-columns: 1fr; }
   :is(.shell, .event-editor-page) .event-settings-fields > :is(#event-round1, #event-round2) { grid-column: 1 / -1; }
+  :is(.shell, .event-editor-page) .event-editor-actions { justify-content: stretch; flex-wrap: wrap; gap: 6px; }
+  :is(.shell, .event-editor-page) .event-editor-actions button { flex: 1 1 auto; min-width: 0; padding-inline: 9px; white-space: normal; }
+  :is(.shell, .event-editor-page) .event-phase-group { margin-bottom: 18px; padding-bottom: 16px; }
+  :is(.shell, .event-editor-page) .event-phase-heading h2 { font-size: 16px; }
   .shell .settings-default-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .shell .settings-default-fields > .settings-note { grid-column: 1 / -1; }
   .shell .settings-default-fields > button { grid-column: 1 / -1; justify-self: end; }

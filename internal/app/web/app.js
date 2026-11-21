@@ -432,12 +432,17 @@
       $$('[data-special-side]', row).forEach(select => select.setAttribute('aria-label', `${t('specialMatchGroup')}${index + 1} · ${t(select.dataset.specialSide === 'a' ? 'teamA' : 'teamB')} · ${t('specialCandidates')}`));
     });
   }
-  function rulesMarkup(e = {}, roundEditable = true, aceEditable = true, extraInfoDefinitions = []) {
+  function rulesMarkup(e = {}, roundEditable = true, aceEditable = true, extraInfoDefinitions = [], phase = 'all') {
     const rules = { ...defaultRules(), ...e.rules };
     const roundDisabled = roundEditable ? '' : ' disabled';
     const aceDisabled = aceEditable ? '' : ' disabled';
     const hiddenRound = roundEditable ? '' : input('round1_target', e.round1_target || 4, 'hidden') + input('round2_target', e.round2_target || 5, 'hidden') + input('round1_mode', rules.round1_mode, 'hidden') + (rules.no_repeat ? input('no_repeat', 'on', 'hidden') : '') + input('kof_starter', rules.kof_starter, 'hidden') + (rules.kof_revival_no_repeat ? input('kof_revival_no_repeat', 'on', 'hidden') : '');
-    return `<section class="panel section-gap editor-section" id="event-round1"><div class="panel-head"><h2>${t('round1')}</h2></div><div class="panel-body form-grid">${compactNumber('round1_target', e.round1_target || 4, 'round1Target', 1, 99, t('targetUnit'), !roundEditable)}${field('round1Mode', `<select name="round1_mode"${roundDisabled}><option value="manual"${rules.round1_mode === 'manual' ? ' selected' : ''}>${t('manual')}</option><option value="random"${rules.round1_mode === 'random' ? ' selected' : ''}>${t('random')}</option></select>`)}<label class="check"><input name="no_repeat" type="checkbox"${rules.no_repeat ? ' checked' : ''}${roundDisabled}>${t('noRepeat')}</label>${extraInfoStageMarkup('round1', extraInfoDefinitions, rules, roundEditable)}${hiddenRound}</div></section><section class="panel section-gap editor-section" id="event-round2"><div class="panel-head"><h2>${t('round2')}</h2></div><div class="panel-body form-grid">${compactNumber('round2_target', e.round2_target || 5, 'round2Target', 1, 99, t('targetUnit'), !roundEditable)}${field('kofStarter', `<div class="mode-choices">${['random', 'captain'].map(mode => `<label><input type="radio" name="kof_starter" value="${mode}"${rules.kof_starter === mode ? ' checked' : ''}${roundDisabled}><span>${t(mode === 'random' ? 'randomStarter' : 'captainStarter')}</span></label>`).join('')}</div>`)}${kofManualRevivalMarkup(rules, roundDisabled)}<div class="full" data-kof-revival-rule><label class="check"><input name="kof_revival_no_repeat" type="checkbox"${rules.kof_revival_no_repeat ? ' checked' : ''}${roundDisabled}>${t('kofRevivalNoRepeat')}</label><p class="help">${t('kofRevivalNoRepeatHint')}</p></div><p class="help full">${t('kofHint')}</p>${extraInfoStageMarkup('round2', extraInfoDefinitions, rules, roundEditable)}</div></section><section class="panel section-gap editor-section" id="event-ace"><div class="panel-head"><div class="ace-editor-heading"><h2>${t('aceRules')}</h2><span class="ace-edit-hint">${t('aceEditableUntilFirstResult')}</span></div><span id="fallback-probability"></span></div><div class="panel-body"><div class="ace-probability-grid">${compactNumber('ace_most_wins', rules.ace_most_wins, 'mostWins', 0, 100, '%', !aceEditable)}${compactNumber('ace_most_losses', rules.ace_most_losses, 'mostLosses', 0, 100, '%', !aceEditable)}</div><p class="help">${t('aceHint')}</p><div id="special-rules">${rules.ace_specials.map(specialMarkup).join('')}</div><button type="button" class="outline" id="add-special"${aceDisabled}>${t('addSpecial')}</button>${extraInfoStageMarkup('ace', extraInfoDefinitions, rules, aceEditable)}</div></section>`;
+    const round1 = `<section class="panel section-gap editor-section" id="event-round1"><div class="panel-head"><h2>${t('round1')}</h2></div><div class="panel-body form-grid">${compactNumber('round1_target', e.round1_target || 4, 'round1Target', 1, 99, t('targetUnit'), !roundEditable)}${field('round1Mode', `<select name="round1_mode"${roundDisabled}><option value="manual"${rules.round1_mode === 'manual' ? ' selected' : ''}>${t('manual')}</option><option value="random"${rules.round1_mode === 'random' ? ' selected' : ''}>${t('random')}</option></select>`)}<label class="check"><input name="no_repeat" type="checkbox"${rules.no_repeat ? ' checked' : ''}${roundDisabled}>${t('noRepeat')}</label>${extraInfoStageMarkup('round1', extraInfoDefinitions, rules, roundEditable)}${hiddenRound}</div></section>`;
+    const round2 = `<section class="panel section-gap editor-section" id="event-round2"><div class="panel-head"><h2>${t('round2')}</h2></div><div class="panel-body form-grid">${compactNumber('round2_target', e.round2_target || 5, 'round2Target', 1, 99, t('targetUnit'), !roundEditable)}${field('kofStarter', `<div class="mode-choices">${['random', 'captain'].map(mode => `<label><input type="radio" name="kof_starter" value="${mode}"${rules.kof_starter === mode ? ' checked' : ''}${roundDisabled}><span>${t(mode === 'random' ? 'randomStarter' : 'captainStarter')}</span></label>`).join('')}</div>`)}${kofManualRevivalMarkup(rules, roundDisabled)}<div class="full" data-kof-revival-rule><label class="check"><input name="kof_revival_no_repeat" type="checkbox"${rules.kof_revival_no_repeat ? ' checked' : ''}${roundDisabled}>${t('kofRevivalNoRepeat')}</label><p class="help">${t('kofRevivalNoRepeatHint')}</p></div><p class="help full">${t('kofHint')}</p>${extraInfoStageMarkup('round2', extraInfoDefinitions, rules, roundEditable)}</div></section>`;
+    const ace = `<section class="panel section-gap editor-section" id="event-ace"><div class="panel-head"><div class="ace-editor-heading"><h2>${t('aceRules')}</h2><span class="ace-edit-hint">${t('aceEditableUntilFirstResult')}</span></div><span id="fallback-probability"></span></div><div class="panel-body"><div class="ace-probability-grid">${compactNumber('ace_most_wins', rules.ace_most_wins, 'mostWins', 0, 100, '%', !aceEditable)}${compactNumber('ace_most_losses', rules.ace_most_losses, 'mostLosses', 0, 100, '%', !aceEditable)}</div><p class="help">${t('aceHint')}</p><div id="special-rules">${rules.ace_specials.map(specialMarkup).join('')}</div><button type="button" class="outline" id="add-special"${aceDisabled}>${t('addSpecial')}</button>${extraInfoStageMarkup('ace', extraInfoDefinitions, rules, aceEditable)}</div></section>`;
+    if (phase === 'before-ace') return round1 + round2;
+    if (phase === 'ace') return ace;
+    return round1 + round2 + ace;
   }
 
   function extraInfoStageMarkup(stage, definitions, rules, editable) {
@@ -589,9 +594,8 @@
       <div class="draw-duration-fields">${drawDurationFields(rules, !editableTiming)}</div>
     </section>`;
   }
-  function editorJumps(settings, correction, management) {
-    const sections = [['basics', 'basicInfo'], ['roster', 'players'], ['round1', 'round1'], ['round2', 'round2'], ['ace', 'ace'], ['timing', 'drawTiming']];
-    if (settings) sections.push(['background', 'background'], ['correction', 'correct', !correction], ['management', 'actions', !management]);
+  function editorJumps() {
+    const sections = [['event-basics', 'basicInfo'], ['event-phase-before-ace', 'beforeAce'], ['event-phase-ace', 'ace'], ['event-phase-after-ace', 'afterAce']];
     return `<nav class="editor-jumps" aria-label="${t('eventSections')}">${sections.map(([id, title, hidden]) => `<a href="#event-${id}"${hidden ? ' hidden' : ''}>${t(title)}</a>`).join('')}</nav>`;
   }
   function backgroundOptions(backgrounds, selected = 0) {
@@ -607,20 +611,27 @@
   function eventManagementMarkup(e) {
     const pending = e.status === 'ace' && e.matches.find(match => match.stage === 'ace' && match.status === 'pending');
     const snapshot = JSON.stringify([editable(e), e.status, pending?.id, pending?.player_a_id, pending?.player_b_id]);
-    let content = '';
-    if (editable(e) && pending) content = `<section class="panel section-gap editor-section"><div class="panel-head"><h2>${t('overrideAce')}</h2></div><div class="panel-body form-grid"><input type="hidden" name="ace_match_id" value="${pending.id}">${field('teamA', `<select name="ace_player_a_id">${options(e.teams[0].players.filter(player => player.active !== false), pending.player_a_id)}</select>`)}${field('teamB', `<select name="ace_player_b_id">${options(e.teams[1].players.filter(player => player.active !== false), pending.player_b_id)}</select>`)}<p class="help full">${t('aceSettingsSaveHint')}</p></div></section>`;
-    if (editable(e) && e.status === 'final_confirm') content = `<section class="panel section-gap editor-section"><div class="panel-head"><h2>${t('confirmEnd')}</h2></div><div class="panel-body"><p class="help">${t('confirmEndHint')}</p><button type="button" class="primary accent" id="confirm-end">${t('confirmEnd')}</button></div></section>`;
-    return { markup: `<div id="event-management" class="editor-section" data-snapshot="${esc(snapshot)}">${content}</div>`, visible: Boolean(content) };
+    let aceContent = '';
+    let afterAceContent = '';
+    if (editable(e) && pending) aceContent = `<section class="panel section-gap editor-section"><div class="panel-head"><h2>${t('overrideAce')}</h2></div><div class="panel-body form-grid"><input type="hidden" name="ace_match_id" value="${pending.id}">${field('teamA', `<select name="ace_player_a_id">${options(e.teams[0].players.filter(player => player.active !== false), pending.player_a_id)}</select>`)}${field('teamB', `<select name="ace_player_b_id">${options(e.teams[1].players.filter(player => player.active !== false), pending.player_b_id)}</select>`)}<p class="help full">${t('aceSettingsSaveHint')}</p></div></section>`;
+    if (editable(e) && e.status === 'final_confirm') afterAceContent = `<section class="panel section-gap editor-section"><div class="panel-head"><h2>${t('confirmEnd')}</h2></div><div class="panel-body"><p class="help">${t('confirmEndHint')}</p><button type="button" class="primary accent" id="confirm-end">${t('confirmEnd')}</button></div></section>`;
+    return {
+      aceMarkup: `<div id="event-ace-management" class="editor-section" data-snapshot="${esc(snapshot)}">${aceContent}</div>`,
+      afterAceMarkup: `<div id="event-management" class="editor-section" data-snapshot="${esc(snapshot)}">${afterAceContent}</div>`,
+      visible: Boolean(afterAceContent)
+    };
   }
   function refreshEventManagement(e) {
     const panel = $('#event-management');
-    if (!panel || state.editor !== 'settings') return;
+    const acePanel = $('#event-ace-management');
+    if ((!panel && !acePanel) || state.editor !== 'settings') return;
     const management = eventManagementMarkup(e);
-    const template = document.createElement('template'); template.innerHTML = management.markup;
-    const replacement = template.content.firstElementChild;
-    if (panel.dataset.snapshot === replacement.dataset.snapshot) return;
-    $('.editor-jumps a[href="#event-management"]').hidden = !management.visible;
-    panel.replaceWith(replacement);
+    const aceTemplate = document.createElement('template'); aceTemplate.innerHTML = management.aceMarkup;
+    const aceReplacement = aceTemplate.content.firstElementChild;
+    const afterAceTemplate = document.createElement('template'); afterAceTemplate.innerHTML = management.afterAceMarkup;
+    const afterAceReplacement = afterAceTemplate.content.firstElementChild;
+    if (acePanel && acePanel.dataset.snapshot !== aceReplacement.dataset.snapshot) acePanel.replaceWith(aceReplacement);
+    if (panel && panel.dataset.snapshot !== afterAceReplacement.dataset.snapshot) panel.replaceWith(afterAceReplacement);
   }
   const matchOrder = (a, b) => a.round - b.round || a.seq - b.seq;
   const finishedMatches = e => e.matches.filter(match => match.status === 'finished').sort(matchOrder);
@@ -726,7 +737,6 @@
     const oldPicks = oldPlayers.map(field => ({ value: field.value, original: Array.from(field.options).find(option => option.defaultSelected)?.value }));
     if (panel) panel.outerHTML = markup;
     else if (markup) $('#event-management', form).insertAdjacentHTML('beforebegin', markup);
-    $('.editor-jumps a[href="#event-correction"]').hidden = !markup;
     if (markup) {
       const container = $('[data-correction-inputs]', form);
       for (const [matchID, winnerID] of changes) {
@@ -772,31 +782,32 @@
       state.rosterOrder = entries.map(([id]) => id);
     }
     const managers = users.users.filter(user => user.status === 'active' && !user.is_deleted);
-    const managerField = state.user.role === 'superadmin' ? field('manager', '<select name="manager_id" data-searchable required><option value="">' + t('selectManager') + '</option>' + managers.map(user => '<option value="' + user.id + '"' + (Number(e.manager_id) === user.id ? ' selected' : '') + '>' + esc(user.display_name) + ' (' + esc(user.username) + ')</option>').join('') + '</select>', false, mode === 'create') : '';
-    const createBackground = mode === 'create' ? field('background', `<select name="background_id">${backgroundOptions(backgrounds, e.background_id)}</select>`) : '';
-    const basic = mode !== 'roster' ? '<section class="panel editor-section" id="event-basics"><div class="panel-head"><h2>' + t('basicInfo') + '</h2></div><div class="panel-body form-grid">' + field('name', '<input name="name" list="tournament-names" value="' + esc(e.name || '') + '" required><datalist id="tournament-names">' + (catalog.tournament_names || []).map(n => '<option value="' + esc(n.name) + '">').join('') + '</datalist>', true, mode === 'create') + field('time', startTimeInput(e.start_time || localTime()), false, mode === 'create') + managerField + createBackground + field('description', '<textarea name="description" rows="2">' + esc(e.description || '') + '</textarea>', true) + '</div></section>' : '';
     const creating = mode === 'create', settings = mode === 'settings', rosterOnly = mode === 'roster';
+    const basicInfoEditable = creating || (settings && state.user.role === 'superadmin' && canEditSettings(e) && !hasGrouping(e));
+    const managerField = state.user.role === 'superadmin'
+      ? field('manager', '<select name="manager_id" data-searchable required><option value="">' + t('selectManager') + '</option>' + managers.map(user => '<option value="' + user.id + '"' + (Number(e.manager_id) === user.id ? ' selected' : '') + '>' + esc(user.display_name) + ' (' + esc(user.username) + ')</option>').join('') + '</select>', false, creating)
+      : settings ? field('manager', '<input value="' + esc(e.manager_name || '') + '" disabled>', false, false) : '';
+    const createBackground = mode === 'create' ? field('background', `<select name="background_id">${backgroundOptions(backgrounds, e.background_id)}</select>`) : '';
+    const basic = mode !== 'roster' ? '<section class="event-phase-group event-phase-basics" id="event-basics"><div class="event-phase-heading"><h2>' + t('basicInfo') + '</h2></div><fieldset class="event-settings-fields" data-basic-info' + (basicInfoEditable ? '' : ' disabled') + '><div class="form-grid">' + field('name', '<input name="name" list="tournament-names" value="' + esc(e.name || '') + '" required><datalist id="tournament-names">' + (catalog.tournament_names || []).map(n => '<option value="' + esc(n.name) + '">').join('') + '</datalist>', true, creating) + field('time', startTimeInput(e.start_time || localTime()), false, creating) + managerField + createBackground + field('description', '<textarea name="description" rows="2">' + esc(e.description || '') + '</textarea>', true) + '</div></fieldset></section>' : '';
     const backgroundPanel = settings ? eventBackgroundMarkup(e, backgrounds, !terminal(e)) : '';
     const correctionPanel = settings ? resultCorrectionMarkup(e) : '';
     const management = settings ? eventManagementMarkup(e) : null;
     const settingsHint = terminal(e) ? 'readOnly' : readonly ? 'settingsLocked' : creating ? '' : roundSetupEditable ? 'settingsResetHint' : 'roundSetupLocked';
     const title = creating ? 'createEvent' : rosterOnly ? 'editRoster' : 'eventSettings';
+    const eventPhases = rosterOnly
+      ? `<fieldset class="event-settings-fields">${rosterMarkup(state.users, state.roster, roundSetupEditable)}</fieldset>`
+      : `${basic}<section class="event-phase-group event-phase-before-ace" id="event-phase-before-ace"><div class="event-phase-heading"><h2>${t('beforeAce')}</h2></div><fieldset class="event-settings-fields">${rosterMarkup(state.users, state.roster, roundSetupEditable)}${rulesMarkup(e, roundSetupEditable, aceSettingsEditable, catalog.extra_infos || [], 'before-ace')}${settings ? backgroundPanel : ''}${drawTimingMarkup(e, timingEditable, creating)}</fieldset></section><section class="event-phase-group event-phase-ace" id="event-phase-ace"><div class="event-phase-heading"><h2>${t('ace')}</h2></div><fieldset class="event-settings-fields">${rulesMarkup(e, roundSetupEditable, aceSettingsEditable, catalog.extra_infos || [], 'ace')}${management?.aceMarkup || ''}</fieldset></section><section class="event-phase-group event-phase-after-ace" id="event-phase-after-ace"><div class="event-phase-heading"><h2>${t('afterAce')}</h2></div>${correctionPanel}${management?.afterAceMarkup || ''}</section>`;
     const content = `
       <div class="page-head tournament-editor-heading">
         <div><h1>${t(title)}</h1>${settingsHint ? `<p class="subtitle">${t(settingsHint)}</p>` : ''}</div>
         ${creating ? '' : picker()}
       </div>
-      ${rosterOnly ? '' : editorJumps(settings, correctionPanel, management?.visible)}
+      ${rosterOnly ? '' : editorJumps()}
       <form id="event-form">
-        <fieldset class="event-settings-fields">
-          ${basic}
-          ${rosterMarkup(state.users, state.roster, roundSetupEditable)}
-          ${rosterOnly ? '' : rulesMarkup(e, roundSetupEditable, aceSettingsEditable, catalog.extra_infos || [])}
-        </fieldset>
-        ${rosterOnly ? '' : drawTimingMarkup(e, timingEditable, creating)}
-        ${backgroundPanel}${correctionPanel}${management?.markup || ''}
+        ${eventPhases}
         <div class="event-editor-actions">
           ${creating ? '' : `<button type="button" class="outline" id="back-board">${t('backToMatch')}</button>`}
+          ${settings && editable(e) ? `<button type="button" class="outline danger" id="delete-active-tournament">${t('cancelTournament')}</button>` : ''}
           ${terminal(e) ? '' : `<button type="submit" class="primary accent">${t(creating ? 'createEvent' : 'save')}</button>`}
         </div>
       </form>`;
@@ -822,6 +833,23 @@
       })(click);
     });
     form.addEventListener('click', click => {
+      if (!click.target.closest('#delete-active-tournament') || form.dataset.busy) return;
+      click.preventDefault();
+      action(async () => {
+        const current = state.event, tournamentID = e.id;
+        const message = key => t(key).replaceAll('{name}', current.name);
+        for (const key of ['cancelTournamentConfirm1', 'cancelTournamentConfirm2', 'cancelTournamentConfirm3']) {
+          if (!(await window.TBConfirm.ask(message(key), { title: t('cancelTournament') }))) return;
+          if (!form.isConnected || state.event?.id !== tournamentID || !editable(state.event) || terminal(state.event)) return;
+        }
+        await api('/api/tournaments/' + tournamentID + '/permanent', { method: 'DELETE' });
+        state.editor = null;
+        closeStream();
+        go('/');
+        toast(t('tournamentPermanentlyDeleted'));
+      })(click);
+    });
+    form.addEventListener('click', click => {
       const button = click.target.closest('[data-correct-match]');
       if (!button || form.dataset.busy) return;
       const current = state.event, match = current.matches.find(match => match.id === Number(button.dataset.correctMatch) && match.status === 'finished');
@@ -840,9 +868,9 @@
       state.users.forEach(user => { user.selectable = user.category_id > 0 || user.id === managerID; });
     });
     if (mode !== 'roster') bindRules(form);
-    $('.event-settings-fields', form).disabled = readonly;
+    $$('.event-settings-fields', form).forEach(fieldset => { fieldset.disabled = fieldset.hasAttribute('data-basic-info') ? !basicInfoEditable : readonly; });
     if (settings && roundSetupEditable) {
-      $('#event-ace').insertAdjacentHTML('beforebegin', `<div class="setup-draw-action"><button type="button" class="primary accent" id="start-setup-draw" aria-describedby="setup-draw-hint">${t('startSetupDraw')}</button><span class="help" id="setup-draw-hint" role="status"></span></div>`);
+      $('#event-round1').insertAdjacentHTML('beforebegin', `<div class="setup-draw-action"><button type="button" class="primary accent" id="start-setup-draw" aria-describedby="setup-draw-hint">${t('startSetupDraw')}</button><span class="help" id="setup-draw-hint" role="status"></span></div>`);
       bindSetupDraw(form);
     }
     form.onsubmit = action(async event => {
@@ -850,12 +878,46 @@
       const beginDraw = form.dataset.submitAction === 'draw';
       delete form.dataset.submitAction;
       const f = new FormData(form);
-      const body = readonly ? { random_draw_seconds: Number(f.get('random_draw_seconds')), ace_draw_seconds: Number(f.get('ace_draw_seconds')), background_id: Number(f.get('background_id') || 0) } : mode === 'roster' ? rosterValue(form) : {
-        name: f.get('name'), start_time: startTimeValue(f), description: f.get('description'),
-        ...(state.user.role === 'superadmin' ? { manager_id: Number(f.get('manager_id') || 0) } : {}),
+      let body = readonly ? { random_draw_seconds: Number(f.get('random_draw_seconds')), ace_draw_seconds: Number(f.get('ace_draw_seconds')), background_id: Number(f.get('background_id') || 0) } : mode === 'roster' ? rosterValue(form) : {
+        ...(creating || basicInfoEditable ? { name: f.get('name'), start_time: startTimeValue(f), description: f.get('description') } : {}),
+        ...(state.user.role === 'superadmin' && (creating || basicInfoEditable) ? { manager_id: Number(f.get('manager_id') || 0) } : {}),
         round1_target: Number(f.get('round1_target')), round2_target: Number(f.get('round2_target')), background_id: Number(f.get('background_id') || 0),
         rules: rulesValue(form), ...(!hasGrouping(e) ? rosterValue(form) : {})
       };
+      if (mode === 'settings') {
+        const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+        const currentRules = { ...defaultRules(), ...(e.rules || {}) };
+        const currentValues = {
+          name: e.name,
+          description: e.description || '',
+          start_time: String(e.start_time || '').slice(0, 16),
+          manager_id: Number(e.manager_id || 0),
+          round1_target: Number(e.round1_target),
+          round2_target: Number(e.round2_target),
+          background_id: Number(e.background_id || 0),
+          random_draw_seconds: Number(currentRules.random_draw_seconds),
+          ace_draw_seconds: Number(currentRules.ace_draw_seconds)
+        };
+        for (const [key, value] of Object.entries(currentValues)) {
+          if (Object.hasOwn(body, key) && same(body[key], value)) delete body[key];
+        }
+        if (body.rules) {
+          const changedRules = Object.fromEntries(Object.entries(body.rules)
+            .filter(([key, value]) => !same(value, currentRules[key]))
+            .map(([key, value]) => [key, value === undefined ? null : value]));
+          if (Object.keys(changedRules).length) body.rules = changedRules;
+          else delete body.rules;
+        }
+        if (body.player_ids) {
+          const currentRoster = e.setup_roster || [];
+          const currentIDs = currentRoster.map(player => player.id);
+          const currentAssignments = Object.fromEntries(currentRoster.filter(player => player.fixed_team === 'A' || player.fixed_team === 'B').map(player => [player.id, player.fixed_team]));
+          if (same(body.player_ids, currentIDs) && same(body.fixed_assignments, currentAssignments)) {
+            delete body.player_ids;
+            delete body.fixed_assignments;
+          }
+        }
+      }
       const correction = readCorrection(form, state.event);
       const aceMatchID = Number(f.get('ace_match_id'));
       if (aceMatchID) {

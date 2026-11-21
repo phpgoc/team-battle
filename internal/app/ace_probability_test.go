@@ -20,7 +20,7 @@ func TestSpecialProbabilityRejectsZeroWithoutChangingTournament(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.request(t, 2, "PATCH", fmt.Sprintf("/api/tournaments/%d/settings", id), map[string]any{"description": "不能部分保存", "rules": rules}, 400)
+	f.request(t, 2, "PATCH", fmt.Sprintf("/api/tournaments/%d/settings", id), map[string]any{"rules": rules}, 400)
 	after, err := f.app.publicTournamentPayload(id)
 	if err != nil || !bytes.Equal(before, after) {
 		t.Fatal("非法概率修改了赛事")

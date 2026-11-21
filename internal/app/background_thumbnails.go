@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"image"
 	"image/color"
@@ -75,7 +76,7 @@ func (a *App) backgroundThumbnail(c *gin.Context) {
 			return
 		}
 		// 生成期间图片可能已被替换，不能把旧预览写入新图片的记录。
-		if _, err := a.db.Exec(`UPDATE backgrounds SET thumbnail_data=? WHERE id=? AND updated_at=? AND length(COALESCE(thumbnail_data,X''))=0`, thumbnail, id, updatedAt); err != nil {
+		if _, err := a.db.ExecContext(withoutSQLLog(context.Background()), `UPDATE backgrounds SET thumbnail_data=? WHERE id=? AND updated_at=? AND length(COALESCE(thumbnail_data,X''))=0`, thumbnail, id, updatedAt); err != nil {
 			fail(c, http.StatusInternalServerError, "保存背景预览失败")
 			return
 		}

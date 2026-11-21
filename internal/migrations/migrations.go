@@ -6,29 +6,33 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/pressly/goose/v3"
 )
 
 // Up 自动执行尚未应用的迁移；不提供降级，恢复旧版本须使用升级前的备份。
 func Up(ctx context.Context, db *sql.DB, languages ...string) error {
+	return upWithLogger(ctx, db, nil, migrationList()...)
+}
+
+// UpWithLogger 在成功应用迁移后通知调用方，日志目的地由应用控制。
+func UpWithLogger(ctx context.Context, db *sql.DB, onApplied func(int)) error {
+	return upWithLogger(ctx, db, onApplied, migrationList()...)
+}
+
+func migrationList() []*goose.Migration {
 	baseline := goose.NewGoMigration(1, &goose.GoFunc{RunTx: upBaseline}, nil)
 	baseline.Source = "00001_baseline.go"
 	extraInfo := goose.NewGoMigration(2, &goose.GoFunc{RunTx: upExtraInfo}, nil)
 	extraInfo.Source = "00002_extra_info.go"
-	language := "zh"
-	if len(languages) > 0 && (languages[0] == "zh" || languages[0] == "en" || languages[0] == "ko") {
-		language = languages[0]
-	}
-	return upWithLanguage(ctx, db, language, baseline, extraInfo)
+	return []*goose.Migration{baseline, extraInfo}
 }
 
 func up(ctx context.Context, db *sql.DB, migrations ...*goose.Migration) error {
-	return upWithLanguage(ctx, db, "zh", migrations...)
+	return upWithLogger(ctx, db, nil, migrations...)
 }
 
-func upWithLanguage(ctx context.Context, db *sql.DB, language string, migrations ...*goose.Migration) (retErr error) {
+func upWithLogger(ctx context.Context, db *sql.DB, onApplied func(int), migrations ...*goose.Migration) (retErr error) {
 	provider, err := goose.NewProvider(goose.DialectSQLite3, db, nil,
 		goose.WithDisableGlobalRegistry(true), goose.WithGoMigrations(migrations...),
 		goose.WithLogger(goose.NopLogger()))
@@ -64,12 +68,9 @@ func upWithLanguage(ctx context.Context, db *sql.DB, language string, migrations
 		return fmt.Errorf("数据库升级失败（当前版本 %d，目标版本 %d）: %w", current, target, err)
 	}
 	if len(results) != 0 {
-		messages := map[string]string{
-			"zh": fmt.Sprintf("数据库迁移完成，共应用 %d 项", len(results)),
-			"en": fmt.Sprintf("Database migration complete: %d migration(s) applied", len(results)),
-			"ko": fmt.Sprintf("데이터베이스 마이그레이션 완료: %d개 적용", len(results)),
+		if onApplied != nil {
+			onApplied(len(results))
 		}
-		log.Print(messages[language])
 	}
 	return nil
 }

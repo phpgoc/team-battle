@@ -34,25 +34,108 @@ func TestUnifiedTournamentSettingsAtomicRoster(t *testing.T) {
 	fixed := map[string]string{"3": "A", "4": "A", "5": "A", "6": "B", "7": "B", "8": "B"}
 	f.request(t, 2, "PATCH", path, map[string]any{"rules": map[string]any{"round1_mode": "manual", "kof_starter": "captain", "no_repeat": true}, "player_ids": []int{3, 4, 5, 6, 7, 8}, "fixed_assignments": fixed}, 200)
 	f.assertCount(t, 2, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND is_captain=1`, id)
+	f.request(t, 2, "PATCH", path, map[string]any{"name": "管理员改名"}, 403)
 	f.request(t, 2, "PATCH", path, map[string]any{"manager_id": 9}, 403)
 	f.request(t, 2, "PATCH", path, map[string]any{"round1_target": 2}, 400)
 	f.request(t, 2, "PATCH", path, map[string]any{"rules": map[string]any{"round1_mode": "manual", "kof_starter": "random", "no_repeat": true}}, 400)
 	// 后续校验失败时，之前的删除、分队、资料与规则变更全部回滚。
-	f.request(t, 2, "PATCH", path, map[string]any{"name": "不应保存", "start_time": "2026-11-19T21", "round1_target": 1, "round2_target": 1, "player_ids": []int{3, 4, 5, 6, 7, 9}, "rules": map[string]any{"round1_mode": "manual", "kof_starter": "captain", "no_repeat": true, "ace_specials": []map[string]any{{"player_ids": []int{8}, "probability": 10}}}}, 400)
+	f.request(t, 2, "PATCH", path, map[string]any{"round1_target": 1, "round2_target": 1, "player_ids": []int{3, 4, 5, 6, 7, 9}, "rules": map[string]any{"round1_mode": "manual", "kof_starter": "captain", "no_repeat": true, "ace_specials": []map[string]any{{"player_ids": []int{8}, "probability": 10}}}}, 400)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND user_id=8`, id)
-	f.assertCount(t, 0, `SELECT COUNT(*) FROM tournaments WHERE id=? AND name='不应保存'`, id)
+	f.assertCount(t, 0, `SELECT COUNT(*) FROM tournaments WHERE id=? AND name='管理员改名'`, id)
 	f.assertCount(t, 2, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND is_captain=1`, id)
-	f.request(t, 2, "PATCH", path, map[string]any{"name": "完整赛事设置", "description": "更新说明", "start_time": "2026-11-19T21", "round1_target": 1, "round2_target": 1, "rules": map[string]any{"kof_starter": "captain", "round1_mode": "manual", "no_repeat": true, "ace_most_wins": 30, "ace_specials": []map[string]any{{"player_ids": []int{8}, "probability": 10}}}}, 200)
-	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND name='完整赛事设置' AND start_time='2026-11-19T21:00:00' AND round1_target=1 AND round2_target=1`, id)
+	f.request(t, 2, "PATCH", path, map[string]any{"rules": map[string]any{"kof_starter": "captain", "round1_mode": "manual", "no_repeat": true, "ace_most_wins": 30, "ace_specials": []map[string]any{{"player_ids": []int{8}, "probability": 10}}}}, 200)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND name='首发验证' AND start_time='2026-11-17T19:00:00' AND round1_target=1 AND round2_target=1`, id)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND user_id=8`, id)
 	f.assertCount(t, 2, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=? AND is_captain=1`, id)
-	f.request(t, 1, "PATCH", path, map[string]any{"manager_id": 9}, 200)
-	f.request(t, 2, "PATCH", path, map[string]any{"rules": defaultRules()}, 403)
-	f.request(t, 9, "PATCH", path, map[string]any{"player_ids": []int{}, "rules": map[string]any{"round1_mode": "manual", "kof_starter": "captain", "no_repeat": true}}, 400)
+	f.request(t, 1, "PATCH", path, map[string]any{"manager_id": 9}, 400)
+	f.request(t, 4, "PATCH", path, map[string]any{"rules": defaultRules()}, 403)
+	f.request(t, 9, "PATCH", path, map[string]any{"player_ids": []int{}, "rules": map[string]any{"round1_mode": "manual", "kof_starter": "captain", "no_repeat": true}}, 403)
 	f.assertCount(t, 6, `SELECT COUNT(*) FROM tournament_players WHERE tournament_id=?`, id)
 	f.request(t, 1, "PATCH", path, map[string]any{"manager_id": 0}, 400)
-	f.request(t, 1, "PATCH", path, map[string]any{"manager_id": 1}, 200)
-	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND manager_id=1`, id)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND manager_id=2`, id)
+}
+
+func TestBasicInfoIsSuperadminOnlyBeforeSetupDraw(t *testing.T) {
+	f := newWorkflowFixture(t)
+	raw := f.request(t, 1, "POST", "/api/tournaments", map[string]any{
+		"name": "基本信息权限", "description": "初始说明", "start_time": "2026-11-17T19", "manager_id": 2,
+		"player_ids":        []int{3, 4, 5, 6, 7, 8},
+		"fixed_assignments": map[string]string{"3": "A", "4": "A", "5": "A", "6": "B", "7": "B", "8": "B"},
+	}, 200)
+	var created struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.Unmarshal(raw, &created); err != nil {
+		t.Fatal(err)
+	}
+	id := created.ID
+	path := fmt.Sprintf("/api/tournaments/%d/settings", id)
+	f.request(t, 2, "PATCH", path, map[string]any{"name": "管理员不能改"}, 403)
+	f.request(t, 1, "PATCH", path, map[string]any{
+		"name": "超管修改", "description": "抽签前更新", "start_time": "2026-11-18T20", "manager_id": 9,
+	}, 200)
+	f.request(t, 9, "PATCH", path, map[string]any{"description": "管理员不能改说明"}, 403)
+	f.request(t, 1, "POST", fmt.Sprintf("/api/tournaments/%d/setup-draw", id), nil, 200)
+	f.request(t, 1, "PATCH", path, map[string]any{"name": "抽签后不能改"}, 400)
+	f.request(t, 9, "PATCH", path, map[string]any{"start_time": "2026-11-19T20"}, 403)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=? AND name='超管修改' AND description='抽签前更新' AND start_time='2026-11-18T20:00:00' AND manager_id=9`, id)
+}
+
+func TestSavingUnchangedTournamentSettingsDoesNotWriteAudit(t *testing.T) {
+	f := newWorkflowFixture(t)
+	id := f.create(t, "captain")
+	path := fmt.Sprintf("/api/tournaments/%d/settings", id)
+	var name, description, startTime string
+	var round1Target, round2Target int
+	if err := f.app.db.QueryRow(`SELECT name,description,start_time,round1_target,round2_target FROM tournaments WHERE id=?`, id).Scan(&name, &description, &startTime, &round1Target, &round2Target); err != nil {
+		t.Fatal(err)
+	}
+	var actionCount int
+	if err := f.app.db.QueryRow(`SELECT COUNT(*) FROM tournament_actions WHERE tournament_id=?`, id).Scan(&actionCount); err != nil {
+		t.Fatal(err)
+	}
+	f.request(t, 2, "PATCH", path, map[string]any{
+		"name": name, "description": description, "start_time": startTime,
+		"round1_target": round1Target, "round2_target": round2Target,
+		"background_id": 0, "rules": mustTournamentRules(f.app.db, id),
+	}, 200)
+	var afterCount int
+	if err := f.app.db.QueryRow(`SELECT COUNT(*) FROM tournament_actions WHERE tournament_id=?`, id).Scan(&afterCount); err != nil {
+		t.Fatal(err)
+	}
+	if afterCount != actionCount {
+		t.Fatalf("原样保存完整设置快照不应新增审计记录: before=%d after=%d", actionCount, afterCount)
+	}
+}
+
+func TestSettingsAuditContainsOnlyChangedValues(t *testing.T) {
+	f := newWorkflowFixture(t)
+	id := f.create(t, "captain")
+	path := fmt.Sprintf("/api/tournaments/%d/settings", id)
+	f.request(t, 2, "PATCH", path, map[string]any{"rules": map[string]any{"ace_most_wins": 31}}, 200)
+	var payload string
+	if err := f.app.db.QueryRow(`SELECT payload FROM tournament_actions WHERE tournament_id=? AND action='tournament_settings_updated' ORDER BY id DESC LIMIT 1`, id).Scan(&payload); err != nil {
+		t.Fatal(err)
+	}
+	var changes map[string]any
+	if err := json.Unmarshal([]byte(payload), &changes); err != nil {
+		t.Fatal(err)
+	}
+	if len(changes) != 1 {
+		t.Fatalf("只修改赛事名称时应只记录名称差异: %s", payload)
+	}
+	ruleChanges, ok := changes["rules"].(map[string]any)
+	if !ok || len(ruleChanges) != 1 {
+		t.Fatalf("只修改一项规则时应只记录该规则: %s", payload)
+	}
+	probability, ok := ruleChanges["ace_most_wins"].(map[string]any)
+	if !ok || probability["from"] != float64(20) || probability["to"] != float64(31) {
+		t.Fatalf("规则差异缺少旧值和新值: %s", payload)
+	}
+	rules := mustTournamentRules(f.app.db, id)
+	if rules.AceMostWins != 31 || rules.KOFStarter != "captain" || rules.Round1Mode != "manual" {
+		t.Fatalf("局部规则保存应保留未提交的设置: %+v", rules)
+	}
 }
 
 func TestRoundAndAceSettingsUseDifferentSetupStages(t *testing.T) {

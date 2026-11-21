@@ -46,7 +46,7 @@
     };
     const update = () => {
       const count = rows(root).length;
-      root.querySelector('#roster-count').textContent = `${t('selected')} ${count} / 12`;
+      root.querySelector('#roster-count').textContent = `${t('selected')} ${count}`;
       root.querySelector('#roster-empty').hidden = count > 0;
       if (editable) updatePicker(count);
       feedback.textContent = count >= 12 ? t('rosterLimit') : '';

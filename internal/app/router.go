@@ -91,6 +91,13 @@ func (a *App) router() *gin.Engine {
 			a.writeMu.Lock()
 			defer a.writeMu.Unlock()
 		}
+		if c.Request.Method != http.MethodGet && a.operationLogger != nil {
+			operation := a.operationLogger.begin(c.FullPath(), c.Request.Method)
+			actor := a.operationLogActor(c)
+			c.Next()
+			a.operationLogger.finish(operation, c.Writer.Status(), actor)
+			return
+		}
 		c.Next()
 	})
 	api.POST("/auth/logout", a.logout)
@@ -120,6 +127,7 @@ func (a *App) router() *gin.Engine {
 	api.POST("/tournaments", a.createTournament)
 	api.POST("/tournaments/archive", a.archiveTournament)
 	api.DELETE("/tournaments/:id", a.deleteTournament)
+	api.DELETE("/tournaments/:id/permanent", a.permanentlyDeleteTournament)
 	api.POST("/tournaments/:id/restore", a.restoreTournament)
 	api.POST("/tournaments/:id/players", a.addTournamentPlayers)
 	api.GET("/tournaments/:id/eligible-users", a.eligibleTournamentUsers)

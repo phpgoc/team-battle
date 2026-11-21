@@ -3,6 +3,7 @@ package app
 import (
 	"database/sql"
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -19,6 +20,7 @@ func saveSetupRoster(tx *sql.Tx, tournamentID int64, ids []int64, fixed map[stri
 		return errors.New("赛事不存在")
 	}
 	seen := map[int64]bool{}
+	desired := make([]setupRosterEntry, 0, len(ids))
 	for _, id := range ids {
 		if seen[id] {
 			return errors.New("参赛选手不能重复")
@@ -31,20 +33,73 @@ func saveSetupRoster(tx *sql.Tx, tournamentID int64, ids []int64, fixed map[stri
 		if categoryID <= 0 && id != managerID {
 			return errors.New("参赛选手必须先选择分类")
 		}
+		desired = append(desired, setupRosterEntry{UserID: id, FixedTeam: normalizedFixedTeam(fixed[strconv.FormatInt(id, 10)]), Position: len(desired)})
 	}
-	if _, err := tx.Exec(`DELETE FROM tournament_setup_roster WHERE tournament_id=?`, tournamentID); err != nil {
+	rows, err := tx.Query(`SELECT user_id,fixed_team,position FROM tournament_setup_roster WHERE tournament_id=?`, tournamentID)
+	if err != nil {
 		return err
 	}
-	for position, id := range ids {
-		side := strings.ToUpper(strings.TrimSpace(fixed[strconv.FormatInt(id, 10)]))
-		if side != "A" && side != "B" {
-			side = ""
+	existing := map[int64]setupRosterEntry{}
+	for rows.Next() {
+		var entry setupRosterEntry
+		if err := rows.Scan(&entry.UserID, &entry.FixedTeam, &entry.Position); err != nil {
+			rows.Close()
+			return err
 		}
-		if _, err := tx.Exec(`INSERT INTO tournament_setup_roster(tournament_id,user_id,fixed_team,position) VALUES(?,?,?,?)`, tournamentID, id, side, position); err != nil {
+		existing[entry.UserID] = entry
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	wanted := make(map[int64]bool, len(desired))
+	for _, entry := range desired {
+		wanted[entry.UserID] = true
+	}
+	removed := make([]int64, 0)
+	for userID := range existing {
+		if !wanted[userID] {
+			removed = append(removed, userID)
+		}
+	}
+	sort.Slice(removed, func(i, j int) bool { return removed[i] < removed[j] })
+	for _, userID := range removed {
+		if _, err := tx.Exec(`DELETE FROM tournament_setup_roster WHERE tournament_id=? AND user_id=?`, tournamentID, userID); err != nil {
 			return err
 		}
 	}
+	for _, entry := range desired {
+		previous, found := existing[entry.UserID]
+		if !found {
+			if _, err := tx.Exec(`INSERT INTO tournament_setup_roster(tournament_id,user_id,fixed_team,position) VALUES(?,?,?,?)`, tournamentID, entry.UserID, entry.FixedTeam, entry.Position); err != nil {
+				return err
+			}
+			continue
+		}
+		if previous.FixedTeam != entry.FixedTeam || previous.Position != entry.Position {
+			if _, err := tx.Exec(`UPDATE tournament_setup_roster SET fixed_team=?,position=? WHERE tournament_id=? AND user_id=?`, entry.FixedTeam, entry.Position, tournamentID, entry.UserID); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
+}
+
+type setupRosterEntry struct {
+	UserID    int64
+	FixedTeam string
+	Position  int
+}
+
+func normalizedFixedTeam(team string) string {
+	team = strings.ToUpper(strings.TrimSpace(team))
+	if team != "A" && team != "B" {
+		return ""
+	}
+	return team
 }
 
 type setupDrawStep struct {

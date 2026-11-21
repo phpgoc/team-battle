@@ -65,6 +65,7 @@ type App struct {
 	logins            loginLimiter
 	sseMaxConnections int
 	logLanguage       string
+	operationLogger   *operationLogger
 	shutdownStarted   atomic.Bool
 	streamsDone       <-chan struct{}
 }
@@ -179,12 +180,12 @@ type tournamentSettingsRequest struct {
 	ManagerID         *int64                       `json:"manager_id"`
 	PlayerIDs         *[]int64                     `json:"player_ids"`
 	FixedAssignments  map[string]string            `json:"fixed_assignments"`
-	Name              string                       `json:"name"`
-	StartTime         string                       `json:"start_time"`
-	Description       string                       `json:"description"`
-	Round1Target      int                          `json:"round1_target"`
-	Round2Target      int                          `json:"round2_target"`
-	Rules             *TournamentRules             `json:"rules"`
+	Name              *string                      `json:"name"`
+	StartTime         *string                      `json:"start_time"`
+	Description       *string                      `json:"description"`
+	Round1Target      *int                         `json:"round1_target"`
+	Round2Target      *int                         `json:"round2_target"`
+	Rules             json.RawMessage              `json:"rules"`
 }
 
 type tournamentAcePlayers struct {
@@ -238,14 +239,17 @@ type aceRequest struct {
 
 // Main 启动正式服务，根目录和 cmd/team-battle 都通过它保持相同的启动行为。
 func Main() {
-	log.SetOutput(os.Stdout)
 	host := flag.String("host", "localhost", "HTTP listen host")
 	port := flag.Int("port", 9527, "HTTP listen port")
 	dbPath := flag.String("db", "", "SQLite database path")
 	sqlPath := flag.String("sql", "", "SQLite database path alias")
 	sseMaxConnections := flag.Int("sse-max-connections", defaultSSEMaxConnections, "Maximum simultaneous SSE subscriptions")
 	logLanguage := flag.String("language", "zh", "Operation log language: zh, en, ko")
+	logDestination := flag.String("log", "", "Log destination: stdout (omit to disable routine logs)")
 	flag.Parse()
+	if *logDestination != "" && *logDestination != "stdout" {
+		log.Fatalf("--log 只支持 stdout")
+	}
 	if *sseMaxConnections < 1 {
 		log.Fatal("--sse-max-connections 必须大于 0")
 	}
@@ -259,32 +263,41 @@ func Main() {
 	if *dbPath == "" {
 		*dbPath = defaultDatabasePath()
 	}
+	var operationLog *operationLogger
+	if *logDestination == "stdout" {
+		operationLog = newOperationLogger(os.Stdout, *logLanguage)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT)
 	addr := net.JoinHostPort(*host, strconv.Itoa(*port))
-	err := run(ctx, addr, *dbPath, *sseMaxConnections, *logLanguage)
+	err := run(ctx, addr, *dbPath, *sseMaxConnections, *logLanguage, operationLog)
 	stop()
 	if err != nil {
 		log.Fatal(err)
 	}
 	if ctx.Err() != nil {
-		log.Print(operationLogText(*logLanguage,
+		operationLog.lifecyclef(operationLogText(*logLanguage,
 			"服务已停止，数据库已关闭",
 			"Service stopped and database closed",
 			"서비스가 중지되고 데이터베이스가 닫혔습니다"))
 	}
 }
 
-func run(ctx context.Context, addr, dbPath string, sseMaxConnections int, logLanguage string) (err error) {
+func run(ctx context.Context, addr, dbPath string, sseMaxConnections int, logLanguage string, operationLog *operationLogger) (err error) {
 	storageDir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(storageDir, 0755); err != nil {
 		return err
 	}
-	db, err := openDatabase(dbPath)
+	var db *sql.DB
+	if operationLog != nil {
+		db, err = openDatabase(dbPath, operationLog.capture)
+	} else {
+		db, err = openDatabase(dbPath)
+	}
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, db.Close()) }()
-	if err := migrate(db, logLanguage); err != nil {
+	if err := migrate(db, operationLog); err != nil {
 		return err
 	}
 	if err := ensureDefaultAdmin(db); err != nil {
@@ -306,8 +319,9 @@ func run(ctx context.Context, addr, dbPath string, sseMaxConnections int, logLan
 		storageDir:        storageDir,
 		sseMaxConnections: sseMaxConnections,
 		logLanguage:       logLanguage,
+		operationLogger:   operationLog,
 	}
-	log.Printf(operationLogText(logLanguage,
+	operationLog.lifecyclef(operationLogText(logLanguage,
 		"服务已监听 http://%s，数据库=%s",
 		"Listening on http://%s, database=%s",
 		"http://%s에서 수신 중, 데이터베이스=%s"), listener.Addr(), dbPath)

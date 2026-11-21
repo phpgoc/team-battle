@@ -217,7 +217,7 @@ func TestTournamentHourAndFixedNames(t *testing.T) {
 	}
 	f := newWorkflowFixture(t)
 	id := f.create(t, "captain")
-	f.request(t, 2, "PATCH", fmt.Sprintf("/api/tournaments/%d/settings", id), map[string]any{"name": "整点比赛", "start_time": "2026-11-18T21", "round1_target": 1, "round2_target": 1, "team_a_name": "任意队名", "team_b_name": "任意队名2"}, 200)
+	f.request(t, 2, "PATCH", fmt.Sprintf("/api/tournaments/%d/settings", id), map[string]any{"name": "整点比赛", "start_time": "2026-11-18T21", "round1_target": 1, "round2_target": 1, "team_a_name": "任意队名", "team_b_name": "任意队名2"}, 403)
 	view, err := f.app.loadTeams(id)
 	if err != nil || len(view) != 2 || view[0]["name"] != "A 队" || view[1]["name"] != "B 队" {
 		t.Fatalf("队名必须固定: %+v %v", view, err)

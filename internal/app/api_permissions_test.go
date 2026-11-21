@@ -28,6 +28,7 @@ var apiPermissionCases = []apiPermissionCase{
 	{"POST", "/api/tournaments", "superadmin"},
 	{"POST", "/api/tournaments/archive", "superadmin"},
 	{"DELETE", "/api/tournaments/:id", "superadmin"},
+	{"DELETE", "/api/tournaments/:id/permanent", "manager"},
 	{"POST", "/api/tournaments/:id/restore", "superadmin"},
 	{"GET", "/api/site-settings", "superadmin"},
 	{"PATCH", "/api/site-settings/tournament-defaults", "superadmin"},
@@ -216,7 +217,7 @@ func TestProtectedAPIsRejectAnonymousAndInvalidSessions(t *testing.T) {
 func TestAdministrativeAPIsRejectRoleAndTournamentEscalation(t *testing.T) {
 	f := newWorkflowFixture(t)
 	id := f.create(t, "random")
-	other := f.create(t, "random")
+	other := createSetupTournament(t, f, 6, "random", "random", nil)
 	f.request(t, 1, "PATCH", fmt.Sprintf("/api/tournaments/%d/settings", other), map[string]any{"manager_id": 9}, 200)
 	before := permissionDatabaseSnapshot(t, f)
 	for _, identity := range []struct {

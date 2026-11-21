@@ -368,7 +368,7 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
   await expect(page.locator('#event-basics [name=start_time]')).toHaveAttribute('required', '');
   await expect(page.locator('#event-basics [name=manager_id]')).toBeHidden();
   await expect(page.locator('#event-basics .search-select input')).toHaveAttribute('required', '');
-  await expect(page.locator('#event-basics .panel-head')).not.toContainText('名称、开始时间和赛事管理员必填');
+  await expect(page.locator('#event-basics .event-phase-heading')).toContainText('基本信息');
   for (const selector of ['#event-round1 [name=round1_target]', '#event-round2 [name=round2_target]', '#event-ace [name=ace_most_wins]']) {
     await expect(page.locator(selector)).toHaveClass(/compact-number-input/);
     expect((await page.locator(selector).boundingBox()).width).toBeLessThan(90);
@@ -409,6 +409,7 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
     await page.locator('#add-player').click();
     await page.locator(`[name="pick_${user.id}"]`).selectOption(index < 3 ? 'A' : 'B');
   }
+  await expect(page.locator('#roster-count')).toHaveText('已入选 6');
   const manualRevival = page.locator('#event-round2 [name=kof_manual_revival]');
   const uniqueRevival = page.locator('#event-round2 [name=kof_revival_no_repeat]');
   const kofTarget = page.locator('#event-round2 [name=round2_target]');
@@ -464,6 +465,81 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
   await page.goto(`/live/${created.id}/setting`);
   await expect(page.locator('[name=random_draw_seconds]')).toHaveValue('2');
   await test.step('校验分队设置、直接抽取KOF首发及4对3名单等高', () => verifyFixedSetupDraw(page));
+});
+
+test('赛事基本信息仅超管可修改且分组抽签后锁定', async ({ page }) => {
+  await login(page);
+  const adminSession = (await page.context().cookies()).find(cookie => cookie.name === 'tb_session');
+  const roster = await players(page.request, '基本信息权限选手');
+  const { id } = await createTournament(page.request, '基本信息权限赛事', roster, { manager_id: roster[0].id });
+  const setting = `/live/${id}/setting`;
+
+  await page.context().clearCookies();
+  await login(page, setting, roster[0].username);
+  await expect(page.locator('.editor-jumps a')).toHaveCount(4);
+  await expect(page.locator('#event-basics [name=name]')).toBeDisabled();
+  await expect(page.locator('#event-basics [name=name]')).toHaveValue('基本信息权限赛事');
+  const managerEdit = await page.request.patch(`/api/tournaments/${id}/settings`, { data: { name: '管理员改名' } });
+  expect(managerEdit.status()).toBe(403);
+
+  await page.context().clearCookies();
+  await page.context().addCookies([adminSession]);
+  await page.goto(setting);
+  await expect(page.locator('#event-basics [name=name]')).toBeEnabled();
+  await page.locator('#event-basics [name=description]').fill('超管在抽签前更新');
+  await page.locator('#event-form button[type=submit]').click();
+  await expect(page).toHaveURL(new RegExp(`/live/${id}$`));
+  expect(await json(page.request, 'GET', `/api/public/tournaments/${id}`)).toMatchObject({ description: '超管在抽签前更新' });
+
+  await json(page.request, 'POST', `/api/tournaments/${id}/setup-draw`, {});
+  await page.goto(setting);
+  await expect(page.locator('#event-basics [name=name]')).toBeDisabled();
+  const lockedEdit = await page.request.patch(`/api/tournaments/${id}/settings`, { data: { name: '抽签后改名' } });
+  expect(lockedEdit.status()).toBe(400);
+  expect(await json(page.request, 'GET', `/api/public/tournaments/${id}`)).toMatchObject({ name: '基本信息权限赛事' });
+});
+
+test('赛事设置按四大区域分区并要求三次确认后永久删除', async ({ page }) => {
+  await login(page);
+  const roster = await players(page.request, '永久删除选手');
+  const { id } = await createTournament(page.request, '三阶段删除赛事', roster);
+  const live = `/live/${id}`;
+  await page.goto(live + '/setting');
+
+  for (const selector of ['#event-basics', '#event-phase-before-ace', '#event-phase-ace', '#event-phase-after-ace']) {
+    await expect(page.locator(selector)).toBeVisible();
+  }
+  await expect(page.locator('.editor-jumps a')).toHaveCount(4);
+  const deleteButton = page.locator('#delete-active-tournament');
+  await expect(deleteButton).toBeVisible();
+  await page.setViewportSize({ width: 375, height: 812 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+  const footerButtons = await page.locator('.event-editor-actions button:visible').evaluateAll(buttons => buttons.map(button => {
+    const rect = button.getBoundingClientRect();
+    return rect.left >= 0 && rect.right <= window.innerWidth;
+  }));
+  expect(footerButtons.every(Boolean)).toBeTruthy();
+  await deleteButton.click();
+  await expect(page.locator('#confirm-dialog')).toContainText('第 1 次确认');
+  await page.locator('[data-confirm-accept]').click();
+  await expect(page.locator('#confirm-dialog')).toContainText('第 2 次确认');
+  await page.locator('[data-confirm-accept]').click();
+  await expect(page.locator('#confirm-dialog')).toContainText('第 3 次确认');
+  await page.locator('[data-confirm-cancel]').click();
+  await expect(page).toHaveURL(new RegExp(`/live/${id}/setting$`));
+  expect((await page.request.get(`/api/public/tournaments/${id}`)).status()).toBe(200);
+
+  await page.locator('#delete-active-tournament').click();
+  for (const [index, label] of ['第 1 次确认', '第 2 次确认', '第 3 次确认'].entries()) {
+    await expect(page.locator('#confirm-dialog')).toContainText(label);
+    const deletion = index === 2
+      ? page.waitForResponse(response => response.url().endsWith(`/api/tournaments/${id}/permanent`) && response.request().method() === 'DELETE')
+      : null;
+    await page.locator('[data-confirm-accept]').click();
+    if (deletion) await expect((await deletion).status()).toBe(200);
+  }
+  await expect(page).toHaveURL(/\/$/);
+  expect((await page.request.get(`/api/public/tournaments/${id}`)).status()).toBe(404);
 });
 
 async function verifyFixedSetupDraw(page) {

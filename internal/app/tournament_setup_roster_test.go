@@ -45,7 +45,7 @@ func TestSetupRosterPreservesEntryOrderAndChoices(t *testing.T) {
 	// 抽签后不能删除或重排成员，其他设置保存也不能覆盖原始选择。
 	f.request(t, 2, "PATCH", path+"/settings", map[string]any{"player_ids": ids[:5], "fixed_assignments": fixed}, 400)
 	f.request(t, 2, "POST", path+"/players", map[string]any{"player_ids": ids[:5]}, 400)
-	f.request(t, 2, "PATCH", path+"/settings", map[string]any{"name": "保留原始录入", "start_time": "2026-11-18T20"}, 200)
+	f.request(t, 2, "PATCH", path+"/settings", map[string]any{"name": "抽签后不能修改", "start_time": "2026-11-18T20"}, 403)
 	f.request(t, 2, "POST", path+"/start", nil, 200)
 	assertRoster()
 	// 选手停用后仍有公开资料，设置页不能因可选账号目录变化而丢失录入行。

@@ -63,6 +63,9 @@ func (a *App) login(c *gin.Context) {
 		return
 	}
 	if errors.Is(err, sql.ErrNoRows) || bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)) != nil {
+		if a.operationLogger != nil {
+			a.operationLogger.logLoginFailure(username)
+		}
 		fail(c, http.StatusUnauthorized, "账号或密码错误")
 		return
 	}
@@ -78,7 +81,7 @@ func (a *App) login(c *gin.Context) {
 		return
 	}
 	// 校验期间账号可能变更，仅凭原始凭据仍有效时才替换会话。
-	result, err := a.db.ExecContext(ctx, `UPDATE users SET session_token=? WHERE id=? AND username=? AND password_hash=? AND status='active' AND is_deleted=0`, token, userID, username, hash)
+	result, err := a.db.ExecContext(withoutSQLLog(ctx), `UPDATE users SET session_token=? WHERE id=? AND username=? AND password_hash=? AND status='active' AND is_deleted=0`, token, userID, username, hash)
 	if err != nil {
 		fail(c, http.StatusInternalServerError, "保存登录会话失败")
 		return
@@ -89,14 +92,21 @@ func (a *App) login(c *gin.Context) {
 		return
 	}
 	if changed != 1 {
+		if a.operationLogger != nil {
+			a.operationLogger.logLoginFailure(username)
+		}
 		fail(c, http.StatusUnauthorized, "账号或密码错误")
 		return
 	}
 	setSessionCookie(c, token, sessionCookieMaxAge)
+	if a.operationLogger != nil {
+		a.operationLogger.logLoginSuccess(user)
+	}
 	ok(c, gin.H{"user": user})
 }
 
 func (a *App) logout(c *gin.Context) {
+	actor := a.operationLogActor(c)
 	if token, err := c.Cookie("tb_session"); err == nil {
 		// 只删除提交的会话，旧设备退出不能影响新设备的有效登录。
 		if _, err := a.db.Exec(`UPDATE users SET session_token=NULL WHERE session_token=?`, token); err != nil {
@@ -105,6 +115,9 @@ func (a *App) logout(c *gin.Context) {
 		}
 	}
 	setSessionCookie(c, "", -1)
+	if a.operationLogger != nil {
+		a.operationLogger.logLogout(actor)
+	}
 	ok(c, gin.H{"ok": true})
 }
 
