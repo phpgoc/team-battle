@@ -94,7 +94,7 @@ func TestOperationLogMiddlewareCapturesAuthenticatedWrite(t *testing.T) {
 	}
 }
 
-func TestTournamentSettingsLogKeepsOnlyActualSQLAndFieldDiff(t *testing.T) {
+func TestTournamentSettingsLogUsesStandardSQLWithoutBeforeValues(t *testing.T) {
 	var output bytes.Buffer
 	logger := newOperationLogger(&output, "zh")
 	db, err := openDatabase(t.TempDir()+"/operation-log-settings.sqlite", logger.capture)
@@ -126,13 +126,16 @@ func TestTournamentSettingsLogKeepsOnlyActualSQLAndFieldDiff(t *testing.T) {
 	logger.finish(operation, 200, User{ID: 2, DisplayName: "管理员"})
 
 	logged := output.String()
-	for _, expected := range []string{`UPDATE tournaments SET name='Finals' WHERE id=1`, "Old", "Finals", "round1_mode", "manual", "random"} {
+	for _, expected := range []string{
+		`UPDATE tournaments SET name='Finals' WHERE id=1`,
+		`UPDATE tournaments SET rules_json='` + strings.ReplaceAll(fullRules, `"`, `\"`) + `' WHERE id=1`,
+	} {
 		if !strings.Contains(logged, expected) {
-			t.Fatalf("设置日志缺少差异 %q: %s", expected, logged)
+			t.Fatalf("设置日志缺少标准SQL %q: %s", expected, logged)
 		}
 	}
-	if strings.Contains(logged, fullRules) || strings.Contains(logged, "INSERT INTO tournament_actions") {
-		t.Fatalf("设置日志不应重复输出完整规则快照或审计写入: %s", logged)
+	if strings.Contains(logged, "/* changed:") || strings.Contains(logged, "\"from\"") || strings.Contains(logged, "INSERT INTO tournament_actions") {
+		t.Fatalf("设置日志不应附加旧值摘要或重复输出审计写入: %s", logged)
 	}
 }
 

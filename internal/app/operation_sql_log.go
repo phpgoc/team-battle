@@ -32,13 +32,12 @@ type sqlWriteCapture struct {
 }
 
 type sqlOperationCapture struct {
-	path          string
-	tag           string
-	tagPriority   int
-	statements    []string
-	hasBlob       bool
-	changeSummary string
-	mu            sync.Mutex
+	path        string
+	tag         string
+	tagPriority int
+	statements  []string
+	hasBlob     bool
+	mu          sync.Mutex
 }
 
 func newOperationLogger(writer io.Writer, language string) *operationLogger {
@@ -106,22 +105,20 @@ func (l *operationLogger) finish(operation *sqlOperationCapture, status int, act
 	statements := append([]string(nil), operation.statements...)
 	hasBlob := operation.hasBlob
 	path := operation.path
-	changeSummary := operation.changeSummary
 	operation.mu.Unlock()
-	if tag == "" || (len(statements) == 0 && !hasBlob && changeSummary == "") {
+	if tag == "" || (len(statements) == 0 && !hasBlob) {
 		return
 	}
-	if path == "/api/tournaments/:id/settings" && changeSummary != "" {
+	if path == "/api/tournaments/:id/settings" {
 		filtered := statements[:0]
 		for _, statement := range statements {
 			upper := strings.ToUpper(statement)
-			if strings.Contains(upper, "INSERT INTO TOURNAMENT_ACTIONS") || strings.Contains(upper, "SET RULES_JSON=") {
+			if strings.Contains(upper, "INSERT INTO TOURNAMENT_ACTIONS") {
 				continue
 			}
 			filtered = append(filtered, statement)
 		}
 		statements = filtered
-		statements = append(statements, "/* changed: "+changeSummary+" */")
 	}
 	sqlText := strings.Join(statements, "; ")
 	if hasBlob {
@@ -159,18 +156,6 @@ func (l *operationLogger) captureTournamentOperation(operation tournamentOperati
 		return
 	}
 	if operation.Action == "tournament_settings_updated" {
-		var summary []byte
-		if json.Valid([]byte(operation.Payload)) {
-			summary, _ = json.Marshal(json.RawMessage(operation.Payload))
-		}
-		l.capture.mu.RLock()
-		active = l.capture.active
-		l.capture.mu.RUnlock()
-		if active != nil {
-			active.mu.Lock()
-			active.changeSummary = string(summary)
-			active.mu.Unlock()
-		}
 		l.setCurrentTag(tournamentSettingsLogTag(operation.Payload))
 		return
 	}
