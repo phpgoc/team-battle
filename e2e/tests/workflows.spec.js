@@ -368,7 +368,8 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
   await expect(page.locator('#event-basics [name=start_time]')).toHaveAttribute('required', '');
   await expect(page.locator('#event-basics [name=manager_id]')).toBeHidden();
   await expect(page.locator('#event-basics .search-select input')).toHaveAttribute('required', '');
-  await expect(page.locator('#event-basics .event-phase-heading')).toContainText('基本信息');
+  await expect(page.locator('#event-basics [name=name]')).toBeVisible();
+  await expect(page.locator('.event-phase-heading, .editor-jumps')).toHaveCount(0);
   for (const selector of ['#event-round1 [name=round1_target]', '#event-round2 [name=round2_target]', '#event-ace [name=ace_most_wins]']) {
     await expect(page.locator(selector)).toHaveClass(/compact-number-input/);
     expect((await page.locator(selector).boundingBox()).width).toBeLessThan(90);
@@ -470,13 +471,19 @@ test('搜索添加选手、特殊对战和分组后的规则锁定', async ({ pa
 test('赛事基本信息仅超管可修改且分组抽签后锁定', async ({ page }) => {
   await login(page);
   const adminSession = (await page.context().cookies()).find(cookie => cookie.name === 'tb_session');
+  const backgroundResponse = await page.request.post('/api/site-settings/backgrounds', {
+    multipart: { name: '赛事中切换背景', image }
+  });
+  expect(backgroundResponse.ok(), await backgroundResponse.text()).toBeTruthy();
+  const backgrounds = await json(page.request, 'GET', '/api/backgrounds');
+  const backgroundID = backgrounds.backgrounds.find(item => item.name === '赛事中切换背景').id;
   const roster = await players(page.request, '基本信息权限选手');
   const { id } = await createTournament(page.request, '基本信息权限赛事', roster, { manager_id: roster[0].id });
   const setting = `/live/${id}/setting`;
 
   await page.context().clearCookies();
   await login(page, setting, roster[0].username);
-  await expect(page.locator('.editor-jumps a')).toHaveCount(4);
+  await expect(page.locator('.event-phase-heading, .editor-jumps')).toHaveCount(0);
   await expect(page.locator('#event-basics [name=name]')).toBeDisabled();
   await expect(page.locator('#event-basics [name=name]')).toHaveValue('基本信息权限赛事');
   const managerEdit = await page.request.patch(`/api/tournaments/${id}/settings`, { data: { name: '管理员改名' } });
@@ -492,8 +499,22 @@ test('赛事基本信息仅超管可修改且分组抽签后锁定', async ({ pa
   expect(await json(page.request, 'GET', `/api/public/tournaments/${id}`)).toMatchObject({ description: '超管在抽签前更新' });
 
   await json(page.request, 'POST', `/api/tournaments/${id}/setup-draw`, {});
+  const grouped = await json(page.request, 'GET', `/api/public/tournaments/${id}`);
+  await json(page.request, 'POST', `/api/tournaments/${id}/captains/confirm`, {
+    team_a_player_id: grouped.teams[0].players[0].id,
+    team_b_player_id: grouped.teams[1].players[0].id
+  });
+  await json(page.request, 'POST', `/api/tournaments/${id}/start`, {});
   await page.goto(setting);
   await expect(page.locator('#event-basics [name=name]')).toBeDisabled();
+  const background = page.locator('#event-basics #event-background select');
+  await expect(background).toBeEnabled();
+  await expect(page.locator('#event-phase-before-ace #event-background')).toHaveCount(0);
+  await background.selectOption(String(backgroundID));
+  await page.locator('#event-form button[type=submit]').click();
+  await expect(page).toHaveURL(new RegExp(`/live/${id}$`));
+  expect(await json(page.request, 'GET', `/api/public/tournaments/${id}`)).toMatchObject({ background_id: backgroundID });
+
   const lockedEdit = await page.request.patch(`/api/tournaments/${id}/settings`, { data: { name: '抽签后改名' } });
   expect(lockedEdit.status()).toBe(400);
   expect(await json(page.request, 'GET', `/api/public/tournaments/${id}`)).toMatchObject({ name: '基本信息权限赛事' });
@@ -509,7 +530,13 @@ test('赛事设置按四大区域分区并要求三次确认后永久删除', as
   for (const selector of ['#event-basics', '#event-phase-before-ace', '#event-phase-ace', '#event-phase-after-ace']) {
     await expect(page.locator(selector)).toBeVisible();
   }
-  await expect(page.locator('.editor-jumps a')).toHaveCount(4);
+  await expect(page.locator('.event-phase-heading, .editor-jumps')).toHaveCount(0);
+  const regionGaps = await page.evaluate(() => {
+    const regions = ['#event-basics', '#event-phase-before-ace', '#event-phase-ace', '#event-phase-after-ace']
+      .map(selector => document.querySelector(selector).getBoundingClientRect());
+    return regions.slice(0, -1).map((region, index) => regions[index + 1].top - region.bottom);
+  });
+  expect(regionGaps.every(gap => gap >= 32)).toBeTruthy();
   const deleteButton = page.locator('#delete-active-tournament');
   await expect(deleteButton).toBeVisible();
   await page.setViewportSize({ width: 375, height: 812 });

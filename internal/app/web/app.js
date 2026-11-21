@@ -594,10 +594,6 @@
       <div class="draw-duration-fields">${drawDurationFields(rules, !editableTiming)}</div>
     </section>`;
   }
-  function editorJumps() {
-    const sections = [['event-basics', 'basicInfo'], ['event-phase-before-ace', 'beforeAce'], ['event-phase-ace', 'ace'], ['event-phase-after-ace', 'afterAce']];
-    return `<nav class="editor-jumps" aria-label="${t('eventSections')}">${sections.map(([id, title, hidden]) => `<a href="#event-${id}"${hidden ? ' hidden' : ''}>${t(title)}</a>`).join('')}</nav>`;
-  }
   function backgroundOptions(backgrounds, selected = 0) {
     return `<option value="0"${Number(selected) ? '' : ' selected'}>${t('noBackground')}</option>` + backgrounds.map(background => `<option value="${background.id}"${Number(background.id) === Number(selected) ? ' selected' : ''}>${esc(background.name)}</option>`).join('');
   }
@@ -788,21 +784,20 @@
       ? field('manager', '<select name="manager_id" data-searchable required><option value="">' + t('selectManager') + '</option>' + managers.map(user => '<option value="' + user.id + '"' + (Number(e.manager_id) === user.id ? ' selected' : '') + '>' + esc(user.display_name) + ' (' + esc(user.username) + ')</option>').join('') + '</select>', false, creating)
       : settings ? field('manager', '<input value="' + esc(e.manager_name || '') + '" disabled>', false, false) : '';
     const createBackground = mode === 'create' ? field('background', `<select name="background_id">${backgroundOptions(backgrounds, e.background_id)}</select>`) : '';
-    const basic = mode !== 'roster' ? '<section class="event-phase-group event-phase-basics" id="event-basics"><div class="event-phase-heading"><h2>' + t('basicInfo') + '</h2></div><fieldset class="event-settings-fields" data-basic-info' + (basicInfoEditable ? '' : ' disabled') + '><div class="form-grid">' + field('name', '<input name="name" list="tournament-names" value="' + esc(e.name || '') + '" required><datalist id="tournament-names">' + (catalog.tournament_names || []).map(n => '<option value="' + esc(n.name) + '">').join('') + '</datalist>', true, creating) + field('time', startTimeInput(e.start_time || localTime()), false, creating) + managerField + createBackground + field('description', '<textarea name="description" rows="2">' + esc(e.description || '') + '</textarea>', true) + '</div></fieldset></section>' : '';
     const backgroundPanel = settings ? eventBackgroundMarkup(e, backgrounds, !terminal(e)) : '';
+    const basic = mode !== 'roster' ? '<section class="event-phase-group event-phase-basics" id="event-basics"><fieldset class="event-settings-fields" data-basic-info' + (basicInfoEditable ? '' : ' disabled') + '><div class="form-grid">' + field('name', '<input name="name" list="tournament-names" value="' + esc(e.name || '') + '" required><datalist id="tournament-names">' + (catalog.tournament_names || []).map(n => '<option value="' + esc(n.name) + '">').join('') + '</datalist>', true, creating) + field('time', startTimeInput(e.start_time || localTime()), false, creating) + managerField + createBackground + field('description', '<textarea name="description" rows="2">' + esc(e.description || '') + '</textarea>', true) + '</div></fieldset>' + backgroundPanel + '</section>' : '';
     const correctionPanel = settings ? resultCorrectionMarkup(e) : '';
     const management = settings ? eventManagementMarkup(e) : null;
     const settingsHint = terminal(e) ? 'readOnly' : readonly ? 'settingsLocked' : creating ? '' : roundSetupEditable ? 'settingsResetHint' : 'roundSetupLocked';
     const title = creating ? 'createEvent' : rosterOnly ? 'editRoster' : 'eventSettings';
     const eventPhases = rosterOnly
       ? `<fieldset class="event-settings-fields">${rosterMarkup(state.users, state.roster, roundSetupEditable)}</fieldset>`
-      : `${basic}<section class="event-phase-group event-phase-before-ace" id="event-phase-before-ace"><div class="event-phase-heading"><h2>${t('beforeAce')}</h2></div><fieldset class="event-settings-fields">${rosterMarkup(state.users, state.roster, roundSetupEditable)}${rulesMarkup(e, roundSetupEditable, aceSettingsEditable, catalog.extra_infos || [], 'before-ace')}${settings ? backgroundPanel : ''}${drawTimingMarkup(e, timingEditable, creating)}</fieldset></section><section class="event-phase-group event-phase-ace" id="event-phase-ace"><div class="event-phase-heading"><h2>${t('ace')}</h2></div><fieldset class="event-settings-fields">${rulesMarkup(e, roundSetupEditable, aceSettingsEditable, catalog.extra_infos || [], 'ace')}${management?.aceMarkup || ''}</fieldset></section><section class="event-phase-group event-phase-after-ace" id="event-phase-after-ace"><div class="event-phase-heading"><h2>${t('afterAce')}</h2></div>${correctionPanel}${management?.afterAceMarkup || ''}</section>`;
+      : `${basic}<section class="event-phase-group event-phase-before-ace" id="event-phase-before-ace"><fieldset class="event-settings-fields">${rosterMarkup(state.users, state.roster, roundSetupEditable)}${rulesMarkup(e, roundSetupEditable, aceSettingsEditable, catalog.extra_infos || [], 'before-ace')}${drawTimingMarkup(e, timingEditable, creating)}</fieldset></section><section class="event-phase-group event-phase-ace" id="event-phase-ace"><fieldset class="event-settings-fields">${rulesMarkup(e, roundSetupEditable, aceSettingsEditable, catalog.extra_infos || [], 'ace')}${management?.aceMarkup || ''}</fieldset></section><section class="event-phase-group event-phase-after-ace" id="event-phase-after-ace">${correctionPanel}${management?.afterAceMarkup || ''}</section>`;
     const content = `
       <div class="page-head tournament-editor-heading">
         <div><h1>${t(title)}</h1>${settingsHint ? `<p class="subtitle">${t(settingsHint)}</p>` : ''}</div>
         ${creating ? '' : picker()}
       </div>
-      ${rosterOnly ? '' : editorJumps()}
       <form id="event-form">
         ${eventPhases}
         <div class="event-editor-actions">
@@ -815,13 +810,6 @@
       app.innerHTML = `<main class="event-editor-page">${content}</main>`;
       bindCommon(); $('#back-board').onclick = () => go(canWatch(state.event) ? '/live/' + state.event.id : '/');
     }
-    $('.editor-jumps')?.addEventListener('click', event => {
-      const link = event.target.closest('a');
-      if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-      event.preventDefault();
-      const section = $(link.getAttribute('href'));
-      section?.scrollIntoView({ block: 'start' });
-    });
     const form = $('#event-form');
     form.addEventListener('click', click => {
       if (!click.target.closest('#confirm-end') || form.dataset.busy) return;
