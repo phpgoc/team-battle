@@ -124,6 +124,20 @@ func TestNoPasswordAccountLifecycleAndOwnerGuard(t *testing.T) {
 		"username": "conflicting-password", "role": "user", "no_password": "true", "new_password": "test1234",
 	}, false, 400)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM users WHERE username='conflicting-password'`)
+	f.accountForm(t, 1, "POST", "/api/users", map[string]string{
+		"username": "passwordless-admin", "role": "superadmin", "no_password": "true",
+	}, false, 400)
+	f.assertCount(t, 0, `SELECT COUNT(*) FROM users WHERE username='passwordless-admin'`)
+	f.accountForm(t, 1, "POST", "/api/users", map[string]string{
+		"username": "managed-admin", "role": "superadmin", "new_password": "admin-password", "new_password_confirm": "admin-password",
+	}, false, 200)
+	var superadminID int64
+	if err := f.app.db.QueryRow(`SELECT id FROM users WHERE username='managed-admin'`).Scan(&superadminID); err != nil {
+		t.Fatal(err)
+	}
+	f.accountForm(t, 1, "PATCH", fmt.Sprintf("/api/users/%d", superadminID), map[string]string{"no_password": "true"}, false, 400)
+	f.accountForm(t, 1, "PATCH", fmt.Sprintf("/api/users/%d", accountID), map[string]string{"role": "superadmin", "no_password": "true"}, false, 400)
+	f.assertCount(t, 1, `SELECT COUNT(*) FROM users WHERE id=? AND role='user' AND password_hash=''`, accountID)
 
 	if _, err := f.app.db.Exec(`UPDATE users SET session_token='existing-password-free-session' WHERE id=?`, accountID); err != nil {
 		t.Fatal(err)

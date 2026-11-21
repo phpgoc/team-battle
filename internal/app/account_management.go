@@ -205,6 +205,10 @@ func (a *App) saveAccountChange(c *gin.Context, actor, target User, req profileR
 	}
 	noPassword := req.NoPassword != nil && *req.NoPassword
 	if noPassword {
+		if role == roleSuperAdmin {
+			fail(c, 400, "超级管理员必须设置密码")
+			return
+		}
 		if self {
 			fail(c, 400, "不能将自己的账号设置为无密码")
 			return
@@ -373,6 +377,10 @@ func (a *App) createAccount(c *gin.Context) {
 	noPassword := req.NoPassword != nil && *req.NoPassword
 	passwordHash := ""
 	if noPassword {
+		if *req.Role == roleSuperAdmin {
+			fail(c, 400, "超级管理员必须设置密码")
+			return
+		}
 		if req.NewPassword != "" || req.NewPasswordConfirm != "" || req.Password != "" {
 			fail(c, 400, "无密码账号不能同时设置密码")
 			return

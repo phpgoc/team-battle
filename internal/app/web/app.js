@@ -234,7 +234,7 @@
   }
   function profileFields(user, categories, managed = false, creating = false) {
     const limited = !creating && user.id === state.user.id && state.user.role !== 'superadmin';
-    const canSetNoPassword = managed && (creating || Number(user.id) !== Number(state.user.id));
+    const canSetNoPassword = managed && (creating || Number(user.id) !== Number(state.user.id)) && (creating || user.role !== 'superadmin');
     const next = profileLimit(user.profile_changed_at, limited);
     const blocked = limited && state.profileEditBlocked;
     const disabled = next || blocked ? ' disabled' : '';
@@ -261,6 +261,7 @@
     let previewURL;
     const noPassword = $('[name="no_password"]', form);
     if (noPassword) {
+      const roleSelect = $('[name="role"]', form);
       const passwordFields = $$('[data-no-password-control]', form);
       const passwordRequired = form.dataset.creating === 'true' || form.dataset.noPasswordAccount === 'true';
       const syncPasswordFields = () => passwordFields.forEach(input => {
@@ -269,9 +270,16 @@
         const toggle = input.parentElement.querySelector('.password-toggle');
         if (toggle) toggle.disabled = noPassword.checked;
       });
+      const syncRole = () => {
+        const superadmin = roleSelect?.value === 'superadmin';
+        if (superadmin) noPassword.checked = false;
+        noPassword.disabled = superadmin;
+        syncPasswordFields();
+      };
       noPassword.addEventListener('change', syncPasswordFields);
-      form.addEventListener('formrestored', syncPasswordFields);
-      syncPasswordFields();
+      roleSelect?.addEventListener('change', syncRole);
+      form.addEventListener('formrestored', syncRole);
+      syncRole();
     }
     $('[name="avatar"]', form).onchange = event => {
       if (previewURL) URL.revokeObjectURL(previewURL);
