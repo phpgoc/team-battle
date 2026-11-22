@@ -114,8 +114,10 @@ func TestPlayerRecordsReflectLiveCorrectionsAndCancellation(t *testing.T) {
 		t.Fatalf("比分修正后统计未更新: %+v", got)
 	}
 	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/cancel", id), nil, 200)
-	if got := f.records(t, 0, 3); got.Overall != (recordScore{}) {
-		t.Fatalf("取消赛事不应计入战绩: %+v", got)
+	f.request(t, 1, "DELETE", fmt.Sprintf("/api/tournaments/%d", id), nil, 200)
+	f.request(t, 1, "POST", fmt.Sprintf("/api/tournaments/%d/restore", id), nil, 200)
+	if got := f.records(t, 0, 3); got.Overall != (recordScore{}) || got.TeamBattle != (recordScore{}) || len(got.ByCategory) != 0 {
+		t.Fatalf("取消赛事及其恢复不应计入战绩: %+v", got)
 	}
 }
 
@@ -128,6 +130,39 @@ func TestPlayerRecordsUnavailableAndEmptyAccounts(t *testing.T) {
 	f.request(t, 0, "GET", "/api/public/users/invalid/records", nil, 400)
 	f.request(t, 1, "DELETE", "/api/users/9", nil, 200)
 	f.request(t, 0, "GET", "/api/public/users/9/records", nil, 404)
+}
+
+func TestPlayerRecordsMigrationBackfillsExistingResults(t *testing.T) {
+	f := newWorkflowFixture(t)
+	for _, end := range []string{"/confirm", "/cancel", "/confirm"} {
+		id := f.create(t, "random")
+		f.enterKOF(t, id)
+		path := fmt.Sprintf("/api/tournaments/%d", id)
+		if end == "/confirm" {
+			match := f.scalar(t, `SELECT id FROM matches WHERE tournament_id=? AND round_no=2`, id)
+			f.request(t, 2, "POST", fmt.Sprintf("%s/matches/%d/result", path, match), map[string]any{"winner_team_id": f.teams(t, id)[0]}, 200)
+		}
+		f.request(t, 2, "POST", path+end, nil, 200)
+		if id == 3 {
+			f.request(t, 1, "DELETE", path, nil, 200)
+		}
+	}
+	want := map[int]playerRecordsResponse{}
+	for player := 3; player <= 9; player++ {
+		want[player] = f.records(t, 0, player)
+	}
+	simulateRecordsNotMigrated(t, f.app.db)
+	f.assertCount(t, 2, `SELECT MAX(version_id) FROM goose_db_version`)
+	for range 2 {
+		if err := migrate(f.app.db); err != nil {
+			t.Fatal(err)
+		}
+		for player, expected := range want {
+			if got := f.records(t, 0, player); !reflect.DeepEqual(got, expected) {
+				t.Fatalf("选手 %d 的回填战绩不符: got %+v, want %+v", player, got, expected)
+			}
+		}
+	}
 }
 
 func TestTeamBattleRecordsWaitForConfirmation(t *testing.T) {
@@ -161,12 +196,5 @@ func TestTeamBattleRecordsWaitForConfirmation(t *testing.T) {
 		if got := f.records(t, 0, observer); got.TeamBattle != (recordScore{}) {
 			t.Fatalf("非参赛管理员和观众不计入团战: player=%d %+v", observer, got)
 		}
-	}
-	// 取消赛事即使保留了对局与阶段胜者也不计入。
-	if _, err := f.app.db.Exec(`UPDATE tournaments SET status='cancelled' WHERE id=?`, id); err != nil {
-		t.Fatal(err)
-	}
-	if got := f.records(t, 0, 3); got.TeamBattle != (recordScore{}) {
-		t.Fatalf("取消赛事不能计入团战胜负: %+v", got)
 	}
 }

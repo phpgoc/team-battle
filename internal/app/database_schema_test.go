@@ -131,6 +131,7 @@ func TestTournamentNameCollisionRollsBackInitialization(t *testing.T) {
 // 仅测试用：把合成数据还原为1.0之前没有迁移元数据的数据库。
 func simulateUnversionedDatabase(t *testing.T, db *sql.DB) {
 	t.Helper()
+	simulateRecordsNotMigrated(t, db)
 	if _, err := db.Exec(`DROP TABLE site_extra_infos`); err != nil {
 		t.Fatal(err)
 	}
@@ -138,6 +139,13 @@ func simulateUnversionedDatabase(t *testing.T, db *sql.DB) {
 		t.Fatal(err)
 	}
 	if _, err := db.Exec(`DROP TABLE goose_db_version`); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func simulateRecordsNotMigrated(t *testing.T, db *sql.DB) {
+	t.Helper()
+	if _, err := db.Exec(`DROP VIEW player_record_contributions; DROP TABLE player_records; DROP INDEX matches_finished_by_tournament; DELETE FROM goose_db_version WHERE version_id=3`); err != nil {
 		t.Fatal(err)
 	}
 }

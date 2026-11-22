@@ -3,8 +3,23 @@ package app
 import (
 	"database/sql"
 	"errors"
+
 	"github.com/gin-gonic/gin"
 )
+
+func (a *App) runScoredMatchMutation(tournamentID, actorID int64, work func(*matchEngine) error) error {
+	return a.runMatchMutation(tournamentID, actorID, func(e *matchEngine) error {
+		tx := e.db.(*sql.Tx)
+		before, err := tournamentRecordContributions(tx, tournamentID)
+		if err != nil {
+			return err
+		}
+		if err := work(e); err != nil {
+			return err
+		}
+		return saveTournamentRecordChanges(tx, tournamentID, before)
+	})
+}
 
 func (a *App) runMatchMutation(tournamentID, actorID int64, work func(*matchEngine) error) error {
 	tx, err := a.db.Begin()
@@ -58,7 +73,7 @@ func (a *App) submitOpeningResult(c *gin.Context) {
 		fail(c, 400, "请选择当前对局的胜者")
 		return
 	}
-	err := a.runMatchMutation(id, actor.ID, func(e *matchEngine) error {
+	err := a.runScoredMatchMutation(id, actor.ID, func(e *matchEngine) error {
 		stage, err := e.status()
 		if err != nil {
 			return err
@@ -130,7 +145,7 @@ func (a *App) submitResult(c *gin.Context) {
 		fail(c, 400, "请选择胜者")
 		return
 	}
-	err = a.runMatchMutation(id, actor.ID, func(e *matchEngine) error {
+	err = a.runScoredMatchMutation(id, actor.ID, func(e *matchEngine) error {
 		m, err := e.match(matchID)
 		if err != nil {
 			return errors.New("对局不存在")
@@ -176,7 +191,7 @@ func (a *App) correctResult(c *gin.Context) {
 		return
 	}
 	req.MatchID = matchID
-	err = a.runMatchMutation(id, actor.ID, func(e *matchEngine) error { return e.correct(req) })
+	err = a.runScoredMatchMutation(id, actor.ID, func(e *matchEngine) error { return e.correct(req) })
 	if err != nil {
 		fail(c, 400, err.Error())
 		return
@@ -290,7 +305,7 @@ func (a *App) cancelTournament(c *gin.Context) {
 	if !access {
 		return
 	}
-	err := a.runMatchMutation(id, actor.ID, func(e *matchEngine) error {
+	err := a.runScoredMatchMutation(id, actor.ID, func(e *matchEngine) error {
 		if err := e.setStage(statusCancelled); err != nil {
 			return err
 		}

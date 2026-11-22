@@ -375,8 +375,14 @@ func (a *App) confirmTournament(c *gin.Context) {
 	if !okAccess {
 		return
 	}
+	tx, err := a.db.Begin()
+	if err != nil {
+		fail(c, http.StatusInternalServerError, "确认赛事结束失败")
+		return
+	}
+	defer tx.Rollback()
 	var status string
-	if err := a.db.QueryRow(`SELECT status FROM tournaments WHERE id=?`, tournamentID).Scan(&status); err != nil {
+	if err := tx.QueryRow(`SELECT status FROM tournaments WHERE id=?`, tournamentID).Scan(&status); err != nil {
 		fail(c, http.StatusNotFound, "赛事不存在")
 		return
 	}
@@ -384,11 +390,31 @@ func (a *App) confirmTournament(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "当前赛事还不能确认结束")
 		return
 	}
-	if _, err := a.db.Exec(`UPDATE tournaments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, statusCompleted, tournamentID); err != nil {
+	before, err := tournamentRecordContributions(tx, tournamentID)
+	if err != nil {
 		fail(c, http.StatusInternalServerError, "确认赛事结束失败")
 		return
 	}
-	a.logAction(tournamentID, actor.ID, "tournament_completed", nil)
+	if _, err := tx.Exec(`UPDATE tournaments SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, statusCompleted, tournamentID); err != nil {
+		fail(c, http.StatusInternalServerError, "确认赛事结束失败")
+		return
+	}
+	if err := saveTournamentRecordChanges(tx, tournamentID, before); err != nil {
+		fail(c, http.StatusInternalServerError, "保存选手战绩失败")
+		return
+	}
+	engine := &matchEngine{db: tx, tournamentID: tournamentID, actorID: actor.ID}
+	if err := engine.log("tournament_completed", nil); err != nil {
+		fail(c, http.StatusInternalServerError, "记录赛事结束失败")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		fail(c, http.StatusInternalServerError, "确认赛事结束失败")
+		return
+	}
+	for _, operation := range engine.operations {
+		a.logTournamentOperation(operation)
+	}
 	a.invalidateHistoryCache()
 	ok(c, gin.H{"ok": true})
 }

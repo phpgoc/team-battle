@@ -25,7 +25,9 @@ func migrationList() []*goose.Migration {
 	baseline.Source = "00001_baseline.go"
 	extraInfo := goose.NewGoMigration(2, &goose.GoFunc{RunTx: upExtraInfo}, nil)
 	extraInfo.Source = "00002_extra_info.go"
-	return []*goose.Migration{baseline, extraInfo}
+	playerRecords := goose.NewGoMigration(3, &goose.GoFunc{RunTx: upPlayerRecords}, nil)
+	playerRecords.Source = "00003_player_records.go"
+	return []*goose.Migration{baseline, extraInfo, playerRecords}
 }
 
 func up(ctx context.Context, db *sql.DB, migrations ...*goose.Migration) error {

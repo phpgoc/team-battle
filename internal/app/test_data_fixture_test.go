@@ -165,6 +165,28 @@ func seedTestData(db *sql.DB) error {
 	if err := seedMapDemoData(tx); err != nil {
 		return err
 	}
+	rows, err := tx.Query(`SELECT id FROM tournaments WHERE created_by=?`, adminID)
+	if err != nil {
+		return err
+	}
+	var tournamentIDs []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		tournamentIDs = append(tournamentIDs, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, id := range tournamentIDs {
+		if err := saveTournamentRecordChanges(tx, id, nil); err != nil {
+			return err
+		}
+	}
 	return tx.Commit()
 }
 

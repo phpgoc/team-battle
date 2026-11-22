@@ -12,7 +12,8 @@ func TestPermanentlyDeleteActiveTournamentCascadesRelations(t *testing.T) {
 	if _, err := f.app.db.Exec(`UPDATE tournaments SET manager_id=3 WHERE id=?`, otherID); err != nil {
 		t.Fatal(err)
 	}
-	f.enterKOF(t, id)
+	firstMatch := f.enterKOF(t, id)
+	winner := int(f.scalar(t, `SELECT player_a_id FROM matches WHERE id=?`, firstMatch))
 	teams := f.teams(t, id)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/kof/starter", id), map[string]any{"team_id": teams[0], "player_id": 3}, 200)
 	f.request(t, 2, "POST", fmt.Sprintf("/api/tournaments/%d/kof/starter", id), map[string]any{"team_id": teams[1], "player_id": 6}, 200)
@@ -33,7 +34,13 @@ func TestPermanentlyDeleteActiveTournamentCascadesRelations(t *testing.T) {
 	f.request(t, 2, "DELETE", fmt.Sprintf("/api/tournaments/%d/permanent", otherID), nil, 403)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=?`, id)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM tournaments WHERE id=?`, otherID)
+	if got := f.records(t, 0, winner); got.Overall != (recordScore{Wins: 1}) {
+		t.Fatalf("删除前应已有一场胜局: %+v", got)
+	}
 	f.request(t, 2, "DELETE", path, nil, 200)
+	if got := f.records(t, 0, winner); got.Overall != (recordScore{}) || len(got.ByCategory) != 0 {
+		t.Fatalf("永久删除后仍有战绩: %+v", got)
+	}
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM tournaments WHERE id=?`, id)
 	for _, table := range []string{"tournament_players", "tournament_setup_roster", "captain_votes", "lineup_entries", "rounds", "matches", "tournament_actions", "player_selections", "kof_reservations"} {
 		f.assertCount(t, 0, `SELECT COUNT(*) FROM `+table+` WHERE tournament_id=?`, id)

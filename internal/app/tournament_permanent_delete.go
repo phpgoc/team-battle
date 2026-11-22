@@ -33,6 +33,11 @@ func (a *App) permanentlyDeleteTournament(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "已结束或已取消的赛事不能永久删除。")
 		return
 	}
+	before, err := tournamentRecordContributions(tx, tournamentID)
+	if err != nil {
+		fail(c, http.StatusInternalServerError, "读取选手战绩失败")
+		return
+	}
 	result, err := tx.Exec(`DELETE FROM tournaments WHERE id=?`, tournamentID)
 	if err != nil {
 		fail(c, http.StatusInternalServerError, "删除赛事失败")
@@ -41,6 +46,10 @@ func (a *App) permanentlyDeleteTournament(c *gin.Context) {
 	deleted, err := result.RowsAffected()
 	if err != nil || deleted != 1 {
 		fail(c, http.StatusConflict, "赛事状态已变化，请刷新后重试")
+		return
+	}
+	if err := saveTournamentRecordChanges(tx, tournamentID, before); err != nil {
+		fail(c, http.StatusInternalServerError, "保存选手战绩失败")
 		return
 	}
 	if err := tx.Commit(); err != nil {

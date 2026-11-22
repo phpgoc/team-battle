@@ -98,7 +98,7 @@ func TestUnversionedBaselineFailureRollsBackAndCanRetry(t *testing.T) {
 	if err := migrate(f.app.db); err != nil {
 		t.Fatal(err)
 	}
-	f.assertCount(t, 2, `SELECT MAX(version_id) FROM goose_db_version`)
+	f.assertCount(t, 3, `SELECT MAX(version_id) FROM goose_db_version`)
 	f.assertCount(t, 1, `SELECT COUNT(*) FROM users WHERE id=2 AND role='user' AND session_token='legacy-session-token'`)
 	f.assertCount(t, 0, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('events','teams','sessions')`)
 	assertMigrationConnections(t, f.app.db)

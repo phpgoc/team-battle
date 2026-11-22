@@ -59,6 +59,17 @@ func TestTournamentSoftDeletionPermissionsAndRecovery(t *testing.T) {
 	f.request(t, 1, "DELETE", "/api/tournaments/99999", nil, 404)
 	f.request(t, 1, "POST", "/api/tournaments/99999/restore", nil, 404)
 	f.request(t, 1, "DELETE", "/api/tournaments/bad", nil, 400)
+	if _, err := f.app.db.Exec(`CREATE TRIGGER fail_record_removal BEFORE DELETE ON player_records BEGIN SELECT RAISE(ABORT,'模拟战绩更新失败'); END`); err != nil {
+		t.Fatal(err)
+	}
+	f.request(t, 1, "DELETE", path, nil, 500)
+	f.assertCount(t, 0, `SELECT is_deleted FROM tournaments WHERE id=?`, id)
+	if !reflect.DeepEqual(records, f.records(t, 0, 3)) {
+		t.Fatal("战绩更新失败后，原战绩应保持一致")
+	}
+	if _, err := f.app.db.Exec(`DROP TRIGGER fail_record_removal`); err != nil {
+		t.Fatal(err)
+	}
 	for n := 0; n < 2; n++ {
 		f.request(t, 1, "DELETE", path, nil, 200)
 	}

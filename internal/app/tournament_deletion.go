@@ -49,8 +49,17 @@ func (a *App) setTournamentDeleted(c *gin.Context, deleted bool) {
 	var operations []tournamentOperation
 	// 重复请求不追加审计，也不改动原赛事数据。
 	if previous != deleted {
+		before, err := tournamentRecordContributions(tx, id)
+		if err != nil {
+			fail(c, http.StatusInternalServerError, "读取选手战绩失败")
+			return
+		}
 		if _, err := tx.Exec(`UPDATE tournaments SET is_deleted=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`, deleted, id); err != nil {
 			fail(c, http.StatusInternalServerError, "保存失败")
+			return
+		}
+		if err := saveTournamentRecordChanges(tx, id, before); err != nil {
+			fail(c, http.StatusInternalServerError, "保存选手战绩失败")
 			return
 		}
 		action := "tournament_restored"

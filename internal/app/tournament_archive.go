@@ -194,6 +194,10 @@ func (a *App) archiveTournament(c *gin.Context) {
 			return
 		}
 	}
+	if err := saveTournamentRecordChanges(tx, id, nil); err != nil {
+		fail(c, 500, "保存选手战绩失败")
+		return
+	}
 	if err := tx.Commit(); err != nil {
 		fail(c, 500, err.Error())
 		return

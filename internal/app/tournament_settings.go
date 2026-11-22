@@ -99,7 +99,11 @@ func (a *App) updateTournamentSettings(c *gin.Context) {
 		req.Correction = &req.Corrections[0]
 		req.Corrections = nil
 	}
-	err := a.runMatchMutation(tournamentID, actor.ID, func(e *matchEngine) error {
+	mutate := a.runMatchMutation
+	if req.Correction != nil || len(req.Corrections) > 0 {
+		mutate = a.runScoredMatchMutation
+	}
+	err := mutate(tournamentID, actor.ID, func(e *matchEngine) error {
 		tx := e.db.(*sql.Tx)
 		changedFields := map[string]any{}
 		if req.AcePlayers != nil && (req.Correction != nil || len(req.Corrections) > 0 || req.AcePlayers.MatchID <= 0) {
