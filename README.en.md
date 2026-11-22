@@ -1,102 +1,85 @@
-# Team Battle Manager
+# Team Battle
 
 [简体中文](README.md) · **English** · [한국어](README.ko.md)
 
-Run tournaments between two teams. Round 1 is played as a series of 1v1 matches and round 2 uses the KOF format. If the teams win one round each, an ace battle decides the tournament. The app also provides a live scoreboard, tournament history, and individual player records.
+A single-binary tournament manager for round-one 1v1 matches, KOF, ace matches, live viewing, history entry, and player records.
 
-## Manage Tournaments
+## Use
 
-- **Super administrators** manage accounts, create tournaments, enter past results, and maintain common tournament names, category icons, and backgrounds. They can manage any open tournament. Only account owners can change their login names. You cannot delete your own account or an account with match results.
-- In **Tournament management**, super administrators can open any tournament by clicking its name. Use the controls on the right to delete or restore a closed tournament. Deleting a tournament keeps its data, hides it from the home page by default, and excludes its results from player records. Select **Show deleted tournaments** to see it. Restoring a tournament adds its results back to player records.
-- A **tournament manager** is required when creating a tournament. Any active account, including a super administrator, can be selected. The manager handles team assignments, captains, lineups, scorekeeping, and final confirmation.
-- Enter the tournament name, start time (to the hour), and manager. You can add players later. A tournament needs 6–12 players to start, and the teams can have different sizes. Assign players to Team A or B in advance or let the draw place them.
-- Search for and add players one at a time, then select Team A, Team B, or random assignment on the right. You can remove players before the draw. Settings retain the entry order and assignments you entered. The actual teams appear in the live view and tournament history.
-- **Save** and **Back to match** stay visible at the bottom of the settings page. Once the roster and rules are valid, click **Start draw** above the ace battle settings. If team assignments are already determined, the draw goes straight to any enabled round 1 lineup and KOF opener draws. In a team draw with an odd number of players, the last player joins Team A in the final animation. Captains submit their own round 1 lineups when captain selection is enabled. Draw results survive a page refresh.
-- **Before the team draw**, set the score targets and how players are selected for round 1 and KOF. The default targets are 4 and 5, respectively. The KOF opener can be drawn at random or chosen by the captain. **Before the first match starts**, set the ace battle probabilities for most wins, most losses, and special matchups. The remaining probability goes to a fully random draw. The player draw lasts 4 seconds by default and the ace draw lasts 5 seconds. Both durations can be changed during play. In **Site settings**, super administrators can set the default durations and choose vertical scrolling or a color gradient for new tournaments. The administrator who triggers the draw sees the animation.
-- Click **Add special matchup** to add a group. Use the left and right multi-select fields to pick candidates for Teams A and B. Each group needs a probability greater than 0%. Most wins and most losses can be set to 0%. Before the team draw, the fields list players already assigned to each side. After the draw, they use the actual teams. If a side in a group has no candidates, the draw uses that full team. The fully random option includes all players. To draw only from the remaining players, add another special matchup and select them there.
-- Click **Record win**, check the players and the winner in the dialog, and click **Confirm**. Confirmation requires a click, and Esc cancels the dialog. The first result starts the tournament. A scheduled matchup moves straight into the current match area. If players still need to be drawn, the draw animation plays. When KOF ends and each team has won a round, check the scores and click **Draw ace players**.
-- To fix a wrong result, open **Tournament settings** in the top right and find **Correct result**. The page lists all completed matches. Select the correct winner and save. You can correct one result at a time. Later matches are cleared and play resumes from the corrected result. For example, correcting a round 1 score from 3–2 to 4–1 removes the extra sixth match and advances to KOF.
-- After the ace draw, you can change either ace player in **Tournament settings** and save. When all matches are complete, the tournament is **Awaiting final confirmation**. The manager can correct results until they select **Confirm tournament end** in settings. Confirmation locks the results. Administrators can switch the advertising or sponsor background in tournament settings, and all viewers see the change.
-- Super administrators can upload, rename, and delete images in **Tournament backgrounds**. Backgrounds assigned to a tournament cannot be deleted. Uploads generate compressed thumbnails for the management page. The tournament view uses the original image.
-- When entering a past tournament, set the teams and score targets first. With an even number of players, the teams must be the same size. With an odd number, Team A must have one more player. Enter round 1 and KOF separately. Clicking the winner records the result immediately and updates the score. In KOF, the winner stays on and you choose the losing team's next player. For a revival, select the player who actually returned. Enter an ace battle if the teams won one round each. You can re-enter results starting at any match, which clears that match and all later results. Check the results before confirming the final save, which locks the tournament.
-
-## Player Actions
-
-- If your team has no captain, click the action area on the right of another teammate's name and select **Vote for captain**. A player becomes captain with votes from half the team, rounded up. The manager can appoint or remove a captain in the same area. Once a captain is in place, other teammates use the spectator view.
-- When captains set the round 1 lineup, open **Round 1 lineup** from the tournament page and save the playing order. The entry is available in this mode. Once one side submits, its public status reads **Lineup submitted**. That side can still rearrange its lineup until the other side submits. Both lineups become public and locked after the second submission. No one can change them after publication.
-- In KOF, use the action area on the right of a player's row. Captains can pick their teammates. If your team has no captain, click your own row to sign up. Managers can pick eligible players on either side. You can queue a player in advance, and only that player sees the reservation. When a match ends, the losing team's queued player fills the next slot.
-- If the target exceeds the team size and everyone on the team has lost, a player returns by random draw while the round is still in progress. Enable **Captain picks returning players** to use the usual picks and sign-ups. Manual selection gives each player one return per cycle. The repeat setting appears only when a team can need at least two revivals, such as three players racing to five wins. Click a player's name to view their record.
-- In account settings, you can change your login name, password, display name, avatar, and category. For regular accounts, all non-password edits share a seven-day cooldown. Those edits are also locked while you are entered in an open tournament. Super administrators can update profiles at any time. Only account owners can change their login names. You can change your password at any time by entering just the new password twice. You stay signed in until you sign out or sign in on another device.
-
-## Spectating and History
-
-Anyone can watch without signing in. On the home page, browse past tournaments by page, combine filters for player, tournament name, and start date, or open a live tournament. Spectating opens as soon as six players have been added. Before the team draw, they appear in a single roster. Only the tournament manager and super administrators can see tournaments with fewer players. The live scoreboard updates automatically. Live and past tournaments use the same full-screen view. The **Tournament rules** section at the bottom covers all three rounds, including the ace battle when it wasn't played. For tournaments recorded later, this section shows just **Entered retrospectively**. Managers can edit settings from the top right. Click a player's name to see team tournament wins and losses, individual wins and losses overall and by opponent category, and ace battle results. Team results count confirmed tournaments, including players on the official roster who did not play a match. Your own record is also available in account settings. Switching between Chinese, English, and Korean keeps you on the current page.
-
-On the roster and in the current matchup, players turn red after their first win in the tournament. Players with no wins appear green. These colors carry over between rounds. In live KOF, players who have lost are struck through. History keeps the colors and shows all names without strikethrough. Use the three-line menu at the top right to adjust panel transparency (30% by default, saved in your browser), switch languages, go home, or sign in. The lineup and tournament settings controls appear beside this menu for managers.
-
-## Build and Deploy
-
-Install Go, then build from the project directory.
+### Start
 
 ```sh
-go build -o team-battle .
-./team-battle
+go run . --db test.sqlite
 ```
 
-For Windows PowerShell, use the executable name below.
+The repository `test.sqlite` is a demo database. The administrator and demo players use `test1234`. Use a new database path for production.
 
-```powershell
-go build -o team-battle.exe .
-.\team-battle.exe
-```
+### Workflow
 
-Tournament and account operation logs are written to standard output. Redirect them with your shell or process manager. Use `--language zh|en|ko` to select the log language. Chinese is the default. The application has no log query page.
+1. A super administrator creates a tournament with its name, start time, and manager.
+2. Add 6–12 players and choose fixed teams or a random draw.
+3. Set round-one, KOF, and ace rules, complete the draw, and start the tournament.
+4. The manager records each winner. KOF keeps the winner and replaces the loser. After one round win per side, draw the ace match.
+5. Confirm the tournament after all matches finish. Only a super administrator can delete or restore a closed tournament.
 
-### Cross-compile for Linux
+Anyone can watch a public tournament without signing in. Live viewing opens after six players are entered and scores update through SSE. The home page filters history by tournament name, date, and player.
 
-From Windows PowerShell, build for Linux x86-64.
+Super administrators manage accounts, tournaments, site settings, and backgrounds. Tournament managers handle their roster, lineups, results, and completion. Signed-in users can edit their profile and view records.
 
-```powershell
-$env:CGO_ENABLED = '0'
-$env:GOOS = 'linux'
-$env:GOARCH = 'amd64'
-go build -trimpath -o team-battle-linux-amd64 .
-Remove-Item Env:CGO_ENABLED, Env:GOOS, Env:GOARCH
-```
+## Development
 
-From Linux or macOS, set the build variables on the command line.
+Go 1.22+ is required. The frontend is embedded with `go:embed`, with no Node service or external CDN. SQLite uses a pure-Go driver and supports `CGO_ENABLED=0`.
 
 ```sh
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o team-battle-linux-amd64 .
+gofmt -w cmd internal main.go
+go test ./...
+go build ./...
 ```
 
-For an ARM64 server, use `arm64` in place of `amd64`. Copy the executable to Linux and run it.
+End-to-end tests require Node.js 20+ and npm:
 
 ```sh
-chmod +x team-battle-linux-amd64
-./team-battle-linux-amd64 --host 127.0.0.1
+cd e2e
+npm ci
+npx playwright install chromium
+npm test
 ```
 
-The default address is `http://localhost:9527`. On first launch, the app creates its data directory and a super administrator account named `admin` with password `test1234`. Sign in and change the password. Deployment requires one executable. Keep the data files after launch. Avatars and category icons are stored in the database. Backgrounds are stored in `uploads/backgrounds/` alongside it.
+Application code and tests are in `internal/app`, migrations are in `internal/migrations`, the production entry point is `cmd/team-battle`, and frontend assets are in `internal/app/web`. The demo database is `test.sqlite`; temporary data and test artifacts belong in `runtime`.
 
-Press Ctrl+C to stop the service, or configure Supervisor to send SIGTERM. The server stops accepting new requests, closes live update streams, and waits for active requests before closing the database.
+SQLite uses WAL, a 5-second lock wait on every connection, and a pool of up to four database connections. The HTTP server can accept around 100 simultaneous requests. Reads wait in the pool, while writes are serialized by the application write lock. The current setup is intended for roughly 30–40 regular users. Actual throughput depends on request mix and disk speed. The SSE limit is 500 connections shared by all tournaments and is separate from database concurrency.
 
-To upgrade, stop the app and back up the database and the adjacent `uploads/` directory. Replace the executable and start it. The app upgrades the database automatically and preserves existing data. It stops if the upgrade fails. To return to an earlier version, also restore the pre-upgrade backup.
+## Deploy
 
-| Option | Default | Purpose |
+Build and run:
+
+```sh
+CGO_ENABLED=0 go build -trimpath -o team-battle ./cmd/team-battle
+./team-battle --db ./runtime/team-battle.sqlite --host 127.0.0.1 --port 9527
+```
+
+The first start creates the database directory, schema, and `admin` account with password `test1234`. Migrations run before HTTP starts. Ctrl+C, SIGTERM, SIGHUP, and SIGQUIT wait for active requests before closing the database.
+
+| Flag | Default | Description |
 | --- | --- | --- |
-| `--db` | `./runtime/team-battle.sqlite` | Database path |
-| `--host` | `localhost` | Listen address |
-| `--port` | `9527` | Listen port |
-| `--sse-max-connections` | `500` | Shared limit on live update connections across all tournaments. Browsers retry automatically when the limit is reached. |
+| `--db` | `./runtime/team-battle.sqlite` | SQLite file |
+| `--host` | `localhost` | HTTP listen host |
+| `--port` | `9527` | HTTP listen port |
+| `--sse-max-connections` | `500` | Shared SSE connection limit |
+| `--language` | `zh` | Operation log language: `zh`, `en`, or `ko` |
+| `--log` | quiet | `stdout` writes to standard output. Other values are appended as file paths |
 
-### Nginx Reverse Proxy
+The program serves HTTP. Put it behind Nginx for HTTPS.
 
-The app serves HTTP. Configure the HTTPS certificate in Nginx. Run the app on `127.0.0.1:9527` and add this configuration inside your site's Nginx `server` block.
+Log examples:
+
+```sh
+./team-battle --log stdout
+./team-battle --log ./runtime/team-battle.log
+```
 
 ```nginx
 client_max_body_size 50m;
-
 location / {
     proxy_pass http://127.0.0.1:9527;
     proxy_http_version 1.1;
@@ -110,14 +93,4 @@ location / {
 }
 ```
 
-Keep proxy buffering off so viewers receive live scores promptly. Check the configuration with `nginx -t`, then apply it with `nginx -s reload`.
-
-### Demo Data
-
-The repository's `test.sqlite` contains tournaments at different stages and sample images. The administrator login name is `admin`. Players sign in as `Flash`, `Jaedong`, `Bisu`, `Stork`, `sAviOr`, `iloveoov`, `NaDa`, `Rain`, or `soO`, matching their display names. All demo accounts use the password `test1234`.
-
-```sh
-go run . --db test.sqlite
-```
-
-The demo database and images are separate from the executable. Create a fresh database for production use.
+Stop the service before upgrading. Back up the database and its sibling `uploads/` directory, replace the binary, and start it again. The program applies forward migrations automatically. A failed migration stops startup. Restore the complete backup to roll back.

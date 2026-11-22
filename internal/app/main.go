@@ -246,11 +246,8 @@ func Main() {
 	sqlPath := flag.String("sql", "", "SQLite database path alias")
 	sseMaxConnections := flag.Int("sse-max-connections", defaultSSEMaxConnections, "Maximum simultaneous SSE subscriptions")
 	logLanguage := flag.String("language", "zh", "Operation log language: zh, en, ko")
-	logDestination := flag.String("log", "", "Log destination: stdout (omit to disable routine logs)")
+	logDestination := flag.String("log", "", "Log destination: stdout or a file path (omit to disable routine logs)")
 	flag.Parse()
-	if *logDestination != "" && *logDestination != "stdout" {
-		log.Fatalf("--log 只支持 stdout")
-	}
 	if *sseMaxConnections < 1 {
 		log.Fatal("--sse-max-connections 必须大于 0")
 	}
@@ -264,15 +261,21 @@ func Main() {
 	if *dbPath == "" {
 		*dbPath = defaultDatabasePath()
 	}
-	var operationLog *operationLogger
-	if *logDestination == "stdout" {
-		operationLog = newOperationLogger(os.Stdout, *logLanguage)
+	operationLog, logFile, err := openOperationLogger(*logDestination, *logLanguage)
+	if err != nil {
+		log.Fatalf("打开日志输出失败: %v", err)
+	}
+	if logFile != nil {
+		defer logFile.Close()
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT)
 	addr := net.JoinHostPort(*host, strconv.Itoa(*port))
-	err := run(ctx, addr, *dbPath, *sseMaxConnections, *logLanguage, operationLog)
+	err = run(ctx, addr, *dbPath, *sseMaxConnections, *logLanguage, operationLog)
 	stop()
 	if err != nil {
+		if logFile != nil {
+			_ = logFile.Close()
+		}
 		log.Fatal(err)
 	}
 	if ctx.Err() != nil {
@@ -281,6 +284,24 @@ func Main() {
 			"Service stopped and database closed",
 			"서비스가 중지되고 데이터베이스가 닫혔습니다"))
 	}
+}
+
+// openOperationLogger 创建追加写入的操作日志输出；stdout 保留为标准输出别名。
+func openOperationLogger(destination, language string) (*operationLogger, *os.File, error) {
+	if destination == "" {
+		return nil, nil, nil
+	}
+	if destination == "stdout" {
+		return newOperationLogger(os.Stdout, language), nil, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(destination), 0755); err != nil {
+		return nil, nil, err
+	}
+	file, err := os.OpenFile(destination, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, nil, err
+	}
+	return newOperationLogger(file, language), file, nil
 }
 
 func run(ctx context.Context, addr, dbPath string, sseMaxConnections int, logLanguage string, operationLog *operationLogger) (err error) {
