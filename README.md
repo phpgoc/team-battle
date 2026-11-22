@@ -47,7 +47,6 @@ npm test
 
 业务代码和测试在 `internal/app`，迁移在 `internal/migrations`，正式入口在 `cmd/team-battle`，前端在 `internal/app/web`。演示数据库为根目录的 `test.sqlite`，临时数据和测试产物放在 `runtime`。
 
-SQLite 使用 WAL、每条连接 5 秒锁等待和最多 4 个数据库连接。HTTP 服务可以同时接收约 100 个请求，读请求会在连接池中排队，写请求由应用写锁串行执行。30–40 名普通用户的访问规模适合当前配置，实际吞吐取决于请求类型和磁盘。SSE 上限是所有赛事共享的 500 条连接，不等同于数据库并发数。
 
 ## 部署
 
@@ -73,9 +72,14 @@ go build -trimpath -o team-battle.exe ./cmd/team-battle
 | `--db` | `./runtime/team-battle.sqlite` | SQLite 文件路径 |
 | `--host` | `localhost` | HTTP 监听地址 |
 | `--port` | `9527` | HTTP 监听端口 |
+| `--http-max-reads` | `100` | 普通 HTTP 读请求并发上限 |
+| `--http-max-writes` | `10` | HTTP 写请求上限，包含排队请求 |
+| `--db-max-connections` | `4` | SQLite 共享连接池上限 |
 | `--sse-max-connections` | `500` | 全部赛事共享的 SSE 连接上限 |
 | `--language` | `zh` | 操作日志语言，支持 `zh`、`en`、`ko` |
 | `--log` | 静默 | `stdout` 输出到标准输出，其他值按文件路径追加写入 |
+
+普通 HTTP 请求超过读写配额时返回 503。SQLite 在 WAL 模式下可边读边写，同一时刻只提交一个写事务。SSE 有独立配额，连接建立后不长期占用数据库连接。
 
 程序只提供 HTTP。生产环境建议放在 Nginx 后面处理 HTTPS：
 

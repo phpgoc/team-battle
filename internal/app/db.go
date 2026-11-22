@@ -10,8 +10,18 @@ import (
 	sqlite "modernc.org/sqlite"
 )
 
-// 每条连接都启用外键和锁等待；WAL使SSE读取不会阻塞保存事务提交。
+const defaultDBMaxConnections = 4
+
 func openDatabase(path string, captures ...*sqlWriteCapture) (*sql.DB, error) {
+	var capture *sqlWriteCapture
+	if len(captures) > 0 {
+		capture = captures[0]
+	}
+	return openDatabaseWithLimit(path, defaultDBMaxConnections, capture)
+}
+
+// 每条连接都启用外键和锁等待；WAL允许读写同时进行。
+func openDatabaseWithLimit(path string, maxConnections int, capture *sqlWriteCapture) (*sql.DB, error) {
 	absolute, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
@@ -23,16 +33,16 @@ func openDatabase(path string, captures ...*sqlWriteCapture) (*sql.DB, error) {
 	query.Set("_txlock", "immediate")
 	uri.RawQuery = query.Encode()
 	driverName := "sqlite"
-	if len(captures) > 0 && captures[0] != nil {
+	if capture != nil {
 		driverName = fmt.Sprintf("sqlite-operation-log-%d", nextLoggingDriverID.Add(1))
-		sql.Register(driverName, &operationLogDriver{base: &sqlite.Driver{}, capture: captures[0]})
+		sql.Register(driverName, &operationLogDriver{base: &sqlite.Driver{}, capture: capture})
 	}
 	db, err := sql.Open(driverName, uri.String())
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(4)
-	db.SetMaxIdleConns(4)
+	db.SetMaxOpenConns(maxConnections)
+	db.SetMaxIdleConns(maxConnections)
 	if _, err := db.Exec(`PRAGMA journal_mode=WAL`); err != nil {
 		db.Close()
 		return nil, err

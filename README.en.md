@@ -47,7 +47,6 @@ npm test
 
 Application code and tests are in `internal/app`, migrations are in `internal/migrations`, the production entry point is `cmd/team-battle`, and frontend assets are in `internal/app/web`. The demo database is `test.sqlite`; temporary data and test artifacts belong in `runtime`.
 
-SQLite uses WAL, a 5-second lock wait on every connection, and a pool of up to four database connections. The HTTP server can accept around 100 simultaneous requests. Reads wait in the pool, while writes are serialized by the application write lock. The current setup is intended for roughly 30–40 regular users. Actual throughput depends on request mix and disk speed. The SSE limit is 500 connections shared by all tournaments and is separate from database concurrency.
 
 ## Deploy
 
@@ -65,9 +64,14 @@ The first start creates the database directory, schema, and `admin` account with
 | `--db` | `./runtime/team-battle.sqlite` | SQLite file |
 | `--host` | `localhost` | HTTP listen host |
 | `--port` | `9527` | HTTP listen port |
+| `--http-max-reads` | `100` | Concurrent regular HTTP reads |
+| `--http-max-writes` | `10` | Concurrent HTTP writes, including queued requests |
+| `--db-max-connections` | `4` | Shared SQLite connection pool limit |
 | `--sse-max-connections` | `500` | Shared SSE connection limit |
 | `--language` | `zh` | Operation log language: `zh`, `en`, or `ko` |
 | `--log` | quiet | `stdout` writes to standard output. Other values are appended as file paths |
+
+Regular HTTP requests over their limit receive a 503 response. SQLite in WAL mode supports concurrent reads and a single writer. SSE has its own limit and releases database connections after setup.
 
 The program serves HTTP. Put it behind Nginx for HTTPS.
 

@@ -47,7 +47,6 @@ npm test
 
 애플리케이션 코드와 테스트는 `internal/app`, 마이그레이션은 `internal/migrations`, 실행 진입점은 `cmd/team-battle`, 프론트엔드는 `internal/app/web`에 있습니다. 데모 데이터베이스는 `test.sqlite`이며 임시 데이터와 테스트 결과는 `runtime`에 둡니다.
 
-SQLite는 WAL, 모든 연결의 5초 잠금 대기, 최대 4개의 데이터베이스 연결을 사용합니다. HTTP 서버는 약 100개의 동시 요청을 받을 수 있습니다. 읽기 요청은 풀에서 대기하고 쓰기 요청은 애플리케이션 잠금으로 직렬화됩니다. 현재 설정은 일반 사용자 30–40명 규모에 맞습니다. 실제 처리량은 요청 종류와 디스크 속도에 따라 달라집니다. SSE 상한 500은 모든 대회가 공유하며 데이터베이스 동시성과 별개입니다.
 
 ## 배포
 
@@ -65,9 +64,14 @@ CGO_ENABLED=0 go build -trimpath -o team-battle ./cmd/team-battle
 | `--db` | `./runtime/team-battle.sqlite` | SQLite 파일 |
 | `--host` | `localhost` | HTTP 수신 주소 |
 | `--port` | `9527` | HTTP 수신 포트 |
+| `--http-max-reads` | `100` | 일반 HTTP 읽기 동시 요청 한도 |
+| `--http-max-writes` | `10` | 대기 중인 요청을 포함한 HTTP 쓰기 동시 요청 한도 |
+| `--db-max-connections` | `4` | 공용 SQLite 연결 풀 상한 |
 | `--sse-max-connections` | `500` | 전체 대회의 SSE 연결 상한 |
 | `--language` | `zh` | 작업 로그 언어: `zh`, `en`, `ko` |
 | `--log` | quiet | `stdout`은 표준 출력, 그 외 값은 파일 경로로 추가 기록 |
+
+일반 HTTP 요청이 한도를 초과하면 503이 반환됩니다. WAL 모드의 SQLite는 읽기와 쓰기를 동시에 처리할 수 있으며, 쓰기 트랜잭션은 한 번에 하나씩 진행됩니다. SSE는 별도 한도를 사용하며 연결 설정 후 데이터베이스 연결을 계속 점유하지 않습니다.
 
 프로그램은 HTTP만 제공합니다. HTTPS는 Nginx에서 처리하세요.
 

@@ -12,6 +12,7 @@ func (a *App) router() *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(a.rejectDuringShutdown)
+	r.Use(limitHTTPConcurrency(a.httpLimits))
 	r.Use(a.broadcastAfterMutation)
 	a.registerPageRoutes(r)
 	r.GET("/live/:id/setting", func(c *gin.Context) { a.serveLiveEntry(c, true) })
@@ -95,11 +96,16 @@ func (a *App) router() *gin.Engine {
 	r.POST("/api/auth/login", a.login)
 	api := r.Group("/api")
 	api.Use(func(c *gin.Context) {
-		if c.Request.Method != http.MethodGet {
+		write := !isHTTPRead(c.Request.Method)
+		if write {
 			a.writeMu.Lock()
 			defer a.writeMu.Unlock()
+			if c.Request.Context().Err() != nil {
+				c.Abort()
+				return
+			}
 		}
-		if c.Request.Method != http.MethodGet && a.operationLogger != nil {
+		if write && a.operationLogger != nil {
 			operation := a.operationLogger.begin(c.FullPath(), c.Request.Method)
 			actor := a.operationLogActor(c)
 			c.Next()
@@ -123,7 +129,7 @@ func (a *App) router() *gin.Engine {
 	api.GET("/public/history", a.publicHistory)
 	api.GET("/public/users/:id/records", a.publicPlayerRecords)
 	api.GET("/public/tournaments/:id", a.publicTournament)
-	api.GET("/public/tournaments/:id/stream", limitSSEConnections(a.sseMaxConnections), a.publicStream)
+	r.GET(publicTournamentStreamRoute, limitSSEConnections(a.sseMaxConnections), a.publicStream)
 
 	api.GET("/users", a.listUsers)
 	api.POST("/users", a.createUser)

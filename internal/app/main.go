@@ -64,6 +64,7 @@ type App struct {
 	broadcast         streamHub
 	logins            loginLimiter
 	sseMaxConnections int
+	httpLimits        httpConcurrencyLimits
 	logLanguage       string
 	operationLogger   *operationLogger
 	shutdownStarted   atomic.Bool
@@ -245,11 +246,17 @@ func Main() {
 	dbPath := flag.String("db", "", "SQLite database path")
 	sqlPath := flag.String("sql", "", "SQLite database path alias")
 	sseMaxConnections := flag.Int("sse-max-connections", defaultSSEMaxConnections, "Maximum simultaneous SSE subscriptions")
+	readLimit := flag.Int("http-max-reads", defaultHTTPReads, "Maximum simultaneous non-SSE HTTP read requests")
+	writeLimit := flag.Int("http-max-writes", defaultHTTPWrites, "Maximum admitted HTTP write requests, including those waiting")
+	dbLimit := flag.Int("db-max-connections", defaultDBMaxConnections, "Maximum open SQLite connections")
 	logLanguage := flag.String("language", "zh", "Operation log language: zh, en, ko")
 	logDestination := flag.String("log", "", "Log destination: stdout or a file path (omit to disable routine logs)")
 	flag.Parse()
 	if *sseMaxConnections < 1 {
 		log.Fatal("--sse-max-connections 必须大于 0")
+	}
+	if *readLimit < 1 || *writeLimit < 1 || *dbLimit < 1 {
+		log.Fatal("--http-max-reads、--http-max-writes 和 --db-max-connections 必须大于 0")
 	}
 	if *logLanguage != "zh" && *logLanguage != "en" && *logLanguage != "ko" {
 		log.Fatal("--language 只支持 zh、en、ko")
@@ -270,7 +277,7 @@ func Main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT)
 	addr := net.JoinHostPort(*host, strconv.Itoa(*port))
-	err = run(ctx, addr, *dbPath, *sseMaxConnections, *logLanguage, operationLog)
+	err = run(ctx, addr, *dbPath, *sseMaxConnections, *dbLimit, httpConcurrencyLimits{reads: *readLimit, writes: *writeLimit}, *logLanguage, operationLog)
 	stop()
 	if err != nil {
 		if logFile != nil {
@@ -304,17 +311,16 @@ func openOperationLogger(destination, language string) (*operationLogger, *os.Fi
 	return newOperationLogger(file, language), file, nil
 }
 
-func run(ctx context.Context, addr, dbPath string, sseMaxConnections int, logLanguage string, operationLog *operationLogger) (err error) {
+func run(ctx context.Context, addr, dbPath string, sseMaxConnections, dbLimit int, httpLimits httpConcurrencyLimits, logLanguage string, operationLog *operationLogger) (err error) {
 	storageDir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(storageDir, 0755); err != nil {
 		return err
 	}
-	var db *sql.DB
+	var capture *sqlWriteCapture
 	if operationLog != nil {
-		db, err = openDatabase(dbPath, operationLog.capture)
-	} else {
-		db, err = openDatabase(dbPath)
+		capture = operationLog.capture
 	}
+	db, err := openDatabaseWithLimit(dbPath, dbLimit, capture)
 	if err != nil {
 		return err
 	}
@@ -340,6 +346,7 @@ func run(ctx context.Context, addr, dbPath string, sseMaxConnections int, logLan
 		rng:               mathrand.New(mathrand.NewSource(time.Now().UnixNano())),
 		storageDir:        storageDir,
 		sseMaxConnections: sseMaxConnections,
+		httpLimits:        httpLimits,
 		logLanguage:       logLanguage,
 		operationLogger:   operationLog,
 	}
