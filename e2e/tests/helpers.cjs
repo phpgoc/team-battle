@@ -1,7 +1,13 @@
 const { test: base, expect } = require('@playwright/test');
 
+let clientSequence = 0;
+
 // 用例结束时检查运行时异常，避免界面看似存在但交互脚本已经失败。
 const test = base.extend({
+  extraHTTPHeaders: async ({}, use, testInfo) => {
+    // 模拟本机反代为每个用例提供独立客户端地址，保留同一用例内的登录限流。
+    await use({ 'X-Real-IP': `10.${testInfo.workerIndex}.${++clientSequence}.1` });
+  },
   checkPageErrors: [async ({ page }, use) => {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
